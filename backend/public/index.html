@@ -96,7 +96,7 @@
         </div></div>
         <div class="chart-legend"><span><i class="key"></i>Temperature °C</span><span><i class="key humidity"></i>Humidity %</span></div>
         <svg id="trendChart" role="img" aria-label="Temperature and humidity trend chart" viewBox="0 0 800 240" preserveAspectRatio="none"></svg>
-        <div id="chartCaption" class="chart-caption">Trends are summarized by minute from the time the monitor starts.</div>
+      <div id="chartCaption" class="chart-caption">A stable simulated 24-hour baseline is generated at startup; later readings are live simulation data.</div>
       </article>
 
       <section class="lower">
@@ -128,7 +128,6 @@
         const svg = $('trendChart');
         const W = 800, H = 240, pad = { l:42, r:14, t:16, b:30 };
         const innerW = W - pad.l - pad.r, innerH = H - pad.t - pad.b;
-        const allTimes = points.map((p) => new Date(p.recordedAt).getTime());
         const rangeMs = ({ '24h':24, month:720, '3months':2160 }[selectedRange]) * 3600000;
         const end = Date.now(), start = end - rangeMs;
         const x = (time) => pad.l + ((time - start) / rangeMs) * innerW;
@@ -154,8 +153,8 @@
         }).join('');
         svg.innerHTML = `${grid}${dateLabels}${paths('temperature','#25865c',tempY)}${paths('humidity','#4e81ce',humY)}`;
         $('chartCaption').textContent = points.length
-          ? `Showing ${points.length} minute summaries collected since this server started. Empty periods mean no data was collected.`
-          : 'No readings in this period yet. Data collection starts when the monitor server starts; no historical data is fabricated.';
+          ? 'Includes a stable, generated 24-hour demo baseline. Newer readings are live simulation data; longer ranges contain only data collected since startup.'
+          : 'No trend readings are available for this period.';
       }
       async function loadTrend() {
         try {
