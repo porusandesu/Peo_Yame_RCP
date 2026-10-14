@@ -25,6 +25,7 @@ class DashboardController extends ChangeNotifier {
   String? trendError;
   bool isLoading = true;
   bool isTriggering = false;
+  bool isChangingHarvest = false;
   String? errorMessage;
 
   Timer? _timer;
@@ -42,6 +43,25 @@ class DashboardController extends ChangeNotifier {
     if (range == trendRange) return;
     trendRange = range;
     await _loadTrends();
+  }
+
+  Future<void> setHarvest(String name) async {
+    if (isChangingHarvest) return;
+    isChangingHarvest = true;
+    notifyListeners();
+    try {
+      await _api.setCommodity(name);
+      await _refresh();
+    } catch (e) {
+      if (!_disposed) {
+        errorMessage = 'Could not select $name at $baseUrl. ($e)';
+      }
+    } finally {
+      if (!_disposed) {
+        isChangingHarvest = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> _loadTrends({bool notify = true}) async {
