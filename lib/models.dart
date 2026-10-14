@@ -21,6 +21,26 @@ class Reading {
   }
 }
 
+class TrendPoint {
+  final String recordedAt;
+  final double temperature;
+  final double humidity;
+
+  const TrendPoint({
+    required this.recordedAt,
+    required this.temperature,
+    required this.humidity,
+  });
+
+  factory TrendPoint.fromJson(Map<String, dynamic> json) {
+    return TrendPoint(
+      recordedAt: json['recordedAt'] as String,
+      temperature: (json['temperature'] as num).toDouble(),
+      humidity: (json['humidity'] as num).toDouble(),
+    );
+  }
+}
+
 class Threshold {
   final String commodity;
   final double minTemp;
