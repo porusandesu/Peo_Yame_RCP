@@ -239,7 +239,11 @@ class _DashboardPageState extends State<DashboardPage> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  _HarvestCard(status: status),
+                  _HarvestCard(
+                    status: status,
+                    isChanging: _controller.isChangingHarvest,
+                    onChanged: _controller.setHarvest,
+                  ),
                   const SizedBox(height: 22),
                   _SectionTitle(
                     title: 'Conditions over time',
@@ -677,15 +681,15 @@ class _RiskGauge extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'High risk',
+              'High',
               style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
             ),
             Text(
-              'Low risk',
+              'Low',
               style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
             ),
             Text(
-              'High risk',
+              'High',
               style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
             ),
           ],
@@ -696,9 +700,15 @@ class _RiskGauge extends StatelessWidget {
 }
 
 class _HarvestCard extends StatelessWidget {
-  const _HarvestCard({required this.status});
+  const _HarvestCard({
+    required this.status,
+    required this.isChanging,
+    required this.onChanged,
+  });
 
   final StatusResponse status;
+  final bool isChanging;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -727,12 +737,19 @@ class _HarvestCard extends StatelessWidget {
                     'Harvest',
                     style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
                   ),
-                  Text(
-                    status.threshold.commodity,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
+                  DropdownButton<String>(
+                    value: status.threshold.commodity,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    onChanged: isChanging
+                        ? null
+                        : (crop) {
+                            if (crop != null) onChanged(crop);
+                          },
+                    items: const [
+                      DropdownMenuItem(value: 'Maize', child: Text('Maize')),
+                      DropdownMenuItem(value: 'Tomato', child: Text('Tomato')),
+                    ],
                   ),
                 ],
               ),
@@ -744,12 +761,25 @@ class _HarvestCard extends StatelessWidget {
                   'Storage estimate',
                   style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
                 ),
-                Text(
-                  days == null ? 'Awaiting data' : '~$days days',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isChanging) ...[
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      days == null ? 'Awaiting data' : '~$days days',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
