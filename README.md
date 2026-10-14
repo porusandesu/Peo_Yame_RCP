@@ -40,6 +40,14 @@ Use the **Harvest** selector to switch between Maize and Tomato. Each selection
 loads that crop's illustrative temperature and humidity limits and immediately
 adds an in-range simulated reading for the selected crop.
 
+The backend also exposes `/api/health` and sensor-gateway endpoints. To run an
+optional simulated sensor that follows the selected harvest, start the backend
+first, then run `cd backend && npm run simulate:sensor` in a second terminal.
+Sensor readings can be submitted with `POST /api/readings`; recent readings are
+available from `GET /api/readings?limit=60`. Alerts can be acknowledged through
+`POST /api/alerts/:id/acknowledge`, and incident records use `GET` and `POST`
+`/api/incidents`.
+
 For a build-time address override, use
 `flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
 

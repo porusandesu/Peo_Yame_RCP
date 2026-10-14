@@ -135,6 +135,23 @@
         const risk = Math.min(1, Math.abs(value - midpoint) / halfRange);
         $(id).style.left = `${Math.max(0, Math.min(100, risk * 100))}%`;
       }
+      function applyHarvestSelection({ threshold: t, reading: latest }) {
+        $('harvest').value = t.commodity;
+        $('temperature').textContent = `${latest.temperature.toFixed(1)} °C`;
+        $('humidity').textContent = `${latest.humidity.toFixed(1)} %`;
+        $('status').textContent = 'Safe';
+        $('status').className = 'value status-safe';
+        $('statusNote').textContent = `Last reading ${fmtTime(latest.recordedAt)}`;
+        $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
+        $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+        const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
+        const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
+        const combinedRisk = Math.max(tempRisk, humidityRisk);
+        const estimateDays = combinedRisk > .8 ? 30 : combinedRisk > .55 ? 60 : combinedRisk > .3 ? 120 : 180;
+        $('storageEstimate').textContent = `~${estimateDays} days`;
+        positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
+        positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
+      }
       function drawChart(points) {
         const svg = $('trendChart');
         const W = 800, H = 240, pad = { l:42, r:14, t:16, b:30 };
@@ -222,7 +239,8 @@
       $('harvest').addEventListener('change', async (event) => {
         $('harvest').disabled = true;
         try {
-          await postJson('/api/commodity', { name: event.target.value });
+          const result = await postJson('/api/commodity', { name: event.target.value });
+          applyHarvestSelection(result);
           await refresh();
         } catch (err) {
           $('error').className = 'error';

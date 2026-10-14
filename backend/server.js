@@ -51,14 +51,18 @@ let readings = [];
 let trendBuckets = [];
 let alerts = [];
 let smsLog = [];
+let incidents = [];
 let nextReadingId = 1;
 let nextAlertId = 1;
+let nextIncidentId = 1;
 let demoBreachActive = false;
 let demoBreachTimeout;
 
-function recordReading(temperature, humidity) {
+function recordReading(temperature, humidity, site = "default") {
   const reading = {
     id: nextReadingId++,
+    site,
+    commodity: threshold.commodity,
     temperature: Math.round(temperature * 10) / 10,
     humidity: Math.round(humidity * 10) / 10,
     recordedAt: new Date().toISOString(),
@@ -105,8 +109,10 @@ function recordReading(temperature, humidity) {
     const alert = {
       id: nextAlertId++,
       readingId: reading.id,
+      commodity: threshold.commodity,
       message: `Threshold breached: ${reading.temperature}\u00b0C, ${reading.humidity}% RH`,
       sentAt,
+      acknowledged: false,
     };
     alerts.unshift(alert);
     if (alerts.length > 50) alerts.pop();
@@ -197,8 +203,68 @@ app.get("/api/status", (req, res) => {
   res.json({ latest, threshold, breached: !!breached });
 });
 
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Sensor gateway endpoint. A single storage bay has one active harvest, so
+// incoming readings are checked against the crop currently selected in the app.
+app.post("/api/readings", (req, res) => {
+  const { temperature, humidity, site = "default", commodity } = req.body || {};
+  if (
+    typeof temperature !== "number" ||
+    !Number.isFinite(temperature) ||
+    typeof humidity !== "number" ||
+    !Number.isFinite(humidity) ||
+    humidity < 0 || humidity > 100
+  ) {
+    return res.status(400).json({
+      error: "temperature and humidity must be finite numbers, with humidity between 0 and 100",
+    });
+  }
+  if (typeof site !== "string" || !site.trim()) {
+    return res.status(400).json({ error: "site must be a non-empty string" });
+  }
+  if (commodity !== undefined) {
+    const requested = typeof commodity === "string"
+      ? Object.keys(thresholds).find((name) => name.toLowerCase() === commodity.trim().toLowerCase())
+      : undefined;
+    if (!requested) {
+      return res.status(400).json({ error: "commodity must be Maize or Tomato" });
+    }
+    if (requested !== threshold.commodity) {
+      return res.status(409).json({
+        error: `Active harvest is ${threshold.commodity}; select ${requested} in the app before sending its readings.`,
+      });
+    }
+  }
+
+  const reading = recordReading(temperature, humidity, site.trim());
+  const alert = alerts.find((item) => item.readingId === reading.id) || null;
+  res.status(201).json({ reading, threshold, alert });
+});
+
+// Recent sensor history; oldest first for chart consumers.
+app.get("/api/readings", (req, res) => {
+  const parsedLimit = Number.parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(parsedLimit || 60, 1), 200);
+  const crop = typeof req.query.commodity === "string"
+    ? req.query.commodity.trim().toLowerCase()
+    : null;
+  const matches = crop
+    ? readings.filter((reading) => reading.commodity.toLowerCase() === crop)
+    : readings;
+  res.json(matches.slice(-limit));
+});
+
 app.get("/api/readings/latest", (req, res) => {
-  res.json(readings[readings.length - 1] || null);
+  const crop = typeof req.query.commodity === "string"
+    ? req.query.commodity.trim().toLowerCase()
+    : null;
+  const matches = crop
+    ? readings.filter((reading) => reading.commodity.toLowerCase() === crop)
+    : readings;
+  res.json(matches[matches.length - 1] || null);
 });
 
 app.get("/api/readings/history", (req, res) => {
@@ -249,11 +315,57 @@ app.post("/api/commodity", (req, res) => {
 });
 
 app.get("/api/alerts", (req, res) => {
-  res.json(alerts);
+  const parsedLimit = Number.parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(parsedLimit || 50, 1), 200);
+  const selected = req.query.unacknowledged === "true"
+    ? alerts.filter((alert) => !alert.acknowledged)
+    : alerts;
+  res.json(selected.slice(0, limit));
+});
+
+app.post("/api/alerts/:id/acknowledge", (req, res) => {
+  const alert = alerts.find((item) => item.id === Number.parseInt(req.params.id, 10));
+  if (!alert) return res.status(404).json({ error: "Alert not found" });
+  alert.acknowledged = true;
+  res.json(alert);
 });
 
 app.get("/api/sms-log", (req, res) => {
   res.json(smsLog);
+});
+
+app.get("/api/incidents", (req, res) => {
+  res.json(incidents);
+});
+
+app.post("/api/incidents", (req, res) => {
+  const {
+    incident_date: incidentDate,
+    commodity,
+    breach_description: breachDescription,
+    duration = null,
+    outcome,
+  } = req.body || {};
+  const crop = typeof commodity === "string"
+    ? Object.keys(thresholds).find((name) => name.toLowerCase() === commodity.trim().toLowerCase())
+    : undefined;
+  if (!incidentDate || !crop || !breachDescription || !["loss", "noloss"].includes(outcome)) {
+    return res.status(400).json({
+      error: "incident_date, a supported commodity, breach_description, and outcome (loss or noloss) are required",
+    });
+  }
+
+  const incident = {
+    id: nextIncidentId++,
+    incident_date: String(incidentDate),
+    commodity: crop,
+    breach_description: String(breachDescription),
+    duration: duration == null ? null : String(duration),
+    outcome,
+    created_at: new Date().toISOString(),
+  };
+  incidents.unshift(incident);
+  res.status(201).json(incident);
 });
 
 // Hold the injected breach as the latest reading long enough for the phone demo.

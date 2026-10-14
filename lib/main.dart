@@ -740,6 +740,7 @@ class _HarvestCard extends StatelessWidget {
                   DropdownButton<String>(
                     value: status.threshold.commodity,
                     isDense: true,
+                    isExpanded: true,
                     underline: const SizedBox.shrink(),
                     onChanged: isChanging
                         ? null

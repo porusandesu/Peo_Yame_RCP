@@ -53,8 +53,12 @@ class DashboardController extends ChangeNotifier {
     _refreshGeneration++;
     notifyListeners();
     try {
-      await _api.setCommodity(name);
+      final updatedStatus = await _api.setCommodity(name);
+      if (_disposed) return;
+      status = updatedStatus;
+      errorMessage = null;
       _refreshGeneration++;
+      notifyListeners();
       await _refresh();
     } catch (e) {
       if (!_disposed) {
