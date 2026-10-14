@@ -22,9 +22,11 @@ default `http://10.0.2.2:3000` address.
 
 The app refreshes status, alerts, readings, and trend data every five seconds.
 Pull down to refresh manually, or tap the warning icon to inject a sample breach.
-The trend selector shows 24 hours, one month, or three months of available
-minute summaries. These summaries begin when the backend starts; the demo does
-not fabricate earlier data and restarts clear the in-memory history.
+The trend selector shows 24 hours, one month, or three months. At startup, the
+backend generates a stable, explicitly synthetic 24-hour baseline so the chart
+is populated immediately. Live simulated readings are added after startup;
+older month history is collected only while the backend is running. Restarting
+the backend clears the in-memory trend history.
 
 ## Presentation flow
 
