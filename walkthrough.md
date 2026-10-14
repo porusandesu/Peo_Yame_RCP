@@ -33,8 +33,10 @@ the backend clears the in-memory trend history.
 1. Show the desktop dashboard and the phone app together.
 2. Point out the safe or breached status, the temperature and humidity risk
    gauges, and the selected trend range.
-3. Trigger a sample breach and show the alert appearing in both interfaces.
-4. Explain the system limitations: readings are simulated, no physical sensor
+3. Change Harvest between Maize and Tomato and show the matching limits and
+   simulated reading update.
+4. Trigger a sample breach and show the alert appearing in both interfaces.
+5. Explain the system limitations: readings are simulated, no physical sensor
    is connected, SMS alerts are logged but not sent, and the storage-time
    estimate is illustrative rather than a validated spoilage model.
 
