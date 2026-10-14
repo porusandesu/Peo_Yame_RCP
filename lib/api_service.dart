@@ -68,6 +68,17 @@ class ApiService {
     _ensureOk(response);
   }
 
+  Future<void> setCommodity(String name) async {
+    final response = await _client
+        .post(
+          _uri('/api/commodity'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'name': name}),
+        )
+        .timeout(const Duration(seconds: 5));
+    _ensureOk(response);
+  }
+
   void _ensureOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('HTTP ${response.statusCode}: ${response.body}');
