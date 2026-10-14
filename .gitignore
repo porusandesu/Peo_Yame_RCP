@@ -50,3 +50,5 @@ app.*.map.json
 **/.gradle/
 **/build/
 **/ephemeral/
+/backend/node_modules/
+/backend/data/*.db
