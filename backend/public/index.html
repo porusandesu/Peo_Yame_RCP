@@ -33,6 +33,7 @@
       .card { padding:16px; min-height:124px; }
       .label { color:var(--muted); font-size:13px; font-weight:650; }
       .value { margin-top:8px; font-size:27px; line-height:1.1; font-weight:750; letter-spacing:-.04em; }
+      .harvest-select { display:block; width:100%; margin-top:7px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); padding:7px 9px; font:inherit; font-size:18px; font-weight:700; }
       .sub { margin-top:7px; color:var(--muted); font-size:12px; }
       .status-safe { color:var(--green); } .status-alert { color:var(--red); }
       .risk { margin-top:12px; }
@@ -85,9 +86,9 @@
       <div id="error" role="status" aria-live="polite"></div>
       <section class="cards" aria-label="Current storage status">
         <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div></article>
-        <article class="card"><div class="label">Temperature · spoilage risk</div><div class="value" id="temperature">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="tempMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="tempRange">Waiting for reading</div></article>
-        <article class="card"><div class="label">Humidity · spoilage risk</div><div class="value" id="humidity">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="humidityMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="humidityRange">Waiting for reading</div></article>
-        <article class="card"><div class="label">Harvest</div><div class="value" id="harvest">—</div><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
+        <article class="card"><div class="label">Temperature</div><div class="value" id="temperature">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="tempMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="tempRange">Waiting for reading</div></article>
+        <article class="card"><div class="label">Humidity</div><div class="value" id="humidity">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="humidityMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="humidityRange">Waiting for reading</div></article>
+        <article class="card"><div class="label">Harvest</div><select class="harvest-select" id="harvest" aria-label="Select harvest"><option value="Maize">Maize</option><option value="Tomato">Tomato</option></select><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
       </section>
 
       <article class="panel chart-panel">
@@ -115,6 +116,15 @@
       let chartData = [];
       async function getJson(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
+        return response.json();
+      }
+      async function postJson(url, payload) {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload)
+        });
         if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
         return response.json();
       }
@@ -175,7 +185,7 @@
           $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
           $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
           $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
-          $('harvest').textContent = t.commodity;
+          $('harvest').value = t.commodity;
           if (latest) {
             const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
             const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
@@ -205,6 +215,17 @@
         }
       }
       $('refresh').addEventListener('click', refresh);
+      $('harvest').addEventListener('change', async (event) => {
+        $('harvest').disabled = true;
+        try {
+          await postJson('/api/commodity', { name: event.target.value });
+          await refresh();
+        } catch (err) {
+          $('error').className = 'error';
+          $('error').textContent = `Could not change harvest: ${err.message}`;
+          await refresh();
+        } finally { $('harvest').disabled = false; }
+      });
       $('trigger').addEventListener('click', async () => {
         $('trigger').disabled = true;
         try {
