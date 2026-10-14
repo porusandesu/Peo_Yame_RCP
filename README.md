@@ -36,6 +36,10 @@ dashboard also shows recent readings, alerts, and the simulated SMS log. Open
 `http://<PC-IP>:3000` on another device on the same Wi-Fi network. The backend
 keeps readings and logs in memory, so restarting it clears them.
 
+Use the **Harvest** selector to switch between Maize and Tomato. Each selection
+loads that crop's illustrative temperature and humidity limits and immediately
+adds an in-range simulated reading for the selected crop.
+
 For a build-time address override, use
 `flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
 
