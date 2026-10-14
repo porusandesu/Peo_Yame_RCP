@@ -26,13 +26,23 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = 3000;
 
 // ---- Config: mirrors your ER diagram's THRESHOLD table ----
-const threshold = {
-  commodity: "Maize",
-  minTemp: 10,
-  maxTemp: 27,
-  minHumidity: 30,
-  maxHumidity: 70,
+const thresholds = {
+  Maize: {
+    commodity: "Maize",
+    minTemp: 10,
+    maxTemp: 27,
+    minHumidity: 30,
+    maxHumidity: 70,
+  },
+  Tomato: {
+    commodity: "Tomato",
+    minTemp: 10,
+    maxTemp: 20,
+    minHumidity: 85,
+    maxHumidity: 95,
+  },
 };
+let threshold = thresholds.Maize;
 
 // ---- In-memory "database" (swap for real DB queries later) ----
 let readings = [];
@@ -59,9 +69,14 @@ function recordReading(temperature, humidity) {
 
   const minute = reading.recordedAt.slice(0, 16);
   let bucket = trendBuckets[trendBuckets.length - 1];
-  if (!bucket || bucket.minute !== minute) {
+  if (
+    !bucket ||
+    bucket.minute !== minute ||
+    bucket.commodity !== threshold.commodity
+  ) {
     bucket = {
       minute,
+      commodity: threshold.commodity,
       temperatureTotal: 0,
       humidityTotal: 0,
       count: 0,
@@ -110,14 +125,29 @@ function recordReading(temperature, humidity) {
 function generateReading() {
   // Randomly drifts around a baseline, occasionally spikes to trigger an alert.
   const spike = Math.random() < 0.15;
+  const tempRange = threshold.maxTemp - threshold.minTemp;
+  const humidityRange = threshold.maxHumidity - threshold.minHumidity;
+  const tempMidpoint = (threshold.minTemp + threshold.maxTemp) / 2;
+  const humidityMidpoint = (threshold.minHumidity + threshold.maxHumidity) / 2;
   const temperature = spike
-    ? threshold.maxTemp + Math.random() * 5
-    : 18 + Math.random() * 6;
+    ? threshold.maxTemp + Math.random() * Math.max(2, tempRange * 0.3)
+    : tempMidpoint + (Math.random() - 0.5) * tempRange * 0.25;
   const humidity = spike
-    ? threshold.maxHumidity + Math.random() * 10
-    : 45 + Math.random() * 15;
+    ? threshold.maxHumidity + Math.random() * Math.max(5, humidityRange * 0.25)
+    : humidityMidpoint + (Math.random() - 0.5) * humidityRange * 0.25;
 
   return recordReading(temperature, humidity);
+}
+
+function generateSafeReading() {
+  const tempRange = threshold.maxTemp - threshold.minTemp;
+  const humidityRange = threshold.maxHumidity - threshold.minHumidity;
+  const temperature = (threshold.minTemp + threshold.maxTemp) / 2;
+  const humidity = (threshold.minHumidity + threshold.maxHumidity) / 2;
+  return recordReading(
+    temperature + (Math.random() - 0.5) * tempRange * 0.1,
+    humidity + (Math.random() - 0.5) * humidityRange * 0.1,
+  );
 }
 
 function seedDemoTrendHistory() {
@@ -125,14 +155,19 @@ function seedDemoTrendHistory() {
   const dayMs = 24 * 60 * 60 * 1000;
   const end = Math.floor(Date.now() / intervalMs) * intervalMs;
   const start = end - dayMs;
+  const temperatureMidpoint = (threshold.minTemp + threshold.maxTemp) / 2;
+  const humidityMidpoint = (threshold.minHumidity + threshold.maxHumidity) / 2;
+  const temperatureAmplitude = (threshold.maxTemp - threshold.minTemp) * 0.04;
+  const humidityAmplitude = (threshold.maxHumidity - threshold.minHumidity) * 0.04;
 
   for (let timestamp = start; timestamp <= end; timestamp += intervalMs) {
     const phase = ((timestamp - start) / dayMs) * Math.PI * 2;
-    // A narrow, stable range that stays comfortably inside the demo thresholds.
-    const temperature = 21.2 + 0.7 * Math.sin(phase - Math.PI / 2);
-    const humidity = 54 + 2 * Math.sin(phase + Math.PI / 2);
+    // A narrow, stable crop-specific baseline within the active thresholds.
+    const temperature = temperatureMidpoint + temperatureAmplitude * Math.sin(phase);
+    const humidity = humidityMidpoint + humidityAmplitude * Math.sin(phase + Math.PI / 2);
     trendBuckets.push({
       minute: new Date(timestamp).toISOString().slice(0, 16),
+      commodity: threshold.commodity,
       temperatureTotal: temperature,
       humidityTotal: humidity,
       count: 1,
@@ -194,6 +229,23 @@ app.get("/api/readings/trends", (req, res) => {
 
 app.get("/api/thresholds", (req, res) => {
   res.json(threshold);
+});
+
+app.post("/api/commodity", (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!Object.hasOwn(thresholds, name)) {
+    return res.status(400).json({
+      error: `Unsupported harvest. Choose one of: ${Object.keys(thresholds).join(", ")}.`,
+    });
+  }
+
+  threshold = thresholds[name];
+  // Re-seed the chart around the newly selected crop and record an immediate,
+  // in-range reading so the dashboard updates without waiting for the timer.
+  trendBuckets = [];
+  seedDemoTrendHistory();
+  const reading = generateSafeReading();
+  res.json({ threshold, reading });
 });
 
 app.get("/api/alerts", (req, res) => {
