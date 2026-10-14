@@ -1,16 +1,47 @@
-# storage_monitor_flutter
+# Peo Yame
 
-A new Flutter project.
+Peo Yame is a presentation prototype for monitoring produce-storage conditions.
+The responsive web dashboard and Flutter app read simulated temperature,
+humidity, status, and alerts from the included Node.js backend. No physical
+sensor is connected and no SMS is sent; alert dispatches appear in the
+backend's in-memory SMS log. Trend history is summarized by minute while the
+backend is running and is cleared when it restarts.
 
-## Getting Started
+## Start the backend on the PC
 
-This project is a starting point for a Flutter application.
+```bash
+cd backend
+npm install
+npm run demo
+```
 
-A few resources to get you started if this is your first Flutter project:
+Open `http://localhost:3000` to view the web dashboard, or
+`http://localhost:3000/api/status` to inspect the API. The server listens on
+`0.0.0.0:3000` for a phone on the same Wi-Fi network. Find the PC's
+Wi-Fi IP with `hostname -I` on Linux, `ipconfig` on Windows, or
+`ipconfig getifaddr en0` on macOS. If the phone cannot reach the PC, check the
+firewall and that both devices are on the same network.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Connect the Android phone
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Run the Flutter app on the phone. Tap the settings gear and enter the PC address,
+for example `192.168.1.42:3000`. The app adds `http://` when needed and saves
+the address on the phone. The default `10.0.2.2` address is for an Android
+emulator only.
+
+Use the warning icon to trigger a deterministic out-of-range reading held for
+15 seconds. The status card turns red and the alert appears in the app. The web
+dashboard also shows recent readings, alerts, and the simulated SMS log. Open
+`http://<PC-IP>:3000` on another device on the same Wi-Fi network. The backend
+keeps readings and logs in memory, so restarting it clears them.
+
+For a build-time address override, use
+`flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
+
+## Project context
+
+- [Build guide](BUILD_GUIDE_FOR_CURSOR_AI.md)
+- [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
+
+Use the project only as a controlled local-network demonstration. The backend
+uses plain HTTP and has no authentication or persistent storage.
