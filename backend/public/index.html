@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10251f" />
+    <title>Peo Yame | Storage dashboard</title>
+    <style>
+      :root { color-scheme:light; --ink:#172923; --muted:#65776f; --line:#dce6df; --green:#176b4a; --bg:#f3f7f3; --red:#a8332d; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+      header { padding:21px max(22px,calc((100vw - 1120px)/2)); background:#10251f; color:white; display:flex; justify-content:space-between; align-items:center; gap:20px; box-shadow:0 8px 26px #10251f2b; }
+      h1 { margin:0; font-size:clamp(25px,4vw,34px); letter-spacing:-.03em; }
+      .brand { display:flex; align-items:center; gap:10px; }
+      .brand-plant { font-size:29px; filter:drop-shadow(0 3px 4px #0005); }
+      .header-actions { display:flex; align-items:center; gap:8px; }
+      .status-chip { padding:8px 11px; border:1px solid #ffffff30; border-radius:11px; background:#ffffff12; font-size:12px; white-space:nowrap; }
+      .status-chip small { display:block; margin-left:15px; color:#c4d7cd; font-size:10px; }
+      .account-button { display:flex; align-items:center; gap:9px; text-align:left; padding:7px 12px 7px 7px; border-color:#ffffff42; background:#fff; color:var(--ink); box-shadow:0 3px 12px #0002; }
+      .account-button:hover,.toolbar-actions button:hover { background:#f1f7f3; box-shadow:0 5px 14px #0002; transform:translateY(-1px); }
+      .account-avatar { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; background:#e4f2e9; color:var(--green); font-size:12px; }
+      .account-name { display:block; font-size:12px; line-height:1.2; }
+      .account-email { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:500; }
+      main { width:min(1120px,calc(100% - 32px)); margin:22px auto 48px; }
+      .notice { display:flex; gap:10px; align-items:flex-start; border:1px solid #ead9a8; border-radius:12px; background:#fff8e6; color:#624d1c; padding:11px 14px; margin-bottom:14px; font-size:13px; }
+      .notice strong { margin-right:5px; }
+      .toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:12px 0; }
+      .updated { color:var(--muted); font-size:13px; }
+      button { appearance:none; border:1px solid var(--line); border-radius:8px; padding:7px 9px; min-width:36px; min-height:34px; background:white; color:var(--ink); font:inherit; font-weight:700; cursor:pointer; transition:transform .16s ease,box-shadow .16s ease,background .16s ease; }
+      button:hover { border-color:#91b49f; background:#f7fbf8; } button:disabled { opacity:.6; cursor:wait; }
+      .cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+      .card,.panel { background:white; border:1px solid #e5ece7; border-radius:14px; box-shadow:0 5px 18px #1833260c,0 1px 3px #18332608; }
+      .card { padding:16px; min-height:124px; }
+      .label { color:var(--muted); font-size:13px; font-weight:650; }
+      .value { margin-top:8px; font-size:27px; line-height:1.1; font-weight:750; letter-spacing:-.04em; }
+      .sub { margin-top:7px; color:var(--muted); font-size:12px; }
+      .status-safe { color:var(--green); } .status-alert { color:var(--red); }
+      .risk { margin-top:12px; }
+      .risk-track { height:9px; border-radius:10px; position:relative; background:linear-gradient(90deg,#cf5145 0%,#efb45d 22%,#62aa75 50%,#efb45d 78%,#cf5145 100%); }
+      .risk-marker { position:absolute; top:50%; left:50%; width:14px; height:14px; transform:translate(-50%,-50%); border:3px solid white; border-radius:50%; background:#173c2d; box-shadow:0 1px 5px #10251f88; }
+      .risk-legend { display:flex; justify-content:space-between; margin-top:4px; color:var(--muted); font-size:10px; }
+      .lower { display:grid; grid-template-columns:1.25fr .75fr; gap:12px; margin-top:12px; }
+      .panel { padding:16px; min-width:0; }
+      h2 { margin:0 0 11px; font-size:16px; }
+      .chart-panel { margin-top:12px; }
+      .chart-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+      .range-tabs { display:flex; gap:4px; }
+      .range-tabs button { padding:5px 9px; min-width:0; min-height:30px; color:var(--muted); font-size:12px; }
+      .range-tabs button[aria-pressed="true"] { color:white; border-color:var(--green); background:var(--green); }
+      #trendChart { display:block; width:100%; height:240px; }
+      .chart-legend { display:flex; gap:18px; color:var(--muted); font-size:12px; }
+      .key { display:inline-block; width:9px; height:9px; margin-right:6px; border-radius:50%; background:#25865c; }
+      .key.humidity { background:#4e81ce; }
+      .chart-caption { color:var(--muted); font-size:11px; margin-top:3px; }
+      .table-wrap { overflow:auto; }
+      table { width:100%; border-collapse:collapse; text-align:left; font-size:12px; }
+      th { color:var(--muted); font-weight:650; }
+      th,td { border-bottom:1px solid #edf1ed; padding:8px 6px; white-space:nowrap; }
+      tbody tr:last-child td { border:0; }
+      .empty { color:var(--muted); padding:14px 0; font-size:13px; }
+      .log { list-style:none; margin:0; padding:0; max-height:300px; overflow:auto; }
+      .log li { border-bottom:1px solid #edf1ed; padding:9px 0; font-size:13px; }
+      .log li:last-child { border:0; }
+      .log small { display:block; margin-top:3px; color:var(--muted); }
+      .connected-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#2a9b63; margin-right:6px; }
+      .error { color:var(--red); font-weight:650; margin:8px 0; }
+      @media (max-width:760px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); } .lower { grid-template-columns:1fr; } }
+      @media (max-width:600px) { header { align-items:flex-start; flex-direction:column; gap:13px; } .header-actions { width:100%; justify-content:space-between; flex-wrap:wrap; } .status-chip { flex:1 1 120px; } .account-button { flex:1 1 150px; } }
+      @media (max-width:460px) { .toolbar { align-items:flex-start; flex-direction:column; } .value { font-size:24px; } .card { padding:13px; } .chart-heading { align-items:flex-start; flex-direction:column; } #trendChart { height:200px; } .account-email { max-width:155px; overflow:hidden; text-overflow:ellipsis; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand"><span class="brand-plant" aria-hidden="true">🌱</span><h1>Peo Yame</h1></div>
+      <div class="header-actions">
+        <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small></div>
+        <button class="account-button" type="button" title="Demo farmer account: Olerato.M" aria-label="Demo farmer account Olerato.M, olerato.m@example.com"><span class="account-avatar" aria-hidden="true">OM</span><span><strong class="account-name">Olerato.M</strong><small class="account-email">olerato.m@example.com</small></span></button>
+        <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
+        <button class="icon-button" id="trigger" aria-label="Trigger an alert" title="Trigger an alert">⚠</button>
+      </div>
+    </header>
+    <main>
+      <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Simulation mode</strong>Readings are generated by this system. No physical sensors are connected and SMS messages are logged only; they are not sent.</div></div>
+      <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
+      <div id="error" role="status" aria-live="polite"></div>
+      <section class="cards" aria-label="Current storage status">
+        <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div></article>
+        <article class="card"><div class="label">Temperature · spoilage risk</div><div class="value" id="temperature">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="tempMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="tempRange">Waiting for reading</div></article>
+        <article class="card"><div class="label">Humidity · spoilage risk</div><div class="value" id="humidity">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="humidityMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="humidityRange">Waiting for reading</div></article>
+        <article class="card"><div class="label">Harvest</div><div class="value" id="harvest">—</div><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
+      </section>
+
+      <article class="panel chart-panel">
+        <div class="chart-heading"><h2>Temperature &amp; humidity trends</h2><div class="range-tabs" role="group" aria-label="Trend time range">
+          <button data-range="24h" aria-pressed="true">24 hours</button><button data-range="month" aria-pressed="false">Month</button><button data-range="3months" aria-pressed="false">3 months</button>
+        </div></div>
+        <div class="chart-legend"><span><i class="key"></i>Temperature °C</span><span><i class="key humidity"></i>Humidity %</span></div>
+        <svg id="trendChart" role="img" aria-label="Temperature and humidity trend chart" viewBox="0 0 800 240" preserveAspectRatio="none"></svg>
+        <div id="chartCaption" class="chart-caption">Trends are summarized by minute from the time the monitor starts.</div>
+      </article>
+
+      <section class="lower">
+        <article class="panel"><h2>Recent readings</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Temperature</th><th>Humidity</th><th>Result</th></tr></thead><tbody id="readings"></tbody></table></div></article>
+        <div>
+          <article class="panel"><h2>Alerts &amp; SMS</h2><ul class="log" id="logs"></ul></article>
+        </div>
+      </section>
+    </main>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const fmtTime = (value) => value ? new Date(value).toLocaleString() : '—';
+      const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+      const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
+      let selectedRange = '24h';
+      let chartData = [];
+      async function getJson(url) {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
+        return response.json();
+      }
+      function positionRisk(id, value, min, max) {
+        const midpoint = (min + max) / 2;
+        const halfRange = (max - min) / 2;
+        const risk = Math.min(1, Math.abs(value - midpoint) / halfRange);
+        $(id).style.left = `${Math.max(0, Math.min(100, risk * 100))}%`;
+      }
+      function drawChart(points) {
+        const svg = $('trendChart');
+        const W = 800, H = 240, pad = { l:42, r:14, t:16, b:30 };
+        const innerW = W - pad.l - pad.r, innerH = H - pad.t - pad.b;
+        const allTimes = points.map((p) => new Date(p.recordedAt).getTime());
+        const rangeMs = ({ '24h':24, month:720, '3months':2160 }[selectedRange]) * 3600000;
+        const end = Date.now(), start = end - rangeMs;
+        const x = (time) => pad.l + ((time - start) / rangeMs) * innerW;
+        const tempY = (value) => pad.t + innerH - ((value - 0) / 40) * innerH;
+        const humY = (value) => pad.t + innerH - (value / 100) * innerH;
+        const grid = [0,25,50,75,100].map((v) => {
+          const y = pad.t + innerH - v / 100 * innerH;
+          return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#e8eee9"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#65776f" font-size="10">${v}</text>`;
+        }).join('');
+        const paths = (key, color, yFn) => {
+          const data = points.filter((p) => {
+            const time = new Date(p.recordedAt).getTime();
+            return time >= start && time <= end && Number.isFinite(Number(p[key]));
+          });
+          if (!data.length) return '';
+          const d = data.map((p,i) => `${i ? 'L':'M'}${x(new Date(p.recordedAt).getTime()).toFixed(1)},${yFn(Number(p[key])).toFixed(1)}`).join(' ');
+          return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        };
+        const dateLabels = [0,.25,.5,.75,1].map((portion) => {
+          const date = new Date(start + rangeMs * portion);
+          const label = selectedRange === '24h' ? date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : date.toLocaleDateString([], {month:'short',day:'numeric'});
+          return `<text x="${pad.l + innerW*portion}" y="${H-7}" text-anchor="middle" fill="#65776f" font-size="10">${label}</text>`;
+        }).join('');
+        svg.innerHTML = `${grid}${dateLabels}${paths('temperature','#25865c',tempY)}${paths('humidity','#4e81ce',humY)}`;
+        $('chartCaption').textContent = points.length
+          ? `Showing ${points.length} minute summaries collected since this server started. Empty periods mean no data was collected.`
+          : 'No readings in this period yet. Data collection starts when the monitor server starts; no historical data is fabricated.';
+      }
+      async function loadTrend() {
+        try {
+          const result = await getJson(`/api/readings/trends?range=${selectedRange}`);
+          chartData = result.points || [];
+          drawChart(chartData);
+        } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
+      }
+      async function refresh() {
+        try {
+          const [status, history, alerts, sms] = await Promise.all([
+            getJson('/api/status'), getJson('/api/readings/history?limit=12'), getJson('/api/alerts'), getJson('/api/sms-log')
+          ]);
+          const t = status.threshold, latest = status.latest;
+          $('error').textContent = '';
+          $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
+          $('status').className = `value ${status.breached ? 'status-alert' : 'status-safe'}`;
+          $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
+          $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
+          $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
+          $('harvest').textContent = t.commodity;
+          if (latest) {
+            const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
+            const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
+            const combinedRisk = Math.max(tempRisk, humidityRisk);
+            const estimateDays = status.breached ? 7 : combinedRisk > .8 ? 30 : combinedRisk > .55 ? 60 : combinedRisk > .3 ? 120 : 180;
+            $('storageEstimate').textContent = `~${estimateDays} days`;
+          } else {
+            $('storageEstimate').textContent = 'Awaiting readings';
+          }
+          $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
+          $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+          if (latest) { positionRisk('tempMarker',latest.temperature,t.minTemp,t.maxTemp); positionRisk('humidityMarker',latest.humidity,t.minHumidity,t.maxHumidity); }
+          $('readings').innerHTML = history.slice().reverse().map((r) => `<tr><td>${escapeHtml(fmtTime(r.recordedAt))}</td><td>${Number(r.temperature).toFixed(1)} °C</td><td>${Number(r.humidity).toFixed(1)} %</td><td class="${isBreach(r,t) ? 'status-alert' : 'status-safe'}">${isBreach(r,t) ? 'Breach' : 'Safe'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No readings yet.</td></tr>';
+          const entries = [
+            ...alerts.slice(0, 8).map((a) => ({ time:a.sentAt, title:a.message, note:'Threshold alert' })),
+            ...sms.slice(0, 8).map((s) => ({ time:s.createdAt, title:s.body, note:`SMS ${s.status} for ${s.to}` }))
+          ].sort((a,b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
+          $('logs').innerHTML = entries.map((entry) => `<li>${escapeHtml(entry.title)}<small>${escapeHtml(entry.note)} · ${escapeHtml(fmtTime(entry.time))}</small></li>`).join('') || '<li class="empty">No alerts yet.</li>';
+          $('updated').textContent = `Data refreshed ${new Date().toLocaleTimeString()}`;
+          $('connectionHeader').innerHTML = '<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small>';
+          await loadTrend();
+        } catch (err) {
+          $('updated').textContent = 'Backend unavailable';
+          $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>Last sync 5 mins ago</small>';
+          $('error').className = 'error';
+          $('error').textContent = `${err.message}. Start the backend with “cd backend && npm run demo”, then reload this page.`;
+        }
+      }
+      $('refresh').addEventListener('click', refresh);
+      $('trigger').addEventListener('click', async () => {
+        $('trigger').disabled = true;
+        try {
+          const response = await fetch('/api/sim/breach', { method:'POST' });
+          if (!response.ok) throw new Error(`Server returned ${response.status}`);
+          await refresh();
+        } catch (err) {
+          $('error').className = 'error'; $('error').textContent = `Could not trigger alert: ${err.message}`;
+        } finally { $('trigger').disabled = false; }
+      });
+      document.querySelectorAll('[data-range]').forEach((button) => button.addEventListener('click', () => {
+        selectedRange = button.dataset.range;
+        document.querySelectorAll('[data-range]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
+        loadTrend();
+      }));
+      refresh();
+      setInterval(refresh, 5000);
+    </script>
+  </body>
+</html>
