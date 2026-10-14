@@ -4,8 +4,9 @@ Peo Yame is a presentation prototype for monitoring produce-storage conditions.
 The responsive web dashboard and Flutter app read simulated temperature,
 humidity, status, and alerts from the included Node.js backend. No physical
 sensor is connected and no SMS is sent; alert dispatches appear in the
-backend's in-memory SMS log. Trend history is summarized by minute while the
-backend is running and is cleared when it restarts.
+backend's in-memory SMS log. The chart starts with a clearly labeled, stable
+simulated 24-hour baseline, then adds live simulated readings. Trend history is
+cleared when the backend restarts.
 
 ## Start the backend on the PC
 
