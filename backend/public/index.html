@@ -114,6 +114,7 @@
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
       let selectedRange = '24h';
       let chartData = [];
+      let refreshRevision = 0;
       async function getJson(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
@@ -174,10 +175,12 @@
         } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
       }
       async function refresh() {
+        const revision = ++refreshRevision;
         try {
           const [status, history, alerts, sms] = await Promise.all([
             getJson('/api/status'), getJson('/api/readings/history?limit=12'), getJson('/api/alerts'), getJson('/api/sms-log')
           ]);
+          if (revision !== refreshRevision) return;
           const t = status.threshold, latest = status.latest;
           $('error').textContent = '';
           $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
@@ -208,6 +211,7 @@
           $('connectionHeader').innerHTML = '<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small>';
           await loadTrend();
         } catch (err) {
+          if (revision !== refreshRevision) return;
           $('updated').textContent = 'Backend unavailable';
           $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>Last sync 5 mins ago</small>';
           $('error').className = 'error';
