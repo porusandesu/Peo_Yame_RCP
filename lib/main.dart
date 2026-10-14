@@ -896,7 +896,7 @@ class _TrendCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_rangeLabel(range)} · minute averages since monitor started. No earlier readings are available.',
+              '${_rangeLabel(range)} · includes a stable simulated 24-hour baseline. Newer readings are live simulation data; older month history is collected after startup.',
               style: const TextStyle(fontSize: 10, color: Color(0xFF718078)),
             ),
           ],
