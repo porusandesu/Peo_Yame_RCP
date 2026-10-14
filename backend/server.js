@@ -37,7 +37,7 @@ const threshold = {
 // ---- In-memory "database" (swap for real DB queries later) ----
 let readings = [];
 // Keep one compact aggregate per minute so trend views can cover up to 90 days.
-// Only data collected since this demo server started is shown; no history is invented.
+// A marked 24-hour synthetic baseline is added at startup to make the demo chart useful.
 let trendBuckets = [];
 let alerts = [];
 let smsLog = [];
@@ -60,12 +60,20 @@ function recordReading(temperature, humidity) {
   const minute = reading.recordedAt.slice(0, 16);
   let bucket = trendBuckets[trendBuckets.length - 1];
   if (!bucket || bucket.minute !== minute) {
-    bucket = { minute, temperatureTotal: 0, humidityTotal: 0, count: 0 };
+    bucket = {
+      minute,
+      temperatureTotal: 0,
+      humidityTotal: 0,
+      count: 0,
+      syntheticCount: 0,
+      liveCount: 0,
+    };
     trendBuckets.push(bucket);
   }
   bucket.temperatureTotal += reading.temperature;
   bucket.humidityTotal += reading.humidity;
   bucket.count += 1;
+  bucket.liveCount += 1;
   const oldestAllowed = Date.now() - 90 * 24 * 60 * 60 * 1000;
   while (trendBuckets.length && Date.parse(`${trendBuckets[0].minute}:00Z`) < oldestAllowed) {
     trendBuckets.shift();
@@ -112,7 +120,30 @@ function generateReading() {
   return recordReading(temperature, humidity);
 }
 
+function seedDemoTrendHistory() {
+  const intervalMs = 15 * 60 * 1000;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const end = Math.floor(Date.now() / intervalMs) * intervalMs;
+  const start = end - dayMs;
+
+  for (let timestamp = start; timestamp <= end; timestamp += intervalMs) {
+    const phase = ((timestamp - start) / dayMs) * Math.PI * 2;
+    // A narrow, stable range that stays comfortably inside the demo thresholds.
+    const temperature = 21.2 + 0.7 * Math.sin(phase - Math.PI / 2);
+    const humidity = 54 + 2 * Math.sin(phase + Math.PI / 2);
+    trendBuckets.push({
+      minute: new Date(timestamp).toISOString().slice(0, 16),
+      temperatureTotal: temperature,
+      humidityTotal: humidity,
+      count: 1,
+      syntheticCount: 1,
+      liveCount: 0,
+    });
+  }
+}
+
 // Simulate a sensor pushing a new reading every 5 seconds
+seedDemoTrendHistory();
 setInterval(() => {
   if (!demoBreachActive) generateReading();
 }, 5000);
@@ -151,8 +182,14 @@ app.get("/api/readings/trends", (req, res) => {
       temperature: Math.round((bucket.temperatureTotal / bucket.count) * 10) / 10,
       humidity: Math.round((bucket.humidityTotal / bucket.count) * 10) / 10,
       count: bucket.count,
+      synthetic: bucket.syntheticCount > 0,
+      live: bucket.liveCount > 0,
     }));
-  res.json({ range: req.query.range || "24h", points });
+  res.json({
+    range: req.query.range || "24h",
+    includesSyntheticBaseline: true,
+    points,
+  });
 });
 
 app.get("/api/thresholds", (req, res) => {
