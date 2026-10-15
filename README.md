@@ -48,6 +48,28 @@ available from `GET /api/readings?limit=60`. Alerts can be acknowledged through
 `POST /api/alerts/:id/acknowledge`, and incident records use `GET` and `POST`
 `/api/incidents`.
 
+## Activity log export
+
+The backend records dashboard and app actions, including harvest changes,
+manual refreshes, trend-range changes, alert actions, incident records, sensor
+submissions, and demo breaches. The web dashboard's download icon saves a
+Markdown file; the Flutter app's export icon opens the device share sheet with
+the same file. The API is also available at `GET /api/actions/export.md`.
+Entries persist in `backend/data/actions.jsonl` (ignored by Git) and are capped
+at the most recent 2,500 actions. Backend startup and export events are logged
+too.
+
+## Excel data export
+
+Use the spreadsheet icon in the web dashboard to download `peo-yame-readings.csv`.
+The Flutter app offers the same file through the device share sheet. Excel opens
+the CSV directly. It includes the latest retained readings, UTC timestamps,
+harvest, data source, temperature and humidity, crop limits, and a breach flag.
+Reading history is held in memory and capped at 200 records, so export it before
+restarting the backend if you need to keep the current dataset. The synthetic
+24-hour chart baseline is labeled separately in the chart and is not included
+as sensor readings in this file.
+
 For a build-time address override, use
 `flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
 

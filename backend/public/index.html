@@ -76,6 +76,8 @@
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small></div>
         <button class="account-button" type="button" title="Demo farmer account: Olerato.M" aria-label="Demo farmer account Olerato.M, olerato.m@example.com"><span class="account-avatar" aria-hidden="true">OM</span><span><strong class="account-name">Olerato.M</strong><small class="account-email">olerato.m@example.com</small></span></button>
+        <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
+        <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
         <button class="icon-button" id="trigger" aria-label="Trigger an alert" title="Trigger an alert">⚠</button>
       </div>
@@ -235,11 +237,29 @@
           $('error').textContent = `${err.message}. Start the backend with “cd backend && npm run demo”, then reload this page.`;
         }
       }
-      $('refresh').addEventListener('click', refresh);
+      async function recordAction(action, details = {}) {
+        try { await postJson('/api/actions', { action, details, source:'web', actor:'Olerato.M' }); }
+        catch (err) { console.warn('Could not record action:', err); }
+      }
+      $('refresh').addEventListener('click', () => { void recordAction('Manual refresh'); refresh(); });
+      $('exportActions').addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/actions/export.md?source=web');
+          if (!response.ok) throw new Error(`Server returned ${response.status}`);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = 'peo-yame-actions.md'; link.click();
+          URL.revokeObjectURL(url);
+        } catch (err) { $('error').className = 'error'; $('error').textContent = `Could not export activity log: ${err.message}`; }
+      });
+      $('exportData').addEventListener('click', () => {
+        window.location.assign('/api/readings/export.csv?source=web');
+      });
       $('harvest').addEventListener('change', async (event) => {
         $('harvest').disabled = true;
         try {
-          const result = await postJson('/api/commodity', { name: event.target.value });
+          const result = await postJson('/api/commodity', { name: event.target.value, source:'web' });
           applyHarvestSelection(result);
           await refresh();
         } catch (err) {
@@ -251,7 +271,7 @@
       $('trigger').addEventListener('click', async () => {
         $('trigger').disabled = true;
         try {
-          const response = await fetch('/api/sim/breach', { method:'POST' });
+          const response = await fetch('/api/sim/breach', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:'web'}) });
           if (!response.ok) throw new Error(`Server returned ${response.status}`);
           await refresh();
         } catch (err) {
@@ -261,6 +281,7 @@
       document.querySelectorAll('[data-range]').forEach((button) => button.addEventListener('click', () => {
         selectedRange = button.dataset.range;
         document.querySelectorAll('[data-range]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
+        void recordAction('Changed trend range', {range:selectedRange});
         loadTrend();
       }));
       refresh();

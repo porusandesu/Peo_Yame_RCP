@@ -52,3 +52,4 @@ app.*.map.json
 **/ephemeral/
 /backend/node_modules/
 /backend/data/*.db
+/backend/data/actions.jsonl

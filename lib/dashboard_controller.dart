@@ -38,11 +38,23 @@ class DashboardController extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
 
-  Future<void> refresh() => _refresh();
+  Future<void> refresh() {
+    recordAction('Manual refresh');
+    return _refresh();
+  }
+
+  void recordAction(String action, {Map<String, Object?> details = const {}}) {
+    unawaited(_api.recordAction(action, details: details).catchError((_) {}));
+  }
+
+  Future<String> exportActionLog() => _api.getActionLogMarkdown();
+
+  Future<String> exportReadingsCsv() => _api.getReadingsCsv();
 
   Future<void> setTrendRange(String range) async {
     if (range == trendRange) return;
     trendRange = range;
+    recordAction('Changed trend range', details: {'range': range});
     await _loadTrends();
   }
 

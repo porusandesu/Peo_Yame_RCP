@@ -16,6 +16,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const app = express();
@@ -24,6 +25,56 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = 3000;
+const ACTION_LOG_PATH = path.join(__dirname, "data", "actions.jsonl");
+const MAX_ACTIONS = 2500;
+fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
+
+function loadActionLog() {
+  if (!fs.existsSync(ACTION_LOG_PATH)) return [];
+  return fs.readFileSync(ACTION_LOG_PATH, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch (_) {
+        return [];
+      }
+    })
+    .slice(-MAX_ACTIONS);
+}
+
+let actions = loadActionLog();
+let nextActionId = actions.reduce((next, action) => Math.max(next, action.id + 1), 1);
+
+function logAction(action, { source = "backend", actor = "Olerato.M", details = {} } = {}) {
+  const entry = {
+    id: nextActionId++,
+    timestamp: new Date().toISOString(),
+    actor,
+    source,
+    action,
+    details,
+  };
+  actions.push(entry);
+  if (actions.length > MAX_ACTIONS) actions = actions.slice(-MAX_ACTIONS);
+  if (actions.length === MAX_ACTIONS) {
+    fs.writeFileSync(ACTION_LOG_PATH, `${actions.map((item) => JSON.stringify(item)).join("\n")}\n`);
+  } else {
+    fs.appendFileSync(ACTION_LOG_PATH, `${JSON.stringify(entry)}\n`);
+  }
+  return entry;
+}
+
+function markdownCell(value) {
+  return String(value ?? "").replaceAll("|", "\\|").replace(/[\r\n]+/g, " ");
+}
+
+function csvCell(value, protectFormula = false) {
+  let text = String(value ?? "");
+  if (protectFormula && /^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
 
 // ---- Config: mirrors your ER diagram's THRESHOLD table ----
 const thresholds = {
@@ -58,11 +109,12 @@ let nextIncidentId = 1;
 let demoBreachActive = false;
 let demoBreachTimeout;
 
-function recordReading(temperature, humidity, site = "default") {
+function recordReading(temperature, humidity, site = "default", dataSource = "simulation") {
   const reading = {
     id: nextReadingId++,
     site,
     commodity: threshold.commodity,
+    dataSource,
     temperature: Math.round(temperature * 10) / 10,
     humidity: Math.round(humidity * 10) / 10,
     recordedAt: new Date().toISOString(),
@@ -207,6 +259,58 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
 
+app.get("/api/actions", (req, res) => {
+  const requested = Number.parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(requested || 500, 1), MAX_ACTIONS);
+  res.json(actions.slice(-limit).reverse());
+});
+
+app.post("/api/actions", (req, res) => {
+  const { action, source, actor, details } = req.body || {};
+  if (typeof action !== "string" || !action.trim() || action.length > 120) {
+    return res.status(400).json({ error: "action must be a non-empty string of at most 120 characters" });
+  }
+  const safeDetails = details && typeof details === "object" && !Array.isArray(details)
+    ? details
+    : {};
+  const entry = logAction(action.trim(), {
+    source: typeof source === "string" ? source.slice(0, 30) : "client",
+    actor: typeof actor === "string" ? actor.slice(0, 80) : "Olerato.M",
+    details: safeDetails,
+  });
+  res.status(201).json(entry);
+});
+
+app.get("/api/actions/export.md", (req, res) => {
+  logAction("Exported Markdown activity log", {
+    source: typeof req.query.source === "string" ? req.query.source : "api",
+  });
+  const requested = Number.parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(requested || MAX_ACTIONS, 1), MAX_ACTIONS);
+  const selected = actions.slice(-limit);
+  const rows = selected.map((item) => [
+    markdownCell(item.timestamp),
+    markdownCell(item.actor),
+    markdownCell(item.source),
+    markdownCell(item.action),
+    markdownCell(JSON.stringify(item.details || {})),
+  ].join(" | "));
+  const markdown = [
+    "# Peo Yame Activity Log",
+    "",
+    `Exported: ${new Date().toISOString()}`,
+    `Entries: ${selected.length}`,
+    "",
+    "| Time (UTC) | User | Source | Action | Details |",
+    "|---|---|---|---|---|",
+    ...rows.map((row) => `| ${row} |`),
+    "",
+  ].join("\n");
+  res.type("text/markdown");
+  res.set("Content-Disposition", 'attachment; filename="peo-yame-actions.md"');
+  res.send(markdown);
+});
+
 // Sensor gateway endpoint. A single storage bay has one active harvest, so
 // incoming readings are checked against the crop currently selected in the app.
 app.post("/api/readings", (req, res) => {
@@ -239,8 +343,12 @@ app.post("/api/readings", (req, res) => {
     }
   }
 
-  const reading = recordReading(temperature, humidity, site.trim());
+  const reading = recordReading(temperature, humidity, site.trim(), "sensor");
   const alert = alerts.find((item) => item.readingId === reading.id) || null;
+  logAction("Sensor reading received", {
+    source: "sensor",
+    details: { site: site.trim(), commodity: threshold.commodity, temperature: reading.temperature, humidity: reading.humidity },
+  });
   res.status(201).json({ reading, threshold, alert });
 });
 
@@ -255,6 +363,43 @@ app.get("/api/readings", (req, res) => {
     ? readings.filter((reading) => reading.commodity.toLowerCase() === crop)
     : readings;
   res.json(matches.slice(-limit));
+});
+
+app.get("/api/readings/export.csv", (req, res) => {
+  logAction("Exported sensor data as CSV", {
+    source: typeof req.query.source === "string" ? req.query.source : "api",
+    details: { records: readings.length, format: "CSV" },
+  });
+  const columns = [
+    "reading_id", "timestamp_utc", "site", "harvest", "data_source",
+    "temperature_c", "humidity_pct", "min_temperature_c", "max_temperature_c",
+    "min_humidity_pct", "max_humidity_pct", "threshold_breach",
+  ];
+  const rows = readings.map((reading) => {
+    const limits = thresholds[reading.commodity];
+    const breached = reading.temperature < limits.minTemp ||
+      reading.temperature > limits.maxTemp ||
+      reading.humidity < limits.minHumidity ||
+      reading.humidity > limits.maxHumidity;
+    return [
+      csvCell(reading.id),
+      csvCell(reading.recordedAt),
+      csvCell(reading.site, true),
+      csvCell(reading.commodity, true),
+      csvCell(reading.dataSource || "simulation", true),
+      csvCell(reading.temperature),
+      csvCell(reading.humidity),
+      csvCell(limits.minTemp),
+      csvCell(limits.maxTemp),
+      csvCell(limits.minHumidity),
+      csvCell(limits.maxHumidity),
+      csvCell(breached),
+    ].join(",");
+  });
+  const csv = `\uFEFF${[columns.map((value) => csvCell(value)).join(","), ...rows].join("\r\n")}\r\n`;
+  res.type("text/csv; charset=utf-8");
+  res.set("Content-Disposition", 'attachment; filename="peo-yame-readings.csv"');
+  res.send(csv);
 });
 
 app.get("/api/readings/latest", (req, res) => {
@@ -305,7 +450,12 @@ app.post("/api/commodity", (req, res) => {
     });
   }
 
+  const previousCommodity = threshold.commodity;
   threshold = thresholds[name];
+  logAction("Harvest changed", {
+    source: typeof req.body?.source === "string" ? req.body.source : "api",
+    details: { from: previousCommodity, to: name },
+  });
   // Re-seed the chart around the newly selected crop and record an immediate,
   // in-range reading so the dashboard updates without waiting for the timer.
   trendBuckets = [];
@@ -327,6 +477,7 @@ app.post("/api/alerts/:id/acknowledge", (req, res) => {
   const alert = alerts.find((item) => item.id === Number.parseInt(req.params.id, 10));
   if (!alert) return res.status(404).json({ error: "Alert not found" });
   alert.acknowledged = true;
+  logAction("Alert acknowledged", { details: { alertId: alert.id, commodity: alert.commodity } });
   res.json(alert);
 });
 
@@ -365,6 +516,7 @@ app.post("/api/incidents", (req, res) => {
     created_at: new Date().toISOString(),
   };
   incidents.unshift(incident);
+  logAction("Incident recorded", { details: { incidentId: incident.id, commodity: crop, outcome } });
   res.status(201).json(incident);
 });
 
@@ -378,10 +530,15 @@ app.post("/api/sim/breach", (req, res) => {
   }, 15000);
 
   const reading = recordReading(threshold.maxTemp + 5.4, threshold.maxHumidity + 8.2);
+  logAction("Demo breach triggered", {
+    source: typeof req.body?.source === "string" ? req.body.source : "api",
+    details: { commodity: threshold.commodity, readingId: reading.id },
+  });
   res.status(201).json({ reading, alert: alerts[0] });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
+  logAction("Backend started", { source: "system", details: { port: PORT } });
   console.log(`Storage monitor demo API running on http://0.0.0.0:${PORT}`);
   console.log(`On your phone/emulator, use your laptop's LAN IP, e.g. http://192.168.x.x:${PORT}`);
 });
