@@ -1,0 +1,5 @@
+node_modules/
+storage_monitor.db
+storage_monitor.db-wal
+storage_monitor.db-shm
+.env

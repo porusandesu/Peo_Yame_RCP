@@ -1,5 +1,16 @@
 # Project Context: Low-Cost IoT-Based Post-Harvest Storage Monitoring System
 
+> **Baseline status (15 Oct 2026):** The architecture and status below describe
+> the intended research system and include historical notes; they do not all
+> describe the current top-level implementation. For the inspected code, test
+> evidence, objective traceability, risks, and current limitations, see
+> [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md),
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
+> [docs/TEST_REPORT.md](docs/TEST_REPORT.md). In particular, the current
+> runtime is a Flutter + Node/Express simulation with in-memory domain data,
+> two illustrative crop settings, and no physical sensor, SQLite database, or
+> real SMS dispatch.
+
 > Import this file into Antigravity (drop it in your project root, or `@`
 > reference it in your first prompt) so the agent has full context without
 > you re-explaining the project every session.

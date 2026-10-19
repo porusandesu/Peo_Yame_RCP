@@ -77,6 +77,16 @@ For a build-time address override, use
 
 - [Build guide](BUILD_GUIDE_FOR_CURSOR_AI.md)
 - [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
+- [Baseline audit, traceability, and research-claim status](docs/BASELINE_AUDIT.md)
+- [Implemented architecture](docs/ARCHITECTURE.md)
+- [Prioritised risk register](docs/RISK_REGISTER.md)
+- [Verification record](docs/TEST_REPORT.md)
+
+The audit documents the implementation present in this branch, including
+known gaps between the presentation prototype and the research proposal. Crop
+limits in the demo are illustrative software settings; they are not validated
+spoilage thresholds. The UI's storage-time estimate is a heuristic and must
+not be presented as a validated prediction.
 
 Use the project only as a controlled local-network demonstration. The backend
 uses plain HTTP and has no authentication or persistent storage.
