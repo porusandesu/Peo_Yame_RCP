@@ -63,20 +63,71 @@ class ApiService {
 
   Future<void> triggerDemoBreach() async {
     final response = await _client
-        .post(_uri('/api/sim/breach'))
+        .post(
+          _uri('/api/sim/breach'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'source': 'flutter'}),
+        )
         .timeout(const Duration(seconds: 4));
     _ensureOk(response);
   }
 
-  Future<void> setCommodity(String name) async {
+  Future<StatusResponse> setCommodity(String name) async {
     final response = await _client
         .post(
           _uri('/api/commodity'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'name': name}),
+          body: jsonEncode({'name': name, 'source': 'flutter'}),
         )
         .timeout(const Duration(seconds: 5));
     _ensureOk(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return StatusResponse(
+      latest: Reading.fromJson(data['reading'] as Map<String, dynamic>),
+      threshold: Threshold.fromJson(data['threshold'] as Map<String, dynamic>),
+      breached: false,
+    );
+  }
+
+  Future<void> recordAction(
+    String action, {
+    Map<String, Object?> details = const {},
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/actions'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'action': action,
+            'source': 'flutter',
+            'actor': 'Olerato.M',
+            'details': details,
+          }),
+        )
+        .timeout(const Duration(seconds: 4));
+    _ensureOk(response);
+  }
+
+  Future<String> getActionLogMarkdown({String source = 'flutter'}) async {
+    final response = await _client
+        .get(
+          _uri('/api/actions/export.md', {'source': source}),
+          headers: const {'Accept': 'text/markdown'},
+        )
+        .timeout(const Duration(seconds: 5));
+    _ensureOk(response);
+    return response.body;
+  }
+
+  Future<String> getReadingsCsv({String source = 'flutter'}) async {
+    final response = await _client
+        .get(
+          _uri('/api/readings/export.csv', {'source': source}),
+          headers: const {'Accept': 'text/csv'},
+        )
+        .timeout(const Duration(seconds: 5));
+    _ensureOk(response);
+    return response.body;
   }
 
   void _ensureOk(http.Response response) {

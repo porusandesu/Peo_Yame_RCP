@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "demo": "node server.js"
+    "demo": "node server.js",
+    "simulate:sensor": "node simulate-sensor.js"
   },
   "dependencies": {
     "express": "^4.19.2",

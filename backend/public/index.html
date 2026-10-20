@@ -76,6 +76,8 @@
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small></div>
         <button class="account-button" type="button" title="Demo farmer account: Olerato.M" aria-label="Demo farmer account Olerato.M, olerato.m@example.com"><span class="account-avatar" aria-hidden="true">OM</span><span><strong class="account-name">Olerato.M</strong><small class="account-email">olerato.m@example.com</small></span></button>
+        <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
+        <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
         <button class="icon-button" id="trigger" aria-label="Trigger an alert" title="Trigger an alert">⚠</button>
       </div>
@@ -114,6 +116,7 @@
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
       let selectedRange = '24h';
       let chartData = [];
+      let refreshRevision = 0;
       async function getJson(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
@@ -133,6 +136,23 @@
         const halfRange = (max - min) / 2;
         const risk = Math.min(1, Math.abs(value - midpoint) / halfRange);
         $(id).style.left = `${Math.max(0, Math.min(100, risk * 100))}%`;
+      }
+      function applyHarvestSelection({ threshold: t, reading: latest }) {
+        $('harvest').value = t.commodity;
+        $('temperature').textContent = `${latest.temperature.toFixed(1)} °C`;
+        $('humidity').textContent = `${latest.humidity.toFixed(1)} %`;
+        $('status').textContent = 'Safe';
+        $('status').className = 'value status-safe';
+        $('statusNote').textContent = `Last reading ${fmtTime(latest.recordedAt)}`;
+        $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
+        $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+        const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
+        const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
+        const combinedRisk = Math.max(tempRisk, humidityRisk);
+        const estimateDays = combinedRisk > .8 ? 30 : combinedRisk > .55 ? 60 : combinedRisk > .3 ? 120 : 180;
+        $('storageEstimate').textContent = `~${estimateDays} days`;
+        positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
+        positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
       }
       function drawChart(points) {
         const svg = $('trendChart');
@@ -174,10 +194,12 @@
         } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
       }
       async function refresh() {
+        const revision = ++refreshRevision;
         try {
           const [status, history, alerts, sms] = await Promise.all([
             getJson('/api/status'), getJson('/api/readings/history?limit=12'), getJson('/api/alerts'), getJson('/api/sms-log')
           ]);
+          if (revision !== refreshRevision) return;
           const t = status.threshold, latest = status.latest;
           $('error').textContent = '';
           $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
@@ -208,17 +230,37 @@
           $('connectionHeader').innerHTML = '<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small>';
           await loadTrend();
         } catch (err) {
+          if (revision !== refreshRevision) return;
           $('updated').textContent = 'Backend unavailable';
           $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>Last sync 5 mins ago</small>';
           $('error').className = 'error';
           $('error').textContent = `${err.message}. Start the backend with “cd backend && npm run demo”, then reload this page.`;
         }
       }
-      $('refresh').addEventListener('click', refresh);
+      async function recordAction(action, details = {}) {
+        try { await postJson('/api/actions', { action, details, source:'web', actor:'Olerato.M' }); }
+        catch (err) { console.warn('Could not record action:', err); }
+      }
+      $('refresh').addEventListener('click', () => { void recordAction('Manual refresh'); refresh(); });
+      $('exportActions').addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/actions/export.md?source=web');
+          if (!response.ok) throw new Error(`Server returned ${response.status}`);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = 'peo-yame-actions.md'; link.click();
+          URL.revokeObjectURL(url);
+        } catch (err) { $('error').className = 'error'; $('error').textContent = `Could not export activity log: ${err.message}`; }
+      });
+      $('exportData').addEventListener('click', () => {
+        window.location.assign('/api/readings/export.csv?source=web');
+      });
       $('harvest').addEventListener('change', async (event) => {
         $('harvest').disabled = true;
         try {
-          await postJson('/api/commodity', { name: event.target.value });
+          const result = await postJson('/api/commodity', { name: event.target.value, source:'web' });
+          applyHarvestSelection(result);
           await refresh();
         } catch (err) {
           $('error').className = 'error';
@@ -229,7 +271,7 @@
       $('trigger').addEventListener('click', async () => {
         $('trigger').disabled = true;
         try {
-          const response = await fetch('/api/sim/breach', { method:'POST' });
+          const response = await fetch('/api/sim/breach', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:'web'}) });
           if (!response.ok) throw new Error(`Server returned ${response.status}`);
           await refresh();
         } catch (err) {
@@ -239,6 +281,7 @@
       document.querySelectorAll('[data-range]').forEach((button) => button.addEventListener('click', () => {
         selectedRange = button.dataset.range;
         document.querySelectorAll('[data-range]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
+        void recordAction('Changed trend range', {range:selectedRange});
         loadTrend();
       }));
       refresh();

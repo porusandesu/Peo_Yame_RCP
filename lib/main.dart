@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart' hide Threshold;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'config.dart';
 import 'dashboard_controller.dart';
@@ -49,6 +52,56 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
   String _baseUrl = defaultApiBaseUrl;
+
+  Future<void> _exportActionLog(BuildContext buttonContext) async {
+    try {
+      final markdown = await _controller.exportActionLog();
+      if (!mounted) return;
+      final renderBox = buttonContext.findRenderObject() as RenderBox?;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(utf8.encode(markdown), mimeType: 'text/markdown'),
+          ],
+          fileNameOverrides: const ['peo-yame-actions.md'],
+          title: 'Peo Yame activity log',
+          sharePositionOrigin: renderBox == null
+              ? null
+              : renderBox.localToGlobal(Offset.zero) & renderBox.size,
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export activity log: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportReadingsCsv(BuildContext buttonContext) async {
+    try {
+      final csv = await _controller.exportReadingsCsv();
+      if (!mounted) return;
+      final renderBox = buttonContext.findRenderObject() as RenderBox?;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(utf8.encode(csv), mimeType: 'text/csv')],
+          fileNameOverrides: const ['peo-yame-readings.csv'],
+          title: 'Peo Yame sensor data for Excel',
+          sharePositionOrigin: renderBox == null
+              ? null
+              : renderBox.localToGlobal(Offset.zero) & renderBox.size,
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export sensor data: $error')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -133,6 +186,7 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       }
     }
+    _controller.recordAction('Updated backend address');
     await _controller.refresh();
   }
 
@@ -168,6 +222,20 @@ class _DashboardPageState extends State<DashboardPage> {
                 onPressed: _controller.refresh,
                 tooltip: 'Refresh readings',
                 icon: const Icon(Icons.refresh_rounded),
+              ),
+              Builder(
+                builder: (buttonContext) => IconButton(
+                  onPressed: () => _exportActionLog(buttonContext),
+                  tooltip: 'Export activity log as Markdown',
+                  icon: const Icon(Icons.file_download_outlined),
+                ),
+              ),
+              Builder(
+                builder: (buttonContext) => IconButton(
+                  onPressed: () => _exportReadingsCsv(buttonContext),
+                  tooltip: 'Export sensor data for Excel (CSV)',
+                  icon: const Icon(Icons.table_view_outlined),
+                ),
               ),
               IconButton(
                 onPressed: _controller.isTriggering
@@ -740,6 +808,7 @@ class _HarvestCard extends StatelessWidget {
                   DropdownButton<String>(
                     value: status.threshold.commodity,
                     isDense: true,
+                    isExpanded: true,
                     underline: const SizedBox.shrink(),
                     onChanged: isChanging
                         ? null

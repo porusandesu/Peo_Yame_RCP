@@ -30,6 +30,14 @@ for example `192.168.1.42:3000`. The app adds `http://` when needed and saves
 the address on the phone. The default `10.0.2.2` address is for an Android
 emulator only.
 
+## Build the Android app with GitHub Actions
+
+The **Android build** workflow runs when code is pushed and can also be started
+from the repository's **Actions** tab with **Run workflow**. When it finishes,
+open the run and download the `storage-monitor-android-debug` artifact. Extract
+it and install `app-debug.apk` on an Android device. This is a debug build for
+testing, not a Play Store release.
+
 Use the warning icon to trigger a deterministic out-of-range reading held for
 15 seconds. The status card turns red and the alert appears in the app. The web
 dashboard also shows recent readings, alerts, and the simulated SMS log. Open
@@ -40,6 +48,36 @@ Use the **Harvest** selector to switch between Maize and Tomato. Each selection
 loads that crop's illustrative temperature and humidity limits and immediately
 adds an in-range simulated reading for the selected crop.
 
+The backend also exposes `/api/health` and sensor-gateway endpoints. To run an
+optional simulated sensor that follows the selected harvest, start the backend
+first, then run `cd backend && npm run simulate:sensor` in a second terminal.
+Sensor readings can be submitted with `POST /api/readings`; recent readings are
+available from `GET /api/readings?limit=60`. Alerts can be acknowledged through
+`POST /api/alerts/:id/acknowledge`, and incident records use `GET` and `POST`
+`/api/incidents`.
+
+## Activity log export
+
+The backend records dashboard and app actions, including harvest changes,
+manual refreshes, trend-range changes, alert actions, incident records, sensor
+submissions, and demo breaches. The web dashboard's download icon saves a
+Markdown file; the Flutter app's export icon opens the device share sheet with
+the same file. The API is also available at `GET /api/actions/export.md`.
+Entries persist in `backend/data/actions.jsonl` (ignored by Git) and are capped
+at the most recent 2,500 actions. Backend startup and export events are logged
+too.
+
+## Excel data export
+
+Use the spreadsheet icon in the web dashboard to download `peo-yame-readings.csv`.
+The Flutter app offers the same file through the device share sheet. Excel opens
+the CSV directly. It includes the latest retained readings, UTC timestamps,
+harvest, data source, temperature and humidity, crop limits, and a breach flag.
+Reading history is held in memory and capped at 200 records, so export it before
+restarting the backend if you need to keep the current dataset. The synthetic
+24-hour chart baseline is labeled separately in the chart and is not included
+as sensor readings in this file.
+
 For a build-time address override, use
 `flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
 
@@ -47,6 +85,16 @@ For a build-time address override, use
 
 - [Build guide](BUILD_GUIDE_FOR_CURSOR_AI.md)
 - [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
+- [Baseline audit, traceability, and research-claim status](docs/BASELINE_AUDIT.md)
+- [Implemented architecture](docs/ARCHITECTURE.md)
+- [Prioritised risk register](docs/RISK_REGISTER.md)
+- [Verification record](docs/TEST_REPORT.md)
+
+The audit documents the implementation present in this branch, including
+known gaps between the presentation prototype and the research proposal. Crop
+limits in the demo are illustrative software settings; they are not validated
+spoilage thresholds. The UI's storage-time estimate is a heuristic and must
+not be presented as a validated prediction.
 
 Use the project only as a controlled local-network demonstration. The backend
 uses plain HTTP and has no authentication or persistent storage.

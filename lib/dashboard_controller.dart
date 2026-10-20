@@ -30,6 +30,7 @@ class DashboardController extends ChangeNotifier {
 
   Timer? _timer;
   bool _disposed = false;
+  int _refreshGeneration = 0;
 
   void startPolling() {
     _timer?.cancel();
@@ -37,20 +38,39 @@ class DashboardController extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
 
-  Future<void> refresh() => _refresh();
+  Future<void> refresh() {
+    recordAction('Manual refresh');
+    return _refresh();
+  }
+
+  void recordAction(String action, {Map<String, Object?> details = const {}}) {
+    unawaited(_api.recordAction(action, details: details).catchError((_) {}));
+  }
+
+  Future<String> exportActionLog() => _api.getActionLogMarkdown();
+
+  Future<String> exportReadingsCsv() => _api.getReadingsCsv();
 
   Future<void> setTrendRange(String range) async {
     if (range == trendRange) return;
     trendRange = range;
+    recordAction('Changed trend range', details: {'range': range});
     await _loadTrends();
   }
 
   Future<void> setHarvest(String name) async {
     if (isChangingHarvest) return;
     isChangingHarvest = true;
+    // Ignore polls that began before (or while) the harvest change was sent.
+    _refreshGeneration++;
     notifyListeners();
     try {
-      await _api.setCommodity(name);
+      final updatedStatus = await _api.setCommodity(name);
+      if (_disposed) return;
+      status = updatedStatus;
+      errorMessage = null;
+      _refreshGeneration++;
+      notifyListeners();
       await _refresh();
     } catch (e) {
       if (!_disposed) {
@@ -79,6 +99,7 @@ class DashboardController extends ChangeNotifier {
   }
 
   Future<void> _refresh() async {
+    final generation = _refreshGeneration;
     try {
       final results = await Future.wait([
         _api.getStatus(),
@@ -86,7 +107,7 @@ class DashboardController extends ChangeNotifier {
         _api.getHistory(limit: 20),
       ]);
 
-      if (_disposed) return;
+      if (_disposed || generation != _refreshGeneration) return;
 
       status = results[0] as StatusResponse;
       alerts = results[1] as List<Alert>;
@@ -94,11 +115,11 @@ class DashboardController extends ChangeNotifier {
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (e) {
-      if (_disposed) return;
+      if (_disposed || generation != _refreshGeneration) return;
       errorMessage =
           "Can't reach $baseUrl. Check that the backend is running and this device is on the same Wi-Fi. ($e)";
     } finally {
-      if (!_disposed) {
+      if (!_disposed && generation == _refreshGeneration) {
         isLoading = false;
         notifyListeners();
       }
