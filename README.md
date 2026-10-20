@@ -30,6 +30,14 @@ for example `192.168.1.42:3000`. The app adds `http://` when needed and saves
 the address on the phone. The default `10.0.2.2` address is for an Android
 emulator only.
 
+## Build the Android app with GitHub Actions
+
+The **Android build** workflow runs when code is pushed and can also be started
+from the repository's **Actions** tab with **Run workflow**. When it finishes,
+open the run and download the `storage-monitor-android-debug` artifact. Extract
+it and install `app-debug.apk` on an Android device. This is a debug build for
+testing, not a Play Store release.
+
 Use the warning icon to trigger a deterministic out-of-range reading held for
 15 seconds. The status card turns red and the alert appears in the app. The web
 dashboard also shows recent readings, alerts, and the simulated SMS log. Open
