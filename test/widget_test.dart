@@ -7,6 +7,6 @@ void main() {
     await tester.pumpWidget(const StorageMonitorApp());
     await tester.pump();
 
-    expect(find.text('Storage Monitor'), findsOneWidget);
+    expect(find.text('Peo Yame'), findsOneWidget);
   });
 }

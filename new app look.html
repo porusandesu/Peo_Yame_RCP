@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#174a38" />
+    <meta
+      name="description"
+      content="Peo Yame — a four-screen harvest-storage monitoring concept using illustrative demo data."
+    />
+    <title>Peo Yame · Mobile app concept</title>
+    <link rel="stylesheet" href="new app look.css" />
+  </head>
+
+  <body>
+    <main class="presentation">
+      <header class="presentation-heading">
+        <h1>Peo Yame</h1>
+        <p>Storage conditions at a glance · Mobile app concept</p>
+      </header>
+
+      <div class="screens">
+        <!-- OVERVIEW -->
+        <article class="phone" aria-labelledby="overview-heading">
+          <div class="status-bar" aria-hidden="true">
+            <span>9:41</span>
+            <span>● ◔ ▰</span>
+          </div>
+
+          <header class="app-header">
+            <span class="brand">
+              <img class="brand-mark" src="peo-yame-logo.svg" alt="" />
+              Peo Yame
+            </span>
+            <span class="pill online">● Online</span>
+          </header>
+
+          <div class="screen-content overview-content">
+            <header class="greeting">
+              <h2 id="overview-heading">Good morning, Olerato</h2>
+              <p>Here’s how your harvest is doing today</p>
+            </header>
+
+            <aside class="notice demo-disclosure">
+              <span aria-hidden="true">●</span>
+              <span>Demo data · sensor and SMS are not connected</span>
+            </aside>
+
+            <section
+              class="safe-card"
+              aria-label="Storage condition summary"
+            >
+              <span class="safe-icon" aria-hidden="true">✓</span>
+              <h3>Conditions look safe</h3>
+              <p class="sync">Last updated 2 min ago</p>
+              <p class="safe-detail">
+                All readings are within the Maize limits.
+              </p>
+            </section>
+
+            <div class="metric-grid">
+              <section class="card metric">
+                <h3>Temperature</h3>
+                <p class="metric-value">24.8°C</p>
+                <p class="metric-range">Allowed 10–30°C</p>
+              </section>
+
+              <section class="card metric">
+                <h3>Humidity</h3>
+                <p class="metric-value">66%</p>
+                <p class="metric-range">Allowed 40–75%</p>
+              </section>
+            </div>
+
+            <section class="harvest-section">
+              <div class="section-heading">
+                <h3>Harvest</h3>
+                <span class="text-action">Change</span>
+              </div>
+
+              <div class="card harvest-card">
+                <span class="crop-mark" aria-hidden="true">M</span>
+                <div>
+                  <h4>Maize</h4>
+                  <p>Storage limits active</p>
+                </div>
+                <span class="chevron" aria-hidden="true">⌄</span>
+              </div>
+            </section>
+
+            <section class="mini-trend-section">
+              <div class="section-heading">
+                <h3>Conditions over time</h3>
+                <span class="text-action">24 hours</span>
+              </div>
+
+              <div class="card mini-trend">
+                <div class="chart-caption">
+                  <span>Temperature</span>
+                  <strong>24.8°</strong>
+                </div>
+
+                <div
+                  class="mini-bars"
+                  role="img"
+                  aria-label="Illustrative temperature bars. Latest reading 24.8 degrees Celsius; not a calibrated data series."
+                >
+                  <i style="--bar:15px"></i>
+                  <i style="--bar:20px"></i>
+                  <i style="--bar:18px"></i>
+                  <i style="--bar:25px"></i>
+                  <i style="--bar:24px"></i>
+                  <i style="--bar:31px"></i>
+                  <i style="--bar:27px"></i>
+                  <i style="--bar:22px"></i>
+                  <i style="--bar:28px"></i>
+                  <i style="--bar:34px"></i>
+                  <i style="--bar:30px"></i>
+                  <i style="--bar:26px"></i>
+                  <i style="--bar:35px"></i>
+                  <i style="--bar:31px"></i>
+                  <i style="--bar:28px"></i>
+                  <i style="--bar:39px"></i>
+                  <i style="--bar:34px"></i>
+                  <i style="--bar:36px"></i>
+                </div>
+
+                <div class="axis-labels">
+                  <span>12 AM</span>
+                  <span>6 AM</span>
+                  <span>12 PM</span>
+                </div>
+              </div>
+            </section>
+
+            <div class="section-heading recent-alerts-heading">
+              <h3>Recent alerts</h3>
+              <span class="text-action">See all</span>
+            </div>
+          </div>
+
+          <nav
+            class="bottom-nav"
+            aria-label="Overview screen navigation preview"
+          >
+            <span class="nav-item active" aria-current="page">
+              <span class="nav-icon" aria-hidden="true">⌂</span>
+              <span>Overview</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌁</span>
+              <span>Trends</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">!</span>
+              <span>Alerts</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">≡</span>
+              <span>Settings</span>
+            </span>
+          </nav>
+        </article>
+
+        <!-- TRENDS -->
+        <article class="phone" aria-labelledby="trends-heading">
+          <div class="status-bar" aria-hidden="true">
+            <span>9:41</span>
+            <span>● ◔ ▰</span>
+          </div>
+
+          <header class="app-header">
+            <span class="brand">
+              <img class="brand-mark" src="peo-yame-logo.svg" alt="" />
+              Peo Yame
+            </span>
+            <span class="pill online">● Online</span>
+          </header>
+
+          <div class="screen-content trends-content">
+            <header class="screen-heading">
+              <h2 id="trends-heading">Trends</h2>
+              <span class="header-action" aria-hidden="true">↻</span>
+            </header>
+
+            <div class="range-selector" aria-label="Time range preview">
+              <span class="range selected">24 hours</span>
+              <span class="range">Month</span>
+              <span class="range">3 months</span>
+            </div>
+
+            <section
+              class="card trend-card"
+              aria-labelledby="temperature-chart-heading"
+            >
+              <h3 id="temperature-chart-heading">Temperature</h3>
+              <p class="chart-subtitle">
+                Last 24 hours · simulated baseline
+              </p>
+
+              <div class="chart-legend">
+                <span class="pill series">● Temperature</span>
+                <strong>24.8°C</strong>
+              </div>
+
+              <div
+                class="main-plot"
+                role="img"
+                aria-label="Illustrative temperature bars for the last 24 hours. Lowest summary 20.1 degrees Celsius, highest 26.4 degrees Celsius. Bars are illustrative, not calibrated measurements."
+              >
+                <div class="y-axis" aria-hidden="true">
+                  <span>30°</span>
+                  <span>20°</span>
+                  <span>10°</span>
+                </div>
+
+                <div class="grid-lines" aria-hidden="true">
+                  <i></i>
+                  <i></i>
+                  <i></i>
+                </div>
+
+                <div class="main-bars" aria-hidden="true">
+                  <i style="--bar:24px"></i>
+                  <i style="--bar:50px"></i>
+                  <i style="--bar:36px"></i>
+                  <i style="--bar:70px"></i>
+                  <i style="--bar:54px"></i>
+                  <i style="--bar:63px"></i>
+                  <i style="--bar:42px"></i>
+                  <i style="--bar:77px"></i>
+                  <i style="--bar:55px"></i>
+                  <i style="--bar:88px"></i>
+                  <i style="--bar:61px"></i>
+                  <i style="--bar:68px"></i>
+                  <i style="--bar:48px"></i>
+                  <i style="--bar:83px"></i>
+                  <i style="--bar:57px"></i>
+                  <i style="--bar:72px"></i>
+                </div>
+              </div>
+
+              <div class="axis-labels">
+                <span>12 AM</span>
+                <span>6 AM</span>
+                <span>12 PM</span>
+              </div>
+            </section>
+
+            <section class="summary-section">
+              <div class="section-heading">
+                <h3>At a glance</h3>
+              </div>
+
+              <div class="metric-grid">
+                <div class="card summary-card">
+                  <h4>LOWEST</h4>
+                  <p>20.1°C</p>
+                  <span>at 4:10 AM</span>
+                </div>
+
+                <div class="card summary-card">
+                  <h4>HIGHEST</h4>
+                  <p>26.4°C</p>
+                  <span>at 1:35 PM</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="readings-section">
+              <div class="section-heading">
+                <h3>Recent readings</h3>
+                <span class="text-action">View all</span>
+              </div>
+
+              <table class="readings-table">
+                <caption class="sr-only">
+                  Recent demo storage readings
+                </caption>
+
+                <thead class="sr-only">
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Temperature</th>
+                    <th scope="col">Humidity</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <th scope="row">9:40 AM</th>
+                    <td>24.8°C</td>
+                    <td>66%</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">9:25 AM</th>
+                    <td>24.6°C</td>
+                    <td>65%</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">9:10 AM</th>
+                    <td>24.9°C</td>
+                    <td>67%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+          <nav
+            class="bottom-nav"
+            aria-label="Trends screen navigation preview"
+          >
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌂</span>
+              <span>Overview</span>
+            </span>
+
+            <span class="nav-item active" aria-current="page">
+              <span class="nav-icon" aria-hidden="true">⌁</span>
+              <span>Trends</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">!</span>
+              <span>Alerts</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">≡</span>
+              <span>Settings</span>
+            </span>
+          </nav>
+        </article>
+
+        <!-- ALERTS -->
+        <article class="phone" aria-labelledby="alerts-heading">
+          <div class="status-bar" aria-hidden="true">
+            <span>9:41</span>
+            <span>● ◔ ▰</span>
+          </div>
+
+          <header class="app-header">
+            <span class="brand">
+              <img class="brand-mark" src="peo-yame-logo.svg" alt="" />
+              Peo Yame
+            </span>
+            <span class="pill online">● Online</span>
+          </header>
+
+          <div class="screen-content alerts-content">
+            <header class="screen-heading">
+              <h2 id="alerts-heading">Alerts</h2>
+              <span class="header-action" aria-hidden="true">⋮</span>
+            </header>
+
+            <aside class="attention-summary">
+              <span class="attention-count">1</span>
+              <div>
+                <h3>1 needs your attention</h3>
+                <p>Review and acknowledge when addressed</p>
+              </div>
+            </aside>
+
+            <section class="open-alert-section">
+              <div class="section-heading">
+                <h3>Needs attention</h3>
+                <span class="text-action">Newest first</span>
+              </div>
+
+              <div class="card open-alert">
+                <div class="alert-meta">
+                  <span class="pill open-badge">OPEN</span>
+                  <span>Today · 9:36 AM</span>
+                </div>
+
+                <h4>Humidity above safe range</h4>
+
+                <p class="alert-description">
+                  Maize storage is at 82% humidity.<br />
+                  Recommended range: 40–75%.
+                </p>
+
+                <div class="alert-reading">
+                  <strong>Humidity&nbsp; 82%</strong>
+                  <span>Limit: 75%</span>
+                </div>
+
+                <span class="review-action">
+                  Mark as reviewed
+                  <span aria-hidden="true">→</span>
+                </span>
+              </div>
+            </section>
+
+            <section class="earlier-section">
+              <div class="section-heading">
+                <h3>Earlier</h3>
+                <span class="text-action">2 records</span>
+              </div>
+
+              <div class="card resolved-card">
+                <span class="resolved-icon" aria-hidden="true">✓</span>
+
+                <div>
+                  <h4>Temperature returned to range</h4>
+                  <p>Yesterday · 4:18 PM</p>
+                  <span class="pill resolved-badge">RESOLVED</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="notice sms-notice">
+              <h3>SMS notifications</h3>
+              <p>
+                Alerts are logged in this demo. No text messages are sent.
+              </p>
+            </aside>
+          </div>
+
+          <nav
+            class="bottom-nav"
+            aria-label="Alerts screen navigation preview"
+          >
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌂</span>
+              <span>Overview</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌁</span>
+              <span>Trends</span>
+            </span>
+
+            <span class="nav-item active" aria-current="page">
+              <span class="nav-icon" aria-hidden="true">!</span>
+              <span>Alerts</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">≡</span>
+              <span>Settings</span>
+            </span>
+          </nav>
+        </article>
+
+        <!-- SETTINGS -->
+        <article class="phone" aria-labelledby="settings-heading">
+          <div class="status-bar" aria-hidden="true">
+            <span>9:41</span>
+            <span>● ◔ ▰</span>
+          </div>
+
+          <header class="app-header">
+            <span class="brand">
+              <img class="brand-mark" src="peo-yame-logo.svg" alt="" />
+              Peo Yame
+            </span>
+            <span class="pill online">● Online</span>
+          </header>
+
+          <div class="screen-content settings-content">
+            <header class="screen-heading">
+              <h2 id="settings-heading">Settings</h2>
+            </header>
+
+            <section class="connection-section">
+              <div class="section-heading">
+                <h3>Connection</h3>
+              </div>
+
+              <div class="card connection-card">
+                <span class="connection-icon" aria-hidden="true">⌁</span>
+
+                <div class="connection-details">
+                  <h4>Backend address</h4>
+                  <p>192.168.1.42:3000</p>
+                  <span class="pill connected-badge">● Connected</span>
+                </div>
+
+                <span class="text-action edit-address">Edit →</span>
+              </div>
+            </section>
+
+            <section class="limits-section">
+              <div class="section-heading">
+                <h3>Harvest limits</h3>
+              </div>
+
+              <div class="card limits-card">
+                <p class="field-label">Selected harvest</p>
+
+                <div class="harvest-selector">
+                  <span>Maize</span>
+                  <span aria-hidden="true">⌄</span>
+                </div>
+
+                <dl class="limits-list">
+                  <div>
+                    <dt>Temperature</dt>
+                    <dd>10–30°C</dd>
+                  </div>
+                  <div>
+                    <dt>Humidity</dt>
+                    <dd>40–75%</dd>
+                  </div>
+                </dl>
+
+                <p class="limits-note">Illustrative demo limits</p>
+              </div>
+            </section>
+
+            <section class="data-section">
+              <div class="section-heading">
+                <h3>Data &amp; alerts</h3>
+              </div>
+
+              <div class="card export-row">
+                <span class="export-icon" aria-hidden="true">↑</span>
+                <span>Export activity log</span>
+                <span class="export-chevron" aria-hidden="true">›</span>
+              </div>
+
+              <div class="card export-row">
+                <span class="export-icon" aria-hidden="true">⇩</span>
+                <span>Export readings for Excel</span>
+                <span class="export-chevron" aria-hidden="true">›</span>
+              </div>
+            </section>
+
+            <aside class="notice settings-notice">
+              SMS delivery is not connected in this demo.
+            </aside>
+          </div>
+
+          <nav
+            class="bottom-nav"
+            aria-label="Settings screen navigation preview"
+          >
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌂</span>
+              <span>Overview</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">⌁</span>
+              <span>Trends</span>
+            </span>
+
+            <span class="nav-item">
+              <span class="nav-icon" aria-hidden="true">!</span>
+              <span>Alerts</span>
+            </span>
+
+            <span class="nav-item active" aria-current="page">
+              <span class="nav-icon" aria-hidden="true">≡</span>
+              <span>Settings</span>
+            </span>
+          </nav>
+        </article>
+      </div>
+
+      <p class="implementation-note">
+        Static design recreation · Illustrative data · Navigation and controls
+        are visual previews, not connected services.
+      </p>
+    </main>
+  </body>
+</html>

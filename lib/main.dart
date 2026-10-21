@@ -8,8 +8,9 @@ import 'config.dart';
 import 'dashboard_controller.dart';
 import 'models.dart';
 
-const _forest = Color(0xFF174B38);
-const _canvas = Color(0xFFF4F7F4);
+const _forest = Color(0xFF174A38);
+const _canvas = Color(0xFFEBF2EB);
+const _ink = Color(0xFF1F2B24);
 
 void main() => runApp(const StorageMonitorApp());
 
@@ -26,13 +27,34 @@ class StorageMonitorApp extends StatelessWidget {
         colorScheme: scheme,
         scaffoldBackgroundColor: _canvas,
         useMaterial3: true,
+        textTheme: ThemeData.light().textTheme.apply(
+          bodyColor: _ink,
+          displayColor: _ink,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: _forest,
+          surfaceTintColor: Colors.transparent,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: const Color(0xFFE0F0E3),
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: 12,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+            ),
+          ),
+        ),
         cardTheme: CardThemeData(
           color: Colors.white,
-          elevation: 2,
-          shadowColor: const Color(0x1A173C2D),
+          elevation: 0,
+          shadowColor: const Color(0x0A173C2D),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFFE5ECE7)),
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: Color(0xFFE0E8E0)),
           ),
           margin: EdgeInsets.zero,
         ),
@@ -52,6 +74,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
   String _baseUrl = defaultApiBaseUrl;
+  int _selectedTab = 0;
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
     try {
@@ -206,190 +229,350 @@ class _DashboardPageState extends State<DashboardPage> {
         final status = _controller.status;
         return Scaffold(
           appBar: AppBar(
-            backgroundColor: _forest,
-            foregroundColor: Colors.white,
-            titleSpacing: 16,
+            backgroundColor: Colors.white,
+            foregroundColor: _forest,
+            elevation: 0,
+            titleSpacing: 20,
             title: const Row(
               children: [
-                Text('🌱', style: TextStyle(fontSize: 25)),
-                SizedBox(width: 9),
-                Text('Peo Yame', style: TextStyle(fontWeight: FontWeight.w700)),
+                _BrandMark(size: 34),
+                SizedBox(width: 10),
+                Text('Peo Yame', style: TextStyle(fontWeight: FontWeight.w800)),
               ],
             ),
             actions: [
               _ConnectionPill(connected: connected),
               IconButton(
                 onPressed: _controller.refresh,
-                tooltip: 'Refresh readings',
+                tooltip: 'Refresh',
                 icon: const Icon(Icons.refresh_rounded),
               ),
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  onPressed: () => _exportActionLog(buttonContext),
-                  tooltip: 'Export activity log as Markdown',
-                  icon: const Icon(Icons.file_download_outlined),
-                ),
-              ),
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  onPressed: () => _exportReadingsCsv(buttonContext),
-                  tooltip: 'Export sensor data for Excel (CSV)',
-                  icon: const Icon(Icons.table_view_outlined),
-                ),
-              ),
-              IconButton(
-                onPressed: _controller.isTriggering
-                    ? null
-                    : _controller.triggerDemoBreach,
-                tooltip: 'Trigger alert',
-                icon: const Icon(Icons.warning_amber_rounded),
-              ),
-              IconButton(
-                onPressed: _editServerAddress,
-                tooltip: 'Backend address',
-                icon: const Icon(Icons.settings_outlined),
-              ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
             ],
           ),
           body: RefreshIndicator(
             onRefresh: _controller.refresh,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-              children: [
-                const _SimulationBanner(),
-                const SizedBox(height: 16),
-                const _FarmerGreeting(),
-                const SizedBox(height: 14),
-                if (_controller.errorMessage != null) ...[
-                  _ErrorBanner(message: _controller.errorMessage!),
-                  const SizedBox(height: 14),
-                ],
-                if (_controller.isLoading && status == null)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                if (status != null) ...[
-                  _StatusHero(status: status),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _MetricCard(
-                          title: 'Temperature',
-                          value: status.latest == null
-                              ? '—'
-                              : '${status.latest!.temperature.toStringAsFixed(1)}°',
-                          unit: 'Celsius',
-                          min: status.threshold.minTemp,
-                          max: status.threshold.maxTemp,
-                          current: status.latest?.temperature,
-                          icon: Icons.thermostat_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _MetricCard(
-                          title: 'Humidity',
-                          value: status.latest == null
-                              ? '—'
-                              : '${status.latest!.humidity.toStringAsFixed(0)}%',
-                          unit: 'Relative humidity',
-                          min: status.threshold.minHumidity,
-                          max: status.threshold.maxHumidity,
-                          current: status.latest?.humidity,
-                          icon: Icons.water_drop_outlined,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _HarvestCard(
-                    status: status,
-                    isChanging: _controller.isChangingHarvest,
-                    onChanged: _controller.setHarvest,
-                  ),
-                  const SizedBox(height: 22),
-                  _SectionTitle(
-                    title: 'Conditions over time',
-                    trailing: _RangeSelector(
-                      selected: _controller.trendRange,
-                      onChanged: _controller.setTrendRange,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _TrendCard(
-                    points: _controller.trends,
-                    error: _controller.trendError,
-                    range: _controller.trendRange,
-                  ),
-                  const SizedBox(height: 22),
-                ],
-                _SectionTitle(
-                  title: 'Recent alerts',
-                  trailing: _CountPill(count: _controller.alerts.length),
-                ),
-                const SizedBox(height: 10),
-                if (_controller.alerts.isEmpty)
-                  const _EmptyCard(
-                    icon: Icons.notifications_none_rounded,
-                    text: 'No alerts yet. Your storage conditions look quiet.',
-                  )
-                else
-                  ..._controller.alerts
-                      .take(5)
-                      .map(
-                        (alert) => Padding(
-                          padding: const EdgeInsets.only(bottom: 9),
-                          child: _AlertTile(alert: alert),
-                        ),
-                      ),
-                const SizedBox(height: 14),
-                _SectionTitle(
-                  title: 'Recent readings',
-                  trailing: Text(
-                    '${_controller.history.length} shown',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: const Color(0xFF718078),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_controller.history.isEmpty)
-                  const _EmptyCard(
-                    icon: Icons.sensors_outlined,
-                    text:
-                        'Readings will appear here when the monitor connects.',
-                  )
-                else
-                  ..._controller.history.reversed
-                      .take(8)
-                      .map(
-                        (reading) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _ReadingTile(
-                            reading: reading,
-                            threshold: status?.threshold,
-                          ),
-                        ),
-                      ),
-                const SizedBox(height: 10),
-                const Center(
-                  child: Text(
-                    'Peo Yame · simulated readings · SMS is not sent',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
-                  ),
-                ),
-              ],
-            ),
+            child: _tabBody(status),
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _selectedTab,
+            onDestinationSelected: (index) =>
+                setState(() => _selectedTab = index),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.show_chart_rounded),
+                label: 'Trends',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.notifications_none_rounded),
+                selectedIcon: Icon(Icons.notifications_rounded),
+                label: 'Alerts',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings_rounded),
+                label: 'Settings',
+              ),
+            ],
           ),
         );
       },
     );
   }
+
+  Widget _tabBody(StatusResponse? status) {
+    final children = switch (_selectedTab) {
+      0 => _homeContent(status),
+      1 => _trendsContent(),
+      2 => _alertsContent(status),
+      _ => _settingsContent(status),
+    };
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
+      children: [
+        if (_controller.errorMessage != null) ...[
+          _ErrorBanner(message: _controller.errorMessage!),
+          const SizedBox(height: 12),
+        ],
+        if (_controller.isLoading && status == null)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ...children,
+      ],
+    );
+  }
+
+  List<Widget> _homeContent(StatusResponse? status) => [
+    const _FarmerGreeting(),
+    const SizedBox(height: 16),
+    if (status != null) ...[
+      _StatusHero(status: status),
+      const SizedBox(height: 14),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _MetricCard(
+              title: 'Temperature',
+              value: status.latest == null
+                  ? '—'
+                  : '${status.latest!.temperature.toStringAsFixed(1)}°',
+              unit: 'Celsius',
+              min: status.threshold.minTemp,
+              max: status.threshold.maxTemp,
+              current: status.latest?.temperature,
+              icon: Icons.thermostat_rounded,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _MetricCard(
+              title: 'Humidity',
+              value: status.latest == null
+                  ? '—'
+                  : '${status.latest!.humidity.toStringAsFixed(0)}%',
+              unit: 'Relative humidity',
+              min: status.threshold.minHumidity,
+              max: status.threshold.maxHumidity,
+              current: status.latest?.humidity,
+              icon: Icons.water_drop_outlined,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      _HarvestCard(
+        status: status,
+        isChanging: _controller.isChangingHarvest,
+        onChanged: _controller.setHarvest,
+      ),
+      const SizedBox(height: 18),
+      _SectionTitle(
+        title: 'Conditions over time',
+        trailing: _RangeSelector(
+          selected: _controller.trendRange,
+          onChanged: _controller.setTrendRange,
+        ),
+      ),
+      const SizedBox(height: 8),
+      _TrendCard(
+        points: _controller.trends,
+        error: _controller.trendError,
+        range: _controller.trendRange,
+      ),
+      const SizedBox(height: 18),
+    ],
+    _SectionTitle(
+      title: 'Recent readings',
+      trailing: Text(
+        '${_controller.history.length}',
+        style: const TextStyle(color: Color(0xFF718078)),
+      ),
+    ),
+    const SizedBox(height: 8),
+    if (_controller.history.isEmpty)
+      const _EmptyCard(
+        icon: Icons.sensors_outlined,
+        text: 'Readings will appear here when the monitor connects.',
+      )
+    else
+      ..._controller.history.reversed
+          .take(4)
+          .map(
+            (reading) => Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: _ReadingTile(
+                reading: reading,
+                threshold: status?.threshold,
+              ),
+            ),
+          ),
+  ];
+
+  List<Widget> _trendsContent() => [
+    const _SectionTitle(title: 'Trends'),
+    const SizedBox(height: 4),
+    const Text(
+      'Monitor your storage conditions',
+      style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+    ),
+    const SizedBox(height: 16),
+    _SectionTitle(
+      title: 'Temperature & humidity',
+      trailing: _RangeSelector(
+        selected: _controller.trendRange,
+        onChanged: _controller.setTrendRange,
+      ),
+    ),
+    const SizedBox(height: 10),
+    _TrendCard(
+      points: _controller.trends,
+      error: _controller.trendError,
+      range: _controller.trendRange,
+    ),
+    const SizedBox(height: 18),
+    const _SectionTitle(title: 'Recent readings'),
+    const SizedBox(height: 8),
+    if (_controller.history.isEmpty)
+      const _EmptyCard(
+        icon: Icons.sensors_outlined,
+        text: 'Readings will appear here when the monitor connects.',
+      )
+    else
+      ..._controller.history.reversed
+          .take(20)
+          .map(
+            (reading) => Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: _ReadingTile(
+                reading: reading,
+                threshold: _controller.status?.threshold,
+              ),
+            ),
+          ),
+  ];
+
+  List<Widget> _alertsContent(StatusResponse? status) => [
+    const _SectionTitle(title: 'Alerts'),
+    const SizedBox(height: 4),
+    const Text(
+      'Storage alerts and notifications',
+      style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+    ),
+    const SizedBox(height: 14),
+    if (status?.breached ?? false) ...[
+      const _SectionTitle(title: 'Needs attention'),
+      const SizedBox(height: 8),
+      _StatusHero(status: status!),
+      const SizedBox(height: 16),
+    ],
+    _SectionTitle(
+      title: 'Alert history',
+      trailing: _CountPill(count: _controller.alerts.length),
+    ),
+    const SizedBox(height: 8),
+    if (_controller.alerts.isEmpty)
+      const _EmptyCard(
+        icon: Icons.notifications_none_rounded,
+        text: 'No alerts yet. Your storage conditions look quiet.',
+      )
+    else
+      ..._controller.alerts.map(
+        (alert) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _AlertTile(alert: alert),
+        ),
+      ),
+    const SizedBox(height: 16),
+    Card(
+      child: ListTile(
+        leading: const Icon(
+          Icons.notifications_active_outlined,
+          color: _forest,
+        ),
+        title: const Text(
+          'Test alert',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: const Text(
+          'Generate a demo storage condition alert',
+          style: TextStyle(fontSize: 12),
+        ),
+        trailing: _controller.isTriggering
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.chevron_right),
+        onTap: _controller.isTriggering ? null : _controller.triggerDemoBreach,
+      ),
+    ),
+  ];
+
+  List<Widget> _settingsContent(StatusResponse? status) => [
+    const _SectionTitle(title: 'Settings'),
+    const SizedBox(height: 4),
+    const Text(
+      'Manage your storage monitor',
+      style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+    ),
+    const SizedBox(height: 16),
+    const _SectionTitle(title: 'Harvest'),
+    const SizedBox(height: 8),
+    if (status != null)
+      _HarvestCard(
+        status: status,
+        isChanging: _controller.isChangingHarvest,
+        onChanged: _controller.setHarvest,
+      ),
+    const SizedBox(height: 16),
+    const _SectionTitle(title: 'Connection'),
+    const SizedBox(height: 8),
+    Card(
+      child: ListTile(
+        leading: const Icon(Icons.wifi_rounded, color: _forest),
+        title: const Text('Backend address'),
+        subtitle: Text(_baseUrl, style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _editServerAddress,
+      ),
+    ),
+    const SizedBox(height: 16),
+    const _SectionTitle(title: 'Data'),
+    const SizedBox(height: 8),
+    Builder(
+      builder: (buttonContext) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.table_view_outlined, color: _forest),
+          title: const Text('Export readings'),
+          subtitle: const Text(
+            'Download as CSV',
+            style: TextStyle(fontSize: 12),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _exportReadingsCsv(buttonContext),
+        ),
+      ),
+    ),
+    Builder(
+      builder: (buttonContext) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.file_download_outlined, color: _forest),
+          title: const Text('Export activity log'),
+          subtitle: const Text(
+            'Download as Markdown',
+            style: TextStyle(fontSize: 12),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _exportActionLog(buttonContext),
+        ),
+      ),
+    ),
+    const SizedBox(height: 16),
+    const _SectionTitle(title: 'About'),
+    const SizedBox(height: 8),
+    const _SimulationBanner(),
+    const SizedBox(height: 8),
+    const Card(
+      child: ListTile(
+        leading: Icon(Icons.eco_outlined, color: _forest),
+        title: Text('Peo Yame'),
+        subtitle: Text(
+          'Storage Monitor · simulated readings',
+          style: TextStyle(fontSize: 12),
+        ),
+      ),
+    ),
+  ];
 }
 
 class _ConnectionPill extends StatelessWidget {
@@ -419,6 +602,63 @@ class _ConnectionPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({this.size = 40});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: _forest,
+      borderRadius: BorderRadius.circular(size * .32),
+    ),
+    child: CustomPaint(painter: _BrandMarkPainter()),
+  );
+}
+
+class _BrandMarkPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 40;
+    canvas.save();
+    canvas.scale(scale);
+    final gold = Paint()..color = const Color(0xFFF2C66D);
+    final cream = Paint()..color = const Color(0xFFF8F6E9);
+    final line = Paint()
+      ..color = const Color(0xFFF8F6E9)
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(8, 19, 24, 13),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF2F694F),
+    );
+    canvas.drawLine(const Offset(20, 28), const Offset(20, 9), line);
+    for (var i = 0; i < 3; i++) {
+      final y = 13.0 + i * 5;
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset(16, y), width: 7, height: 3.4),
+        gold,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset(24, y - 2), width: 7, height: 3.4),
+        cream,
+      );
+    }
+    canvas.drawLine(const Offset(12, 24), const Offset(28, 24), line);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _SimulationBanner extends StatelessWidget {
