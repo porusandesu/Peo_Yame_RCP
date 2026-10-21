@@ -53,7 +53,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
   String _baseUrl = defaultApiBaseUrl;
-  int _tab = 0;
+  final int _tab = 0;
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
     try {
