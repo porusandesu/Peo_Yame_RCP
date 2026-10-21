@@ -94,12 +94,20 @@ class Alert {
   final int readingId;
   final String message;
   final String sentAt;
+  final String? commodity;
+  final Reading? reading;
+  final Threshold? threshold;
+  final bool acknowledged;
 
   const Alert({
     required this.id,
     required this.readingId,
     required this.message,
     required this.sentAt,
+    this.commodity,
+    this.reading,
+    this.threshold,
+    this.acknowledged = false,
   });
 
   factory Alert.fromJson(Map<String, dynamic> json) {
@@ -108,6 +116,14 @@ class Alert {
       readingId: (json['readingId'] as num).toInt(),
       message: json['message'] as String,
       sentAt: json['sentAt'] as String,
+      commodity: json['commodity'] as String?,
+      reading: json['reading'] is Map<String, dynamic>
+          ? Reading.fromJson(json['reading'] as Map<String, dynamic>)
+          : null,
+      threshold: json['threshold'] is Map<String, dynamic>
+          ? Threshold.fromJson(json['threshold'] as Map<String, dynamic>)
+          : null,
+      acknowledged: json['acknowledged'] as bool? ?? false,
     );
   }
 }

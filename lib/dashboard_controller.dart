@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 import 'config.dart';
@@ -26,6 +27,8 @@ class DashboardController extends ChangeNotifier {
   bool isLoading = true;
   bool isTriggering = false;
   bool isChangingHarvest = false;
+  bool demoMode = false;
+  List<Threshold> crops = const [];
   String? errorMessage;
 
   Timer? _timer;
@@ -34,8 +37,93 @@ class DashboardController extends ChangeNotifier {
 
   void startPolling() {
     _timer?.cancel();
+    _loadDemoMode();
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
+  }
+
+  Future<void> _loadDemoMode() async {
+    try {
+      demoMode =
+          (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
+    } catch (_) {}
+    if (demoMode && !_disposed) _showDemoFallback();
+  }
+
+  Future<void> setDemoMode(bool enabled) async {
+    demoMode = enabled;
+    _refreshGeneration++;
+    try {
+      await (await SharedPreferences.getInstance()).setBool(
+        'demo_mode',
+        enabled,
+      );
+    } catch (_) {}
+    if (enabled) {
+      _showDemoFallback();
+    } else {
+      errorMessage = null;
+      await _refresh();
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  void _showDemoFallback() {
+    const fallback = Threshold(
+      commodity: 'Maize',
+      minTemp: 10,
+      maxTemp: 27,
+      minHumidity: 30,
+      maxHumidity: 70,
+    );
+    final selected =
+        status?.threshold ?? (crops.isNotEmpty ? crops.first : fallback);
+    final sample =
+        status?.latest ??
+        Reading(
+          id: 0,
+          temperature: (selected.minTemp + selected.maxTemp) / 2,
+          humidity: (selected.minHumidity + selected.maxHumidity) / 2,
+          recordedAt: DateTime.now().toUtc().toIso8601String(),
+        );
+    status = StatusResponse(
+      latest: sample,
+      threshold: selected,
+      breached: false,
+    );
+    if (history.isEmpty) history = [sample];
+    errorMessage = null;
+    isLoading = false;
+  }
+
+  Future<void> loadCrops() async {
+    try {
+      crops = await _api.getCrops();
+    } catch (_) {}
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> addCrop({
+    required String name,
+    required double minTemp,
+    required double maxTemp,
+    required double minHumidity,
+    required double maxHumidity,
+  }) async {
+    final crop = await _api.addCrop(
+      name: name,
+      minTemp: minTemp,
+      maxTemp: maxTemp,
+      minHumidity: minHumidity,
+      maxHumidity: maxHumidity,
+    );
+    crops = [
+      ...crops.where(
+        (item) => item.commodity.toLowerCase() != crop.commodity.toLowerCase(),
+      ),
+      crop,
+    ];
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> refresh() {
@@ -64,6 +152,26 @@ class DashboardController extends ChangeNotifier {
     // Ignore polls that began before (or while) the harvest change was sent.
     _refreshGeneration++;
     notifyListeners();
+    if (demoMode) {
+      Threshold? crop;
+      for (final item in crops) {
+        if (item.commodity == name) {
+          crop = item;
+          break;
+        }
+      }
+      final threshold = crop ?? status?.threshold;
+      if (threshold != null) {
+        status = StatusResponse(
+          latest: status?.latest,
+          threshold: threshold,
+          breached: false,
+        );
+      }
+      isChangingHarvest = false;
+      notifyListeners();
+      return;
+    }
     try {
       final updatedStatus = await _api.setCommodity(name);
       if (_disposed) return;
@@ -72,9 +180,9 @@ class DashboardController extends ChangeNotifier {
       _refreshGeneration++;
       notifyListeners();
       await _refresh();
-    } catch (e) {
+    } catch (_) {
       if (!_disposed) {
-        errorMessage = 'Could not select $name at $baseUrl. ($e)';
+        errorMessage = 'Could not select $name. Check the backend connection.';
       }
     } finally {
       if (!_disposed) {
@@ -99,6 +207,11 @@ class DashboardController extends ChangeNotifier {
   }
 
   Future<void> _refresh() async {
+    if (demoMode) {
+      _showDemoFallback();
+      if (!_disposed) notifyListeners();
+      return;
+    }
     final generation = _refreshGeneration;
     try {
       final results = await Future.wait([
@@ -114,10 +227,10 @@ class DashboardController extends ChangeNotifier {
       history = results[2] as List<Reading>;
       errorMessage = null;
       await _loadTrends(notify: false);
-    } catch (e) {
+    } catch (_) {
       if (_disposed || generation != _refreshGeneration) return;
       errorMessage =
-          "Can't reach $baseUrl. Check that the backend is running and this device is on the same Wi-Fi. ($e)";
+          'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
     } finally {
       if (!_disposed && generation == _refreshGeneration) {
         isLoading = false;
@@ -133,9 +246,10 @@ class DashboardController extends ChangeNotifier {
     try {
       await _api.triggerDemoBreach();
       await _refresh();
-    } catch (e) {
+    } catch (_) {
       if (_disposed) return;
-      errorMessage = 'Could not trigger the demo breach at $baseUrl. ($e)';
+      errorMessage =
+          'The demo alert could not be sent. Check your Wi-Fi and try again.';
       isLoading = false;
     } finally {
       if (!_disposed) {

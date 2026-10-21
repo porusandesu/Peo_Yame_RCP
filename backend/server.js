@@ -18,13 +18,16 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("node:fs");
 const path = require("node:path");
+const cropDatabase = require("./database");
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
+app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : process.env.NODE_ENV === "production" ? false : true }));
+app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
 const ACTION_LOG_PATH = path.join(__dirname, "data", "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
@@ -77,33 +80,18 @@ function csvCell(value, protectFormula = false) {
 }
 
 // ---- Config: mirrors your ER diagram's THRESHOLD table ----
-const thresholds = {
-  Maize: {
-    commodity: "Maize",
-    minTemp: 10,
-    maxTemp: 27,
-    minHumidity: 30,
-    maxHumidity: 70,
-  },
-  Tomato: {
-    commodity: "Tomato",
-    minTemp: 10,
-    maxTemp: 20,
-    minHumidity: 85,
-    maxHumidity: 95,
-  },
-};
-let threshold = thresholds.Maize;
+const thresholds = Object.fromEntries(cropDatabase.listCrops().map((crop) => [crop.commodity, crop]));
+let threshold = cropDatabase.getCrop(cropDatabase.activeCropName()) || thresholds.Maize;
 
 // ---- In-memory "database" (swap for real DB queries later) ----
-let readings = [];
+let readings = cropDatabase.recentReadings(200);
 // Keep one compact aggregate per minute so trend views can cover up to 90 days.
 // A marked 24-hour synthetic baseline is added at startup to make the demo chart useful.
 let trendBuckets = [];
 let alerts = [];
 let smsLog = [];
 let incidents = [];
-let nextReadingId = 1;
+let nextReadingId = readings.reduce((next, item) => Math.max(next, item.id + 1), 1);
 let nextAlertId = 1;
 let nextIncidentId = 1;
 let demoBreachActive = false;
@@ -121,6 +109,7 @@ function recordReading(temperature, humidity, site = "default", dataSource = "si
   };
 
   readings.push(reading);
+  cropDatabase.saveReading(reading);
   if (readings.length > 200) readings.shift(); // keep memory bounded
 
   const minute = reading.recordedAt.slice(0, 16);
@@ -162,6 +151,8 @@ function recordReading(temperature, humidity, site = "default", dataSource = "si
       id: nextAlertId++,
       readingId: reading.id,
       commodity: threshold.commodity,
+      reading: { ...reading },
+      threshold: { ...threshold },
       message: `Threshold breached: ${reading.temperature}\u00b0C, ${reading.humidity}% RH`,
       sentAt,
       acknowledged: false,
@@ -236,11 +227,16 @@ function seedDemoTrendHistory() {
 }
 
 // Simulate a sensor pushing a new reading every 5 seconds
-seedDemoTrendHistory();
-setInterval(() => {
-  if (!demoBreachActive) generateReading();
-}, 5000);
-generateReading(); // seed one immediately on boot
+if (process.env.NODE_ENV !== "production") {
+  seedDemoTrendHistory();
+  setInterval(() => {
+    if (!demoBreachActive) generateReading();
+  }, 5000);
+  if (!readings.length) generateReading();
+} else if (readings.length) {
+  const lastCrop = readings[readings.length - 1].commodity;
+  threshold = cropDatabase.getCrop(lastCrop) || threshold;
+}
 
 // ---- Routes ----
 
@@ -433,9 +429,33 @@ app.get("/api/readings/trends", (req, res) => {
     }));
   res.json({
     range: req.query.range || "24h",
-    includesSyntheticBaseline: true,
+    includesSyntheticBaseline: points.some((point) => point.synthetic),
     points,
   });
+});
+
+app.get("/api/crops", (req, res) => res.json(cropDatabase.listCrops()));
+
+app.post("/api/crops", (req, res) => {
+  const body = req.body || {};
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const values = [body.minTemp, body.maxTemp, body.minHumidity, body.maxHumidity];
+  if (!name || name.length > 60 || /[<>]/.test(name) || values.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+    return res.status(400).json({ error: "Enter a crop name and numeric temperature and humidity limits." });
+  }
+  const [minTemp, maxTemp, minHumidity, maxHumidity] = values;
+  if (minTemp < -50 || maxTemp > 100 || minTemp >= maxTemp || minHumidity < 0 || maxHumidity > 100 || minHumidity >= maxHumidity) {
+    return res.status(400).json({ error: "Use temperature limits between -50 and 100°C and humidity limits between 0 and 100%, with each minimum below its maximum." });
+  }
+  try {
+    const crop = cropDatabase.addCrop({ commodity: name, minTemp, maxTemp, minHumidity, maxHumidity });
+    thresholds[crop.commodity] = crop;
+    logAction("Added crop", { source: "api", details: { crop: crop.commodity } });
+    return res.status(201).json(crop);
+  } catch (error) {
+    if (`${error.message || error} ${error.stderr?.toString() || ""}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "A crop with that name already exists." });
+    return res.status(500).json({ error: "Could not save this crop." });
+  }
 });
 
 app.get("/api/thresholds", (req, res) => {
@@ -444,14 +464,16 @@ app.get("/api/thresholds", (req, res) => {
 
 app.post("/api/commodity", (req, res) => {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  if (!Object.hasOwn(thresholds, name)) {
+  const selected = cropDatabase.getCrop(name);
+  if (!selected) {
     return res.status(400).json({
-      error: `Unsupported harvest. Choose one of: ${Object.keys(thresholds).join(", ")}.`,
+      error: `Choose a crop saved in your harvest list: ${cropDatabase.listCrops().map((crop) => crop.commodity).join(", ")}.`,
     });
   }
 
   const previousCommodity = threshold.commodity;
-  threshold = thresholds[name];
+  threshold = selected;
+  cropDatabase.setActiveCrop(name);
   logAction("Harvest changed", {
     source: typeof req.body?.source === "string" ? req.body.source : "api",
     details: { from: previousCommodity, to: name },
@@ -459,8 +481,10 @@ app.post("/api/commodity", (req, res) => {
   // Re-seed the chart around the newly selected crop and record an immediate,
   // in-range reading so the dashboard updates without waiting for the timer.
   trendBuckets = [];
-  seedDemoTrendHistory();
-  const reading = generateSafeReading();
+  if (process.env.NODE_ENV !== "production") seedDemoTrendHistory();
+  const reading = process.env.NODE_ENV === "production"
+    ? readings.filter((item) => item.commodity === name).at(-1) || null
+    : generateSafeReading();
   res.json({ threshold, reading });
 });
 
@@ -537,8 +561,7 @@ app.post("/api/sim/breach", (req, res) => {
   res.status(201).json({ reading, alert: alerts[0] });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, HOST, () => {
   logAction("Backend started", { source: "system", details: { port: PORT } });
-  console.log(`Storage monitor demo API running on http://0.0.0.0:${PORT}`);
-  console.log(`On your phone/emulator, use your laptop's LAN IP, e.g. http://192.168.x.x:${PORT}`);
+  console.log(`Storage monitor API running on http://${HOST}:${PORT} (${process.env.NODE_ENV || "development"})`);
 });

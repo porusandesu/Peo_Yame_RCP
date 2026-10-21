@@ -1,4 +1,4 @@
-name: Android build
+name: peo_yame_debug
 
 on:
   push:

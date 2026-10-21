@@ -27,6 +27,43 @@ class ApiService {
     );
   }
 
+  Future<List<Threshold>> getCrops() async {
+    final response = await _client
+        .get(_uri('/api/crops'))
+        .timeout(const Duration(seconds: 5));
+    _ensureOk(response);
+    final list = jsonDecode(response.body) as List<dynamic>;
+    return list
+        .map((item) => Threshold.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Threshold> addCrop({
+    required String name,
+    required double minTemp,
+    required double maxTemp,
+    required double minHumidity,
+    required double maxHumidity,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/crops'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'name': name,
+            'minTemp': minTemp,
+            'maxTemp': maxTemp,
+            'minHumidity': minHumidity,
+            'maxHumidity': maxHumidity,
+          }),
+        )
+        .timeout(const Duration(seconds: 6));
+    _ensureOk(response);
+    return Threshold.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   Future<List<Alert>> getAlerts() async {
     final response = await _client
         .get(_uri('/api/alerts'))
@@ -83,7 +120,9 @@ class ApiService {
     _ensureOk(response);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return StatusResponse(
-      latest: Reading.fromJson(data['reading'] as Map<String, dynamic>),
+      latest: data['reading'] == null
+          ? null
+          : Reading.fromJson(data['reading'] as Map<String, dynamic>),
       threshold: Threshold.fromJson(data['threshold'] as Map<String, dynamic>),
       breached: false,
     );
