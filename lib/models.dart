@@ -25,11 +25,15 @@ class TrendPoint {
   final String recordedAt;
   final double temperature;
   final double humidity;
+  final bool synthetic;
+  final bool live;
 
   const TrendPoint({
     required this.recordedAt,
     required this.temperature,
     required this.humidity,
+    this.synthetic = false,
+    this.live = false,
   });
 
   factory TrendPoint.fromJson(Map<String, dynamic> json) {
@@ -37,6 +41,8 @@ class TrendPoint {
       recordedAt: json['recordedAt'] as String,
       temperature: (json['temperature'] as num).toDouble(),
       humidity: (json['humidity'] as num).toDouble(),
+      synthetic: json['synthetic'] as bool? ?? false,
+      live: json['live'] as bool? ?? false,
     );
   }
 }

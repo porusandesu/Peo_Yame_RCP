@@ -98,6 +98,28 @@ class ApiService {
         .toList();
   }
 
+  Future<Stream<Map<String, dynamic>>> watchUpdates() async {
+    final request = http.Request('GET', _uri('/api/events'))
+      ..headers['Accept'] = 'text/event-stream';
+    final response = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) {
+      await response.stream.drain<void>();
+      throw Exception(
+        'Realtime connection returned HTTP ${response.statusCode}',
+      );
+    }
+    return response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .where((line) => line.startsWith('data:'))
+        .map(
+          (line) =>
+              jsonDecode(line.substring(5).trim()) as Map<String, dynamic>,
+        );
+  }
+
   Future<void> triggerDemoBreach() async {
     final response = await _client
         .post(

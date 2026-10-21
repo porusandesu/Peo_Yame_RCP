@@ -21,6 +21,31 @@
       .account-avatar { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; background:#e4f2e9; color:var(--green); font-size:12px; }
       .account-name { display:block; font-size:12px; line-height:1.2; }
       .account-email { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:500; }
+      .account-wrap { position:relative; }
+      .account-menu { position:absolute; z-index:5; top:calc(100% + 7px); right:0; width:190px; padding:7px; background:white; color:var(--ink); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 28px #10251f30; }
+      .account-menu[hidden] { display:none; }
+      .account-menu button { display:block; width:100%; text-align:left; border:0; background:white; font-size:13px; }
+      .account-menu button:hover { background:var(--bg); }
+      .account-menu .menu-name { padding:8px 9px; color:var(--muted); font-size:12px; }
+      dialog { width:min(440px,calc(100% - 28px)); border:1px solid var(--line); border-radius:16px; padding:20px; color:var(--ink); box-shadow:0 18px 60px #10251f35; }
+      dialog::backdrop { background:#10251f77; }
+      dialog h2 { margin:0 0 14px; }
+      .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+      .form-grid label { display:grid; gap:4px; color:var(--muted); font-size:12px; }
+      .form-grid label:first-child { grid-column:1/-1; }
+      .form-grid input { width:100%; min-width:0; padding:9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink); }
+      .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+      .dialog-error { min-height:18px; margin-top:8px; color:var(--red); font-size:12px; }
+      .harvest-controls { display:flex; gap:6px; align-items:center; margin-top:7px; }
+      .harvest-controls .harvest-select { flex:1; min-width:0; margin:0; }
+      .add-crop { min-width:36px; width:38px; height:40px; color:var(--green); font-size:20px; }
+      .quality-panel { margin-bottom:12px; }
+      .quality-meter { height:9px; margin-top:10px; border-radius:8px; background:linear-gradient(90deg,#cf5145,#efb45d 35%,#62aa75 70%,#25865c); overflow:hidden; }
+      .quality-meter span { display:block; height:100%; background:#10251f33; border-right:2px solid #10251f; }
+      .alert-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid #edf1ed; padding:10px 0; font-size:12px; }
+      .alert-row:last-child { border:0; }
+      .alert-row small { display:block; color:var(--muted); margin-top:3px; }
+      .alert-row button { flex-shrink:0; font-size:11px; }
       main { width:min(1120px,calc(100% - 32px)); margin:22px auto 48px; }
       .notice { display:flex; gap:10px; align-items:flex-start; border:1px solid #ead9a8; border-radius:12px; background:#fff8e6; color:#624d1c; padding:11px 14px; margin-bottom:14px; font-size:13px; }
       .notice strong { margin-right:5px; }
@@ -74,12 +99,12 @@
     <header>
       <div class="brand"><span class="brand-plant" aria-hidden="true">🌱</span><h1>Peo Yame</h1></div>
       <div class="header-actions">
-        <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small></div>
-        <button class="account-button" type="button" title="Demo farmer account: Olerato.M" aria-label="Demo farmer account Olerato.M, olerato.m@example.com"><span class="account-avatar" aria-hidden="true">OM</span><span><strong class="account-name">Olerato.M</strong><small class="account-email">olerato.m@example.com</small></span></button>
+        <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connecting<small>Waiting for backend</small></div>
+        <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.4 3.1-5.2 7-5.2s6.4 1.8 7 5.2"/></svg></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name">Olerato.M</div><button id="demoToggle" type="button">Enable demo mode</button><button id="logout" type="button">Log out</button></div></div>
         <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
         <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
-        <button class="icon-button" id="trigger" aria-label="Trigger an alert" title="Trigger an alert">⚠</button>
+        <button class="icon-button" id="trigger" aria-label="Trigger a demo breach" title="Trigger a demo breach" hidden>⚠</button>
       </div>
     </header>
     <main>
@@ -87,10 +112,10 @@
       <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
       <div id="error" role="status" aria-live="polite"></div>
       <section class="cards" aria-label="Current storage status">
-        <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div></article>
+        <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div><div class="sub" id="qualityEstimate">Estimated crop quality —</div></article>
         <article class="card"><div class="label">Temperature</div><div class="value" id="temperature">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="tempMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="tempRange">Waiting for reading</div></article>
         <article class="card"><div class="label">Humidity</div><div class="value" id="humidity">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="humidityMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="humidityRange">Waiting for reading</div></article>
-        <article class="card"><div class="label">Harvest</div><select class="harvest-select" id="harvest" aria-label="Select harvest"><option value="Maize">Maize</option><option value="Tomato">Tomato</option></select><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
+        <article class="card"><div class="label">Harvest</div><div class="harvest-controls"><select class="harvest-select" id="harvest" aria-label="Select harvest"></select><button class="add-crop" id="addCrop" type="button" aria-label="Add crop" title="Add crop">+</button></div><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
       </section>
 
       <article class="panel chart-panel">
@@ -99,24 +124,45 @@
         </div></div>
         <div class="chart-legend"><span><i class="key"></i>Temperature °C</span><span><i class="key humidity"></i>Humidity %</span></div>
         <svg id="trendChart" role="img" aria-label="Temperature and humidity trend chart" viewBox="0 0 800 240" preserveAspectRatio="none"></svg>
-      <div id="chartCaption" class="chart-caption">A stable simulated 24-hour baseline is generated at startup; later readings are live simulation data.</div>
+      <div id="chartCaption" class="chart-caption">Historical sample data and live backend readings.</div>
       </article>
 
       <section class="lower">
         <article class="panel"><h2>Recent readings</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Temperature</th><th>Humidity</th><th>Result</th></tr></thead><tbody id="readings"></tbody></table></div></article>
         <div>
-          <article class="panel"><h2>Alerts &amp; SMS</h2><ul class="log" id="logs"></ul></article>
+          <article class="panel quality-panel"><h2>Crop quality estimate</h2><div class="value" id="qualityValue">—</div><div class="sub" id="qualityNote">Based on the latest reading and selected crop limits.</div><div class="quality-meter"><span id="qualityMeter"></span></div></article>
+          <article class="panel"><h2>Alerts &amp; SMS</h2><div id="logs" class="log"></div><h2 style="margin-top:14px">Alert history</h2><div id="alertHistory" class="log"></div></article>
         </div>
       </section>
     </main>
+    <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
       const $ = (id) => document.getElementById(id);
       const fmtTime = (value) => value ? new Date(value).toLocaleString() : '—';
       const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
+      function estimateCropQuality(reading, threshold) {
+        if (!reading || !threshold) return null;
+        const score = (value, min, max) => {
+          const distance = value < min ? min - value : value > max ? value - max : 0;
+          return Math.max(0, Math.min(100, 100 - distance / (max - min) * 100));
+        };
+        return Math.round((score(reading.temperature, threshold.minTemp, threshold.maxTemp) + score(reading.humidity, threshold.minHumidity, threshold.maxHumidity)) / 2);
+      }
       let selectedRange = '24h';
       let chartData = [];
       let refreshRevision = 0;
+      let lastSyncAt = null;
+      let demoMode = localStorage.getItem('demo_mode') === 'true';
+      function renderCrops(crops, selected) {
+        const available = crops.length ? crops : [{commodity:selected}];
+        $('harvest').innerHTML = available.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
+        $('harvest').value = selected;
+      }
+      function updateDemoControls() {
+        $('trigger').hidden = !demoMode;
+        $('demoToggle').textContent = demoMode ? 'Disable demo mode' : 'Enable demo mode';
+      }
       async function getJson(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
@@ -144,6 +190,7 @@
         $('status').textContent = 'Safe';
         $('status').className = 'value status-safe';
         $('statusNote').textContent = `Last reading ${fmtTime(latest.recordedAt)}`;
+        $('qualityEstimate').textContent = `Estimated crop quality ${estimateCropQuality(latest, t)}%`;
         $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
         $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
         const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
@@ -183,7 +230,9 @@
         }).join('');
         svg.innerHTML = `${grid}${dateLabels}${paths('temperature','#25865c',tempY)}${paths('humidity','#4e81ce',humY)}`;
         $('chartCaption').textContent = points.length
-          ? 'Includes a stable, generated 24-hour demo baseline. Newer readings are live simulation data; longer ranges contain only data collected since startup.'
+          ? (points.some((point) => point.synthetic)
+            ? 'Includes clearly marked simulated history stored in the database, followed by newer live demo readings.'
+            : 'Live sensor readings stored in the database.')
           : 'No trend readings are available for this period.';
       }
       async function loadTrend() {
@@ -196,8 +245,8 @@
       async function refresh() {
         const revision = ++refreshRevision;
         try {
-          const [status, history, alerts, sms] = await Promise.all([
-            getJson('/api/status'), getJson('/api/readings/history?limit=12'), getJson('/api/alerts'), getJson('/api/sms-log')
+          const [status, history, alerts, sms, crops] = await Promise.all([
+            getJson('/api/status'), getJson('/api/readings/history?limit=20'), getJson('/api/alerts'), getJson('/api/sms-log'), getJson('/api/crops').catch(() => [])
           ]);
           if (revision !== refreshRevision) return;
           const t = status.threshold, latest = status.latest;
@@ -205,9 +254,18 @@
           $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
           $('status').className = `value ${status.breached ? 'status-alert' : 'status-safe'}`;
           $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
+          const quality = estimateCropQuality(latest, t);
+          $('qualityEstimate').textContent = quality == null ? 'Estimated crop quality —' : `Estimated crop quality ${quality}%`;
+          $('qualityValue').textContent = quality == null ? '—' : `${quality}%`;
+          $('qualityMeter').style.width = `${100 - (quality || 0)}%`;
+          $('qualityNote').textContent = quality == null
+            ? 'Waiting for a reading from the monitor.'
+            : quality >= 80 ? 'Conditions are close to the selected crop limits.'
+              : quality >= 50 ? 'Conditions may affect crop quality; keep monitoring.'
+                : 'Severe threshold breach. Check storage conditions now.';
           $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
           $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
-          $('harvest').value = t.commodity;
+          renderCrops(crops, t.commodity);
           if (latest) {
             const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
             const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
@@ -225,14 +283,21 @@
             ...alerts.slice(0, 8).map((a) => ({ time:a.sentAt, title:a.message, note:'Threshold alert' })),
             ...sms.slice(0, 8).map((s) => ({ time:s.createdAt, title:s.body, note:`SMS ${s.status} for ${s.to}` }))
           ].sort((a,b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
-          $('logs').innerHTML = entries.map((entry) => `<li>${escapeHtml(entry.title)}<small>${escapeHtml(entry.note)} · ${escapeHtml(fmtTime(entry.time))}</small></li>`).join('') || '<li class="empty">No alerts yet.</li>';
+          $('logs').innerHTML = entries.map((entry) => `<div class="alert-row"><div>${escapeHtml(entry.title)}<small>${escapeHtml(entry.note)} · ${escapeHtml(fmtTime(entry.time))}</small></div></div>`).join('') || '<div class="empty">No alerts or SMS log entries.</div>';
+          $('alertHistory').innerHTML = alerts.map((alert) => `<div class="alert-row"><div>${escapeHtml(alert.message)}<small>${escapeHtml(alert.commodity)} · ${escapeHtml(fmtTime(alert.sentAt))} · ${escapeHtml(alert.acknowledged ? 'Reviewed' : 'Needs attention')}</small></div>${alert.acknowledged ? '' : `<button type="button" data-ack="${Number(alert.id)}">Review</button>`}</div>`).join('') || '<div class="empty">No alerts yet.</div>';
+          $('alertHistory').querySelectorAll('[data-ack]').forEach((button) => button.addEventListener('click', async () => {
+            button.disabled = true;
+            try { await postJson(`/api/alerts/${button.dataset.ack}/acknowledge`, {}); await refresh(); }
+            catch (err) { $('error').className = 'error'; $('error').textContent = `Could not update alert: ${err.message}`; button.disabled = false; }
+          }));
           $('updated').textContent = `Data refreshed ${new Date().toLocaleTimeString()}`;
-          $('connectionHeader').innerHTML = '<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced 5 mins ago</small>';
+          lastSyncAt = new Date();
+          $('connectionHeader').innerHTML = `<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced ${new Date().toLocaleTimeString()}</small>`;
           await loadTrend();
         } catch (err) {
           if (revision !== refreshRevision) return;
           $('updated').textContent = 'Backend unavailable';
-          $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>Last sync 5 mins ago</small>';
+          $('connectionHeader').innerHTML = `<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>${lastSyncAt ? `Last sync ${lastSyncAt.toLocaleTimeString()}` : 'No successful sync yet'}</small>`;
           $('error').className = 'error';
           $('error').textContent = `${err.message}. Start the backend with “cd backend && npm run demo”, then reload this page.`;
         }
@@ -278,14 +343,56 @@
           $('error').className = 'error'; $('error').textContent = `Could not trigger alert: ${err.message}`;
         } finally { $('trigger').disabled = false; }
       });
+      $('addCrop').addEventListener('click', () => { $('cropError').textContent = ''; $('cropDialog').showModal(); });
+      $('cancelCrop').addEventListener('click', () => $('cropDialog').close());
+      $('cropForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = new FormData(event.currentTarget);
+        const payload = Object.fromEntries(values.entries());
+        for (const key of ['minTemp','maxTemp','minHumidity','maxHumidity']) payload[key] = Number(payload[key]);
+        try {
+          const crop = await postJson('/api/crops', payload);
+          $('cropDialog').close();
+          event.currentTarget.reset();
+          await refresh();
+          $('harvest').value = crop.commodity;
+          const selected = await postJson('/api/commodity', {name:crop.commodity,source:'web'});
+          applyHarvestSelection(selected);
+          await refresh();
+        } catch (err) { $('cropError').textContent = err.message; }
+      });
       document.querySelectorAll('[data-range]').forEach((button) => button.addEventListener('click', () => {
         selectedRange = button.dataset.range;
         document.querySelectorAll('[data-range]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
         void recordAction('Changed trend range', {range:selectedRange});
         loadTrend();
       }));
+      $('accountButton').addEventListener('click', () => {
+        $('accountMenu').hidden = !$('accountMenu').hidden;
+        $('accountButton').setAttribute('aria-expanded', String(!$('accountMenu').hidden));
+      });
+      $('demoToggle').addEventListener('click', () => {
+        demoMode = !demoMode;
+        localStorage.setItem('demo_mode', String(demoMode));
+        updateDemoControls();
+        $('accountMenu').hidden = true;
+        $('accountButton').setAttribute('aria-expanded', 'false');
+      });
+      $('logout').addEventListener('click', () => {
+        demoMode = false;
+        localStorage.setItem('demo_mode', 'false');
+        updateDemoControls();
+        $('accountMenu').hidden = true;
+        $('accountButton').setAttribute('aria-expanded', 'false');
+      });
+      updateDemoControls();
       refresh();
-      setInterval(refresh, 5000);
+      const updates = new EventSource('/api/events');
+      updates.onmessage = () => refresh();
+      updates.onerror = () => {
+        $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Reconnecting<small>Waiting for live updates</small>';
+      };
+      setInterval(refresh, 30000);
     </script>
   </body>
 </html>

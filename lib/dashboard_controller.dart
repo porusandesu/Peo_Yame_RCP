@@ -15,7 +15,16 @@ class DashboardController extends ChangeNotifier {
   String get baseUrl => _api.baseUrl;
 
   void setBaseUrl(String value) {
+    final previousUrl = _api.baseUrl;
     _api.baseUrl = normalizeApiBaseUrl(value);
+    if (previousUrl != _api.baseUrl && _timer != null) {
+      // Release the old stream so its reconnect loop attaches to the new PC.
+      final disconnect = _eventDisconnect;
+      if (disconnect != null && !disconnect.isCompleted) {
+        disconnect.complete();
+      }
+      unawaited(_refresh());
+    }
   }
 
   StatusResponse? status;
@@ -32,14 +41,20 @@ class DashboardController extends ChangeNotifier {
   String? errorMessage;
 
   Timer? _timer;
+  StreamSubscription<Map<String, dynamic>>? _eventSubscription;
+  Completer<void>? _eventDisconnect;
   bool _disposed = false;
+  bool _connectingEvents = false;
   int _refreshGeneration = 0;
+  bool _refreshInFlight = false;
+  bool _refreshQueued = false;
 
   void startPolling() {
     _timer?.cancel();
     _loadDemoMode();
     _refresh();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
+    _connectEvents();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
   }
 
   Future<void> _loadDemoMode() async {
@@ -47,53 +62,67 @@ class DashboardController extends ChangeNotifier {
       demoMode =
           (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
     } catch (_) {}
-    if (demoMode && !_disposed) _showDemoFallback();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> setDemoMode(bool enabled) async {
     demoMode = enabled;
-    _refreshGeneration++;
     try {
       await (await SharedPreferences.getInstance()).setBool(
         'demo_mode',
         enabled,
       );
     } catch (_) {}
-    if (enabled) {
-      _showDemoFallback();
-    } else {
-      errorMessage = null;
-      await _refresh();
-    }
     if (!_disposed) notifyListeners();
   }
 
-  void _showDemoFallback() {
-    const fallback = Threshold(
-      commodity: 'Maize',
-      minTemp: 10,
-      maxTemp: 27,
-      minHumidity: 30,
-      maxHumidity: 70,
-    );
-    final selected =
-        status?.threshold ?? (crops.isNotEmpty ? crops.first : fallback);
-    final sample =
-        status?.latest ??
-        Reading(
-          id: 0,
-          temperature: (selected.minTemp + selected.maxTemp) / 2,
-          humidity: (selected.minHumidity + selected.maxHumidity) / 2,
-          recordedAt: DateTime.now().toUtc().toIso8601String(),
-        );
-    status = StatusResponse(
-      latest: sample,
-      threshold: selected,
-      breached: false,
-    );
-    if (history.isEmpty) history = [sample];
-    errorMessage = null;
-    isLoading = false;
+  Future<void> _connectEvents() async {
+    if (_connectingEvents || _disposed) return;
+    _connectingEvents = true;
+    try {
+      while (!_disposed) {
+        StreamSubscription<Map<String, dynamic>>? subscription;
+        final disconnected = Completer<void>();
+        _eventDisconnect = disconnected;
+        try {
+          final stream = await _api.watchUpdates();
+          if (_disposed) break;
+          subscription = stream.listen(
+            (event) {
+              if (_disposed) return;
+              if (event['type'] == 'crops') unawaited(loadCrops());
+              unawaited(_refresh());
+            },
+            onError: (Object _, StackTrace __) {
+              if (!disconnected.isCompleted) disconnected.complete();
+            },
+            onDone: () {
+              if (!disconnected.isCompleted) disconnected.complete();
+            },
+            cancelOnError: true,
+          );
+          _eventSubscription = subscription;
+          await disconnected.future;
+        } catch (_) {
+          // The regular refresh remains available while the event stream reconnects.
+        } finally {
+          if (subscription != null) {
+            await subscription.cancel();
+            if (identical(_eventSubscription, subscription)) {
+              _eventSubscription = null;
+            }
+          }
+          if (identical(_eventDisconnect, disconnected)) {
+            _eventDisconnect = null;
+          }
+        }
+        if (!_disposed) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+      }
+    } finally {
+      _connectingEvents = false;
+    }
   }
 
   Future<void> loadCrops() async {
@@ -152,26 +181,6 @@ class DashboardController extends ChangeNotifier {
     // Ignore polls that began before (or while) the harvest change was sent.
     _refreshGeneration++;
     notifyListeners();
-    if (demoMode) {
-      Threshold? crop;
-      for (final item in crops) {
-        if (item.commodity == name) {
-          crop = item;
-          break;
-        }
-      }
-      final threshold = crop ?? status?.threshold;
-      if (threshold != null) {
-        status = StatusResponse(
-          latest: status?.latest,
-          threshold: threshold,
-          breached: false,
-        );
-      }
-      isChangingHarvest = false;
-      notifyListeners();
-      return;
-    }
     try {
       final updatedStatus = await _api.setCommodity(name);
       if (_disposed) return;
@@ -207,11 +216,13 @@ class DashboardController extends ChangeNotifier {
   }
 
   Future<void> _refresh() async {
-    if (demoMode) {
-      _showDemoFallback();
-      if (!_disposed) notifyListeners();
+    if (_refreshInFlight) {
+      // Coalesce timer ticks and manual refreshes instead of stacking HTTP
+      // requests when the backend is slow or unreachable.
+      _refreshQueued = true;
       return;
     }
+    _refreshInFlight = true;
     final generation = _refreshGeneration;
     try {
       final results = await Future.wait([
@@ -232,10 +243,14 @@ class DashboardController extends ChangeNotifier {
       errorMessage =
           'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
     } finally {
+      _refreshInFlight = false;
+      final shouldRefreshAgain = _refreshQueued && !_disposed;
+      _refreshQueued = false;
       if (!_disposed && generation == _refreshGeneration) {
         isLoading = false;
         notifyListeners();
       }
+      if (shouldRefreshAgain) unawaited(_refresh());
     }
   }
 
@@ -263,6 +278,11 @@ class DashboardController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    final disconnect = _eventDisconnect;
+    if (disconnect != null && !disconnect.isCompleted) {
+      disconnect.complete();
+    }
+    _eventSubscription?.cancel();
     _api.dispose();
     super.dispose();
   }

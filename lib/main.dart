@@ -8,9 +8,10 @@ import 'config.dart';
 import 'dashboard_controller.dart';
 import 'models.dart';
 
-const _forest = Color(0xFF174A38);
-const _canvas = Color(0xFFEBF2EB);
-const _ink = Color(0xFF1F2B24);
+const _forest = Color(0xFF176B4A);
+const _header = Color(0xFF10251F);
+const _canvas = Color(0xFFF3F7F3);
+const _ink = Color(0xFF172923);
 
 void main() => runApp(const StorageMonitorApp());
 
@@ -32,8 +33,8 @@ class StorageMonitorApp extends StatelessWidget {
           displayColor: _ink,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: _forest,
+          backgroundColor: _header,
+          foregroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
         ),
         navigationBarTheme: NavigationBarThemeData(
@@ -50,11 +51,11 @@ class StorageMonitorApp extends StatelessWidget {
         ),
         cardTheme: CardThemeData(
           color: Colors.white,
-          elevation: 0,
-          shadowColor: const Color(0x0A173C2D),
+          elevation: 1,
+          shadowColor: const Color(0x10183326),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-            side: const BorderSide(color: Color(0xFFE0E8E0)),
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: Color(0xFFDCE6DF)),
           ),
           margin: EdgeInsets.zero,
         ),
@@ -176,7 +177,7 @@ class _LoginSplashState extends State<_LoginSplash> {
                   const Text(
                     'A safer place for every harvest.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF6B7A70), fontSize: 15),
+                    style: TextStyle(color: Color(0xFF65776F), fontSize: 15),
                   ),
                   const SizedBox(height: 32),
                   Card(
@@ -266,7 +267,7 @@ class _LoginSplashState extends State<_LoginSplash> {
                   const Text(
                     'Demo sign-in · accounts are not verified by a server',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF6B7A70), fontSize: 11),
+                    style: TextStyle(color: Color(0xFF65776F), fontSize: 11),
                   ),
                 ],
               ),
@@ -509,7 +510,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   const Text(
                     'Use values that keep the crop safe during storage.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF718078)),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
                   ),
                 ],
               ),
@@ -603,8 +604,8 @@ class _DashboardPageState extends State<DashboardPage> {
         final status = _controller.status;
         return Scaffold(
           appBar: AppBar(
-            backgroundColor: Colors.white,
-            foregroundColor: _forest,
+            backgroundColor: _header,
+            foregroundColor: Colors.white,
             elevation: 0,
             titleSpacing: 20,
             title: const Row(
@@ -688,7 +689,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _FarmerGreeting(userName: widget.account.name, onLogout: widget.onLogout),
     const SizedBox(height: 16),
     if (status != null) ...[
-      _StatusHero(status: status),
+      _StatusHero(status: status, offline: _controller.errorMessage != null),
       const SizedBox(height: 14),
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,7 +745,7 @@ class _DashboardPageState extends State<DashboardPage> {
       title: 'Recent readings',
       trailing: Text(
         '${_controller.history.length}',
-        style: const TextStyle(color: Color(0xFF718078)),
+        style: const TextStyle(color: Color(0xFF65776F)),
       ),
     ),
     const SizedBox(height: 8),
@@ -772,7 +773,7 @@ class _DashboardPageState extends State<DashboardPage> {
     const SizedBox(height: 4),
     const Text(
       'Monitor your storage conditions',
-      style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+      style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
     _TrendAtAGlance(points: _controller.trends, range: _controller.trendRange),
@@ -826,7 +827,7 @@ class _DashboardPageState extends State<DashboardPage> {
       const SizedBox(height: 4),
       const Text(
         'Storage alerts and notifications',
-        style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+        style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
       ),
       const SizedBox(height: 14),
       _CropQualityCard(status: status),
@@ -843,7 +844,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ] else if (status?.breached ?? false) ...[
         const _SectionTitle(title: 'Needs attention'),
         const SizedBox(height: 8),
-        _StatusHero(status: status!),
+        _StatusHero(status: status!, offline: _controller.errorMessage != null),
         const SizedBox(height: 16),
       ],
       _SectionTitle(
@@ -864,32 +865,34 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       const SizedBox(height: 16),
-      Card(
-        child: ListTile(
-          leading: const Icon(
-            Icons.notifications_active_outlined,
-            color: _forest,
+      if (_controller.demoMode) ...[
+        Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.notifications_active_outlined,
+              color: _forest,
+            ),
+            title: const Text(
+              'Trigger demo breach',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: const Text(
+              'Cycle through crop quality impact levels',
+              style: TextStyle(fontSize: 12),
+            ),
+            trailing: _controller.isTriggering
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _controller.isTriggering
+                ? null
+                : _controller.triggerDemoBreach,
           ),
-          title: const Text(
-            'Test alert',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: const Text(
-            'Generate a demo storage condition alert',
-            style: TextStyle(fontSize: 12),
-          ),
-          trailing: _controller.isTriggering
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.chevron_right),
-          onTap: _controller.isTriggering
-              ? null
-              : _controller.triggerDemoBreach,
         ),
-      ),
+      ],
     ];
   }
 
@@ -906,7 +909,7 @@ class _DashboardPageState extends State<DashboardPage> {
     const SizedBox(height: 4),
     const Text(
       'Manage your storage monitor',
-      style: TextStyle(color: Color(0xFF718078), fontSize: 13),
+      style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
     const _SectionTitle(title: 'Account information'),
@@ -963,7 +966,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ? 'Demo readings are coming in'
                             : 'Waiting for the storage monitor',
                         style: const TextStyle(
-                          color: Color(0xFF6B7A70),
+                          color: Color(0xFF65776F),
                           fontSize: 12,
                         ),
                       ),
@@ -987,7 +990,7 @@ class _DashboardPageState extends State<DashboardPage> {
             const SizedBox(height: 8),
             const Text(
               'These are practice readings. No physical sensors are connected yet.',
-              style: TextStyle(color: Color(0xFF6B7A70), fontSize: 12),
+              style: TextStyle(color: Color(0xFF65776F), fontSize: 12),
             ),
             const SizedBox(height: 12),
             ListTile(
@@ -1072,8 +1075,8 @@ class _DashboardPageState extends State<DashboardPage> {
         title: const Text('Demo mode'),
         subtitle: Text(
           _controller.demoMode
-              ? 'Showing the last available status on this device.'
-              : 'Use sample status if the monitor is unavailable.',
+              ? 'Demo alert controls are available on the Alerts screen.'
+              : 'Enable the demo alert control for testing.',
         ),
         value: _controller.demoMode,
         onChanged: (enabled) => _controller.setDemoMode(enabled),
@@ -1144,7 +1147,7 @@ class _AccountDetailRow extends StatelessWidget {
           width: 76,
           child: Text(
             label,
-            style: const TextStyle(color: Color(0xFF6B7A70), fontSize: 12),
+            style: const TextStyle(color: Color(0xFF65776F), fontSize: 12),
           ),
         ),
         Expanded(
@@ -1169,7 +1172,7 @@ class _CropQualityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final estimate = _estimateCropQuality(status);
     final color = estimate == null
-        ? const Color(0xFF6B7A70)
+        ? const Color(0xFF65776F)
         : estimate >= 80
         ? _forest
         : estimate >= 55
@@ -1222,7 +1225,7 @@ class _CropQualityCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Text(
               'A rough estimate from temperature and humidity only. It does not inspect the crop.',
-              style: TextStyle(color: Color(0xFF6B7A70), fontSize: 11),
+              style: TextStyle(color: Color(0xFF65776F), fontSize: 11),
             ),
           ],
         ),
@@ -1280,7 +1283,7 @@ class _AlertBreakdownCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Raised ${_formatDate(alert.sentAt)}${age == null ? '' : ' · ${_elapsedLabel(age)} ago'}',
-              style: const TextStyle(color: Color(0xFF6B7A70), fontSize: 11),
+              style: const TextStyle(color: Color(0xFF65776F), fontSize: 11),
             ),
             const SizedBox(height: 14),
             if (reading != null && threshold != null) ...[
@@ -1390,7 +1393,7 @@ class _AlertReadingRow extends StatelessWidget {
       ),
       Text(
         'Safe: $safeRange',
-        style: const TextStyle(color: Color(0xFF6B7A70), fontSize: 10),
+        style: const TextStyle(color: Color(0xFF65776F), fontSize: 10),
       ),
     ],
   );
@@ -1605,78 +1608,80 @@ class _FarmerGreeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'User menu',
-      onSelected: (value) {
-        if (value == 'logout') onLogout();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Text(userName, style: const TextStyle(color: _forest)),
+    return Row(
+      children: [
+        PopupMenuButton<String>(
+          tooltip: 'User menu',
+          onSelected: (value) {
+            if (value == 'logout') onLogout();
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              enabled: false,
+              child: Text(userName, style: const TextStyle(color: _forest)),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 18),
+                  SizedBox(width: 10),
+                  Text('Log out'),
+                ],
+              ),
+            ),
+          ],
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE4F2E9),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.person_outline_rounded, color: _forest),
+          ),
         ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.logout_rounded, size: 18),
-              SizedBox(width: 10),
-              Text('Log out'),
+              Text(
+                userName,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'Your harvest at a glance',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: const Color(0xFF65776F)),
+              ),
             ],
           ),
         ),
       ],
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 21,
-            backgroundColor: const Color(0xFFE0EEE5),
-            child: Text(
-              userName.isEmpty ? 'T' : userName[0].toUpperCase(),
-              style: const TextStyle(
-                color: _forest,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  userName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'Your harvest at a glance',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF718078),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: _forest),
-        ],
-      ),
     );
   }
 }
 
 class _StatusHero extends StatelessWidget {
-  const _StatusHero({required this.status});
+  const _StatusHero({required this.status, this.offline = false});
 
   final StatusResponse status;
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
     final breached = status.breached;
     final latest = status.latest;
-    final background = breached ? const Color(0xFF8E342E) : _forest;
+    final background = offline
+        ? const Color(0xFF65552F)
+        : breached
+        ? const Color(0xFF8E342E)
+        : _forest;
     return Container(
       padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
@@ -1685,7 +1690,7 @@ class _StatusHero extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(21),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: background.withValues(alpha: .22),
@@ -1700,14 +1705,24 @@ class _StatusHero extends StatelessWidget {
           Row(
             children: [
               Icon(
-                breached ? Icons.warning_amber_rounded : Icons.check_circle,
+                offline
+                    ? Icons.cloud_off_rounded
+                    : breached
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle,
                 color: Colors.white,
                 size: 22,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  breached ? 'Attention needed' : 'Conditions are safe',
+                  offline
+                      ? breached
+                            ? 'Offline · last known alert'
+                            : 'Connection lost · last known'
+                      : breached
+                      ? 'Attention needed'
+                      : 'Conditions are safe',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -1721,6 +1736,8 @@ class _StatusHero extends StatelessWidget {
           Text(
             latest == null
                 ? 'Waiting for the first reading'
+                : offline
+                ? 'Last reading ${_relativeTime(latest.recordedAt)} · reconnecting'
                 : 'Last synced ${_relativeTime(latest.recordedAt)}',
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
@@ -1846,14 +1863,14 @@ class _MetricCard extends StatelessWidget {
             ),
             Text(
               unit,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF718078)),
+              style: const TextStyle(fontSize: 10, color: Color(0xFF65776F)),
             ),
             const SizedBox(height: 13),
             _RiskGauge(value: current, min: min, max: max),
             const SizedBox(height: 6),
             Text(
               'Safe ${_fmt(min)}–${_fmt(max)}',
-              style: const TextStyle(fontSize: 10, color: Color(0xFF718078)),
+              style: const TextStyle(fontSize: 10, color: Color(0xFF65776F)),
             ),
           ],
         ),
@@ -1926,15 +1943,15 @@ class _RiskGauge extends StatelessWidget {
           children: [
             Text(
               'High',
-              style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
+              style: TextStyle(fontSize: 9, color: Color(0xFF65776F)),
             ),
             Text(
               'Low',
-              style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
+              style: TextStyle(fontSize: 9, color: Color(0xFF65776F)),
             ),
             Text(
               'High',
-              style: TextStyle(fontSize: 9, color: Color(0xFF718078)),
+              style: TextStyle(fontSize: 9, color: Color(0xFF65776F)),
             ),
           ],
         ),
@@ -1988,7 +2005,7 @@ class _HarvestCard extends StatelessWidget {
                 children: [
                   const Text(
                     'Harvest',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
+                    style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
                   ),
                   DropdownButton<String>(
                     value: status.threshold.commodity,
@@ -2015,7 +2032,7 @@ class _HarvestCard extends StatelessWidget {
               children: [
                 const Text(
                   'Storage estimate',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
+                  style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2124,7 +2141,7 @@ class _RangeSelector extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: active ? _forest : const Color(0xFF718078),
+                  color: active ? _forest : const Color(0xFF65776F),
                 ),
               ),
             ),
@@ -2159,7 +2176,7 @@ class _TrendAtAGlance extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Low and high readings will appear when data is available.',
-                style: const TextStyle(color: Color(0xFF6B7A70), fontSize: 12),
+                style: const TextStyle(color: Color(0xFF65776F), fontSize: 12),
               ),
             ],
           ),
@@ -2191,7 +2208,7 @@ class _TrendAtAGlance extends StatelessWidget {
                     title: 'Temperature',
                     low: '${_fmt(temperatureLow)}°C',
                     high: '${_fmt(temperatureHigh)}°C',
-                    color: const Color(0xFF248257),
+                    color: const Color(0xFF25865C),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -2278,7 +2295,7 @@ class _TrendCard extends StatelessWidget {
               spacing: 16,
               runSpacing: 6,
               children: [
-                _Legend(color: Color(0xFF248257), text: 'Temperature °C'),
+                _Legend(color: Color(0xFF25865C), text: 'Temperature °C'),
                 _Legend(color: Color(0xFF4E81CE), text: 'Humidity %'),
               ],
             ),
@@ -2292,7 +2309,7 @@ class _TrendCard extends StatelessWidget {
                         error ?? 'Collecting trend data…',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Color(0xFF718078),
+                          color: Color(0xFF65776F),
                           fontSize: 12,
                         ),
                       ),
@@ -2301,8 +2318,10 @@ class _TrendCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_rangeLabel(range)} · includes a stable simulated 24-hour baseline. Newer readings are live simulation data; older month history is collected after startup.',
-              style: const TextStyle(fontSize: 10, color: Color(0xFF718078)),
+              points.any((point) => point.synthetic)
+                  ? '${_rangeLabel(range)} · includes stored simulated hourly history; recent points update live from the backend.'
+                  : '${_rangeLabel(range)} · readings update live from the backend.',
+              style: const TextStyle(fontSize: 10, color: Color(0xFF65776F)),
             ),
           ],
         ),
@@ -2336,7 +2355,7 @@ class _TrendPainter extends CustomPainter {
       canvas,
       chart,
       points.map((p) => p.temperature).toList(),
-      const Color(0xFF248257),
+      const Color(0xFF25865C),
       seriesIndex: 0,
     );
     _drawBars(
@@ -2530,12 +2549,12 @@ class _EmptyCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF718078)),
+          Icon(icon, color: const Color(0xFF65776F)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF718078)),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF65776F)),
             ),
           ),
         ],
@@ -2555,16 +2574,30 @@ class _ErrorBanner extends StatelessWidget {
     decoration: BoxDecoration(
       color: const Color(0xFFFFF5DB),
       border: Border.all(color: const Color(0xFFF0DBA6)),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
     ),
     child: Row(
       children: [
         const Icon(Icons.wifi_off_rounded, color: Color(0xFF8A6C27), size: 18),
         const SizedBox(width: 9),
         Expanded(
-          child: Text(
-            message,
-            style: const TextStyle(color: Color(0xFF624D1C), fontSize: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(color: Color(0xFF624D1C), fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Open Settings to check the backend address.',
+                style: TextStyle(
+                  color: Color(0xFF624D1C),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ],

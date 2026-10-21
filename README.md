@@ -1,12 +1,12 @@
 # Peo Yame
 
 Peo Yame is a presentation prototype for monitoring produce-storage conditions.
-The responsive web dashboard and Flutter app read simulated temperature,
-humidity, status, and alerts from the included Node.js backend. No physical
-sensor is connected and no SMS is sent; alert dispatches appear in the
-backend's in-memory SMS log. The chart starts with a clearly labeled, stable
-simulated 24-hour baseline, then adds live simulated readings. Trend history is
-cleared when the backend restarts.
+The responsive web dashboard and Flutter app read temperature, humidity,
+status, and alerts from the same Node.js backend. No physical sensor is
+connected and no SMS is sent. The backend stores readings in SQLite and streams
+updates to both apps; each client also reconnects and refreshes if the live
+stream drops. In demo mode, the database gets a deterministic 90-day hourly
+history once, then adds current simulated readings.
 
 ## Start the backend on the PC
 
@@ -38,11 +38,11 @@ open the run and download the `storage-monitor-android-debug` artifact. Extract
 it and install `app-debug.apk` on an Android device. This is a debug build for
 testing, not a Play Store release.
 
-Use the warning icon to trigger a deterministic out-of-range reading held for
-15 seconds. The status card turns red and the alert appears in the app. The web
-dashboard also shows recent readings, alerts, and the simulated SMS log. Open
-`http://<PC-IP>:3000` on another device on the same Wi-Fi network. The backend
-keeps readings and logs in memory, so restarting it clears them.
+Enable **Demo mode** from the account menu on the web dashboard or from
+Settings in the mobile app to reveal the demo breach control. Repeated taps
+cycle through four breach levels and quality estimates. Both clients update
+from the same saved reading. Open `http://<PC-IP>:3000` on another device on the
+same Wi-Fi network.
 
 Use the **Harvest** selector to switch between Maize and Tomato. Each selection
 loads that crop's illustrative temperature and humidity limits and immediately
@@ -73,10 +73,8 @@ Use the spreadsheet icon in the web dashboard to download `peo-yame-readings.csv
 The Flutter app offers the same file through the device share sheet. Excel opens
 the CSV directly. It includes the latest retained readings, UTC timestamps,
 harvest, data source, temperature and humidity, crop limits, and a breach flag.
-Reading history is held in memory and capped at 200 records, so export it before
-restarting the backend if you need to keep the current dataset. The synthetic
-24-hour chart baseline is labeled separately in the chart and is not included
-as sensor readings in this file.
+The export includes the latest 200 readings. Longer chart history remains in
+SQLite and is shown as simulated history, separate from live readings.
 
 For a build-time address override, use
 `flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
@@ -97,4 +95,4 @@ spoilage thresholds. The UI's storage-time estimate is a heuristic and must
 not be presented as a validated prediction.
 
 Use the project only as a controlled local-network demonstration. The backend
-uses plain HTTP and has no authentication or persistent storage.
+uses plain HTTP and the account menu is a demo UI, not authentication.

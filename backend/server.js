@@ -4,12 +4,11 @@
  * A small local API that stands in for the real sensor pipeline while the
  * ESP32 + GSM hardware isn't built yet. It generates realistic-looking
  * temperature/humidity readings on an interval, evaluates them against a
- * threshold, and raises alerts when a reading breaches it - the exact same
- * shape the real system will eventually produce.
+ * threshold, persists readings in SQLite, and streams updates to each client.
  *
  * TO SWITCH TO REAL DATA LATER:
- * Replace the `generateReading()` function and the in-memory arrays below
- * with real queries against your database (readings, thresholds tables).
+ * Replace the `generateReading()` function with sensor input. The database
+ * and route response shapes can remain in place for the real sensor pipeline.
  * The route handlers and response shapes can stay exactly the same, so the
  * Android app and dashboard don't need to change at all.
  */
@@ -31,6 +30,18 @@ const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0
 const ACTION_LOG_PATH = path.join(__dirname, "data", "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
+const eventClients = new Set();
+
+function broadcastUpdate(type = "reading") {
+  const event = `data: ${JSON.stringify({ type, updatedAt: new Date().toISOString() })}\n\n`;
+  for (const client of eventClients) {
+    try {
+      client.write(event);
+    } catch (_) {
+      eventClients.delete(client);
+    }
+  }
+}
 
 function loadActionLog() {
   if (!fs.existsSync(ACTION_LOG_PATH)) return [];
@@ -84,10 +95,18 @@ const thresholds = Object.fromEntries(cropDatabase.listCrops().map((crop) => [cr
 let threshold = cropDatabase.getCrop(cropDatabase.activeCropName()) || thresholds.Maize;
 
 // ---- In-memory "database" (swap for real DB queries later) ----
+if (process.env.NODE_ENV !== "production") cropDatabase.seedDemoHistory();
 let readings = cropDatabase.recentReadings(200);
-// Keep one compact aggregate per minute so trend views can cover up to 90 days.
-// A marked 24-hour synthetic baseline is added at startup to make the demo chart useful.
-let trendBuckets = [];
+// Keep one compact aggregate per hour from SQLite, then add live minute buckets.
+let trendBuckets = cropDatabase.trendHistory(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()).map((point) => ({
+  minute: point.recordedAt.slice(0, 16),
+  commodity: point.commodity,
+  temperatureTotal: Number(point.temperature) * Number(point.count),
+  humidityTotal: Number(point.humidity) * Number(point.count),
+  count: Number(point.count),
+  syntheticCount: Number(point.syntheticCount),
+  liveCount: Number(point.liveCount),
+}));
 let alerts = [];
 let smsLog = [];
 let incidents = [];
@@ -96,6 +115,14 @@ let nextAlertId = 1;
 let nextIncidentId = 1;
 let demoBreachActive = false;
 let demoBreachTimeout;
+let demoBreachCount = 0;
+
+function latestActiveReading() {
+  for (let index = readings.length - 1; index >= 0; index--) {
+    if (readings[index].commodity === threshold.commodity) return readings[index];
+  }
+  return null;
+}
 
 function recordReading(temperature, humidity, site = "default", dataSource = "simulation") {
   const reading = {
@@ -108,12 +135,20 @@ function recordReading(temperature, humidity, site = "default", dataSource = "si
     recordedAt: new Date().toISOString(),
   };
 
-  readings.push(reading);
   cropDatabase.saveReading(reading);
+  readings.push(reading);
   if (readings.length > 200) readings.shift(); // keep memory bounded
 
   const minute = reading.recordedAt.slice(0, 16);
-  let bucket = trendBuckets[trendBuckets.length - 1];
+  let bucket;
+  for (let index = trendBuckets.length - 1; index >= 0; index--) {
+    const candidate = trendBuckets[index];
+    if (candidate.minute === minute && candidate.commodity === threshold.commodity) {
+      bucket = candidate;
+      break;
+    }
+    if (candidate.minute < minute) break;
+  }
   if (
     !bucket ||
     bucket.minute !== minute ||
@@ -168,6 +203,8 @@ function recordReading(temperature, humidity, site = "default", dataSource = "si
     if (smsLog.length > 50) smsLog.pop();
   }
 
+  broadcastUpdate();
+
   return reading;
 }
 
@@ -199,49 +236,28 @@ function generateSafeReading() {
   );
 }
 
-function seedDemoTrendHistory() {
-  const intervalMs = 15 * 60 * 1000;
-  const dayMs = 24 * 60 * 60 * 1000;
-  const end = Math.floor(Date.now() / intervalMs) * intervalMs;
-  const start = end - dayMs;
-  const temperatureMidpoint = (threshold.minTemp + threshold.maxTemp) / 2;
-  const humidityMidpoint = (threshold.minHumidity + threshold.maxHumidity) / 2;
-  const temperatureAmplitude = (threshold.maxTemp - threshold.minTemp) * 0.04;
-  const humidityAmplitude = (threshold.maxHumidity - threshold.minHumidity) * 0.04;
-
-  for (let timestamp = start; timestamp <= end; timestamp += intervalMs) {
-    const phase = ((timestamp - start) / dayMs) * Math.PI * 2;
-    // A narrow, stable crop-specific baseline within the active thresholds.
-    const temperature = temperatureMidpoint + temperatureAmplitude * Math.sin(phase);
-    const humidity = humidityMidpoint + humidityAmplitude * Math.sin(phase + Math.PI / 2);
-    trendBuckets.push({
-      minute: new Date(timestamp).toISOString().slice(0, 16),
-      commodity: threshold.commodity,
-      temperatureTotal: temperature,
-      humidityTotal: humidity,
-      count: 1,
-      syntheticCount: 1,
-      liveCount: 0,
-    });
-  }
-}
-
 // Simulate a sensor pushing a new reading every 5 seconds
 if (process.env.NODE_ENV !== "production") {
-  seedDemoTrendHistory();
   setInterval(() => {
-    if (!demoBreachActive) generateReading();
+    try {
+      if (!demoBreachActive) generateReading();
+    } catch (error) {
+      // A transient SQLite/constraint failure must not terminate the API loop.
+      console.error(`Demo reading was not saved: ${error.message || error}`);
+    }
   }, 5000);
-  if (!readings.length) generateReading();
+  if (!latestActiveReading()) generateSafeReading();
 } else if (readings.length) {
-  const lastCrop = readings[readings.length - 1].commodity;
-  threshold = cropDatabase.getCrop(lastCrop) || threshold;
+  if (!latestActiveReading()) {
+    const lastCrop = readings[readings.length - 1].commodity;
+    threshold = cropDatabase.getCrop(lastCrop) || threshold;
+  }
 }
 
 // ---- Routes ----
 
 app.get("/api/status", (req, res) => {
-  const latest = readings[readings.length - 1] || null;
+  const latest = latestActiveReading();
   const breached =
     latest &&
     (latest.temperature < threshold.minTemp ||
@@ -254,6 +270,30 @@ app.get("/api/status", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
+
+app.get("/api/events", (req, res) => {
+  res.status(200);
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders?.();
+  res.write(`event: connected\ndata: ${JSON.stringify({ time: new Date().toISOString() })}\n\n`);
+  eventClients.add(res);
+  res.on("close", () => eventClients.delete(res));
+});
+
+setInterval(() => {
+  for (const client of eventClients) {
+    try {
+      client.write(": keepalive\n\n");
+    } catch (_) {
+      eventClients.delete(client);
+    }
+  }
+}, 15000);
 
 app.get("/api/actions", (req, res) => {
   const requested = Number.parseInt(req.query.limit, 10);
@@ -410,7 +450,7 @@ app.get("/api/readings/latest", (req, res) => {
 
 app.get("/api/readings/history", (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
-  res.json(readings.slice(-limit));
+  res.json(readings.filter((reading) => reading.commodity === threshold.commodity).slice(-limit));
 });
 
 app.get("/api/readings/trends", (req, res) => {
@@ -418,7 +458,7 @@ app.get("/api/readings/trends", (req, res) => {
   const hours = ranges[req.query.range] || ranges["24h"];
   const since = Date.now() - hours * 60 * 60 * 1000;
   const points = trendBuckets
-    .filter((bucket) => Date.parse(`${bucket.minute}:00Z`) >= since)
+    .filter((bucket) => bucket.commodity === threshold.commodity && Date.parse(`${bucket.minute}:00Z`) >= since)
     .map((bucket) => ({
       recordedAt: `${bucket.minute}:00Z`,
       temperature: Math.round((bucket.temperatureTotal / bucket.count) * 10) / 10,
@@ -450,6 +490,7 @@ app.post("/api/crops", (req, res) => {
   try {
     const crop = cropDatabase.addCrop({ commodity: name, minTemp, maxTemp, minHumidity, maxHumidity });
     thresholds[crop.commodity] = crop;
+    broadcastUpdate("crops");
     logAction("Added crop", { source: "api", details: { crop: crop.commodity } });
     return res.status(201).json(crop);
   } catch (error) {
@@ -474,14 +515,13 @@ app.post("/api/commodity", (req, res) => {
   const previousCommodity = threshold.commodity;
   threshold = selected;
   cropDatabase.setActiveCrop(name);
+  broadcastUpdate();
   logAction("Harvest changed", {
     source: typeof req.body?.source === "string" ? req.body.source : "api",
     details: { from: previousCommodity, to: name },
   });
   // Re-seed the chart around the newly selected crop and record an immediate,
   // in-range reading so the dashboard updates without waiting for the timer.
-  trendBuckets = [];
-  if (process.env.NODE_ENV !== "production") seedDemoTrendHistory();
   const reading = process.env.NODE_ENV === "production"
     ? readings.filter((item) => item.commodity === name).at(-1) || null
     : generateSafeReading();
@@ -501,6 +541,7 @@ app.post("/api/alerts/:id/acknowledge", (req, res) => {
   const alert = alerts.find((item) => item.id === Number.parseInt(req.params.id, 10));
   if (!alert) return res.status(404).json({ error: "Alert not found" });
   alert.acknowledged = true;
+  broadcastUpdate();
   logAction("Alert acknowledged", { details: { alertId: alert.id, commodity: alert.commodity } });
   res.json(alert);
 });
@@ -553,10 +594,15 @@ app.post("/api/sim/breach", (req, res) => {
     demoBreachTimeout = undefined;
   }, 15000);
 
-  const reading = recordReading(threshold.maxTemp + 5.4, threshold.maxHumidity + 8.2);
+  const severityFactors = [0.15, 0.5, 1, 1.6];
+  const severity = severityFactors[demoBreachCount++ % severityFactors.length];
+  const tempRange = threshold.maxTemp - threshold.minTemp;
+  const temperature = Math.min(100, threshold.maxTemp + tempRange * severity);
+  const humidity = (threshold.minHumidity + threshold.maxHumidity) / 2;
+  const reading = recordReading(temperature, humidity);
   logAction("Demo breach triggered", {
     source: typeof req.body?.source === "string" ? req.body.source : "api",
-    details: { commodity: threshold.commodity, readingId: reading.id },
+    details: { commodity: threshold.commodity, readingId: reading.id, severity },
   });
   res.status(201).json({ reading, alert: alerts[0] });
 });
