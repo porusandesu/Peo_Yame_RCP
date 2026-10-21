@@ -6,10 +6,11 @@ import 'package:share_plus/share_plus.dart';
 
 import 'config.dart';
 import 'dashboard_controller.dart';
+import 'design_dashboard.dart';
 import 'models.dart';
 
 const _forest = Color(0xFF174B38);
-const _canvas = Color(0xFFF4F7F4);
+const _canvas = Color(0xFFF9F9FA);
 
 void main() => runApp(const StorageMonitorApp());
 
@@ -52,6 +53,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
   String _baseUrl = defaultApiBaseUrl;
+  int _tab = 0;
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
     try {
@@ -198,198 +200,15 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final connected =
-            _controller.status != null && _controller.errorMessage == null;
-        final status = _controller.status;
-        return Scaffold(
-          appBar: AppBar(
-            backgroundColor: _forest,
-            foregroundColor: Colors.white,
-            titleSpacing: 16,
-            title: const Row(
-              children: [
-                Text('🌱', style: TextStyle(fontSize: 25)),
-                SizedBox(width: 9),
-                Text('Peo Yame', style: TextStyle(fontWeight: FontWeight.w700)),
-              ],
-            ),
-            actions: [
-              _ConnectionPill(connected: connected),
-              IconButton(
-                onPressed: _controller.refresh,
-                tooltip: 'Refresh readings',
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  onPressed: () => _exportActionLog(buttonContext),
-                  tooltip: 'Export activity log as Markdown',
-                  icon: const Icon(Icons.file_download_outlined),
-                ),
-              ),
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  onPressed: () => _exportReadingsCsv(buttonContext),
-                  tooltip: 'Export sensor data for Excel (CSV)',
-                  icon: const Icon(Icons.table_view_outlined),
-                ),
-              ),
-              IconButton(
-                onPressed: _controller.isTriggering
-                    ? null
-                    : _controller.triggerDemoBreach,
-                tooltip: 'Trigger alert',
-                icon: const Icon(Icons.warning_amber_rounded),
-              ),
-              IconButton(
-                onPressed: _editServerAddress,
-                tooltip: 'Backend address',
-                icon: const Icon(Icons.settings_outlined),
-              ),
-              const SizedBox(width: 4),
-            ],
-          ),
-          body: RefreshIndicator(
-            onRefresh: _controller.refresh,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-              children: [
-                const _SimulationBanner(),
-                const SizedBox(height: 16),
-                const _FarmerGreeting(),
-                const SizedBox(height: 14),
-                if (_controller.errorMessage != null) ...[
-                  _ErrorBanner(message: _controller.errorMessage!),
-                  const SizedBox(height: 14),
-                ],
-                if (_controller.isLoading && status == null)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                if (status != null) ...[
-                  _StatusHero(status: status),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _MetricCard(
-                          title: 'Temperature',
-                          value: status.latest == null
-                              ? '—'
-                              : '${status.latest!.temperature.toStringAsFixed(1)}°',
-                          unit: 'Celsius',
-                          min: status.threshold.minTemp,
-                          max: status.threshold.maxTemp,
-                          current: status.latest?.temperature,
-                          icon: Icons.thermostat_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _MetricCard(
-                          title: 'Humidity',
-                          value: status.latest == null
-                              ? '—'
-                              : '${status.latest!.humidity.toStringAsFixed(0)}%',
-                          unit: 'Relative humidity',
-                          min: status.threshold.minHumidity,
-                          max: status.threshold.maxHumidity,
-                          current: status.latest?.humidity,
-                          icon: Icons.water_drop_outlined,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _HarvestCard(
-                    status: status,
-                    isChanging: _controller.isChangingHarvest,
-                    onChanged: _controller.setHarvest,
-                  ),
-                  const SizedBox(height: 22),
-                  _SectionTitle(
-                    title: 'Conditions over time',
-                    trailing: _RangeSelector(
-                      selected: _controller.trendRange,
-                      onChanged: _controller.setTrendRange,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _TrendCard(
-                    points: _controller.trends,
-                    error: _controller.trendError,
-                    range: _controller.trendRange,
-                  ),
-                  const SizedBox(height: 22),
-                ],
-                _SectionTitle(
-                  title: 'Recent alerts',
-                  trailing: _CountPill(count: _controller.alerts.length),
-                ),
-                const SizedBox(height: 10),
-                if (_controller.alerts.isEmpty)
-                  const _EmptyCard(
-                    icon: Icons.notifications_none_rounded,
-                    text: 'No alerts yet. Your storage conditions look quiet.',
-                  )
-                else
-                  ..._controller.alerts
-                      .take(5)
-                      .map(
-                        (alert) => Padding(
-                          padding: const EdgeInsets.only(bottom: 9),
-                          child: _AlertTile(alert: alert),
-                        ),
-                      ),
-                const SizedBox(height: 14),
-                _SectionTitle(
-                  title: 'Recent readings',
-                  trailing: Text(
-                    '${_controller.history.length} shown',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: const Color(0xFF718078),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (_controller.history.isEmpty)
-                  const _EmptyCard(
-                    icon: Icons.sensors_outlined,
-                    text:
-                        'Readings will appear here when the monitor connects.',
-                  )
-                else
-                  ..._controller.history.reversed
-                      .take(8)
-                      .map(
-                        (reading) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _ReadingTile(
-                            reading: reading,
-                            threshold: status?.threshold,
-                          ),
-                        ),
-                      ),
-                const SizedBox(height: 10),
-                const Center(
-                  child: Text(
-                    'Peo Yame · simulated readings · SMS is not sent',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF718078)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return DesignDashboard(
+      controller: _controller,
+      baseUrl: _baseUrl,
+      onEditAddress: _editServerAddress,
+      onExportLog: _exportActionLog,
+      onExportCsv: _exportReadingsCsv,
     );
   }
+
 }
 
 class _ConnectionPill extends StatelessWidget {
@@ -879,7 +698,7 @@ int _estimateDays(StatusResponse status) {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, this.trailing});
+  const _SectionTitle({required this.title}) : trailing = null;
 
   final String title;
   final Widget? trailing;

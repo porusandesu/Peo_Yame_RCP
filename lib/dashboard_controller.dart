@@ -58,6 +58,17 @@ class DashboardController extends ChangeNotifier {
     await _loadTrends();
   }
 
+  Future<void> acknowledgeAlert(int id) async {
+    try {
+      await _api.acknowledgeAlert(id);
+      await _refresh();
+    } catch (e) {
+      if (_disposed) return;
+      errorMessage = 'Could not acknowledge this alert. ($e)';
+      notifyListeners();
+    }
+  }
+
   Future<void> setHarvest(String name) async {
     if (isChangingHarvest) return;
     isChangingHarvest = true;

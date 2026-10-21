@@ -94,12 +94,14 @@ class Alert {
   final int readingId;
   final String message;
   final String sentAt;
+  final bool acknowledged;
 
   const Alert({
     required this.id,
     required this.readingId,
     required this.message,
     required this.sentAt,
+    this.acknowledged = false,
   });
 
   factory Alert.fromJson(Map<String, dynamic> json) {
@@ -108,6 +110,7 @@ class Alert {
       readingId: (json['readingId'] as num).toInt(),
       message: json['message'] as String,
       sentAt: json['sentAt'] as String,
+      acknowledged: json['acknowledged'] as bool? ?? false,
     );
   }
 }

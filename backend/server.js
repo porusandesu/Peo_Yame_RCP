@@ -81,9 +81,9 @@ const thresholds = {
   Maize: {
     commodity: "Maize",
     minTemp: 10,
-    maxTemp: 27,
-    minHumidity: 30,
-    maxHumidity: 70,
+    maxTemp: 30,
+    minHumidity: 40,
+    maxHumidity: 75,
   },
   Tomato: {
     commodity: "Tomato",

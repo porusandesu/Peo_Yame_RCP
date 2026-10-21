@@ -72,6 +72,13 @@ class ApiService {
     _ensureOk(response);
   }
 
+  Future<void> acknowledgeAlert(int id) async {
+    final response = await _client
+        .post(_uri('/api/alerts/$id/acknowledge'))
+        .timeout(const Duration(seconds: 4));
+    _ensureOk(response);
+  }
+
   Future<StatusResponse> setCommodity(String name) async {
     final response = await _client
         .post(
