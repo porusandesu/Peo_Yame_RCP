@@ -90,32 +90,87 @@
       .log small { display:block; margin-top:3px; color:var(--muted); }
       .connected-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#2a9b63; margin-right:6px; }
       .error { color:var(--red); font-weight:650; margin:8px 0; }
+      .auth-shell { min-height:100vh; display:grid; place-items:center; padding:20px; background:var(--bg); }
+      .auth-shell[hidden], .view[hidden], main[hidden], header[hidden] { display:none; }
+      .auth-card { width:min(440px,100%); padding:26px; background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:0 12px 34px #18332612; }
+      .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
+      .auth-card h2 { margin:30px 0 5px; font-size:25px; }
+      .auth-card p { color:var(--muted); font-size:13px; }
+      .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
+      .auth-card input { width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:9px; font:inherit; color:var(--ink); }
+      .primary { width:100%; margin-top:12px; padding:11px; color:#fff; border-color:var(--green); background:var(--green); }
+      .auth-notice,.demo-note { padding:10px 12px; border:1px solid #ead9a8; border-radius:10px; background:#fff8e6; color:#624d1c; font-size:12px; }
+      .auth-link { display:block; margin:14px auto 0; border:0; background:none; color:var(--green); }
+      .pin-row { display:grid; grid-template-columns:repeat(6,1fr); gap:7px; margin:18px 0; }
+      .pin-row input { text-align:center; font-size:19px; font-weight:700; }
+      .view { width:min(900px,calc(100% - 32px)); margin:24px auto 48px; }
+      .view-heading { display:flex; align-items:center; gap:12px; margin-bottom:15px; }
+      .view-heading h2 { flex:1; margin:0; font-size:25px; }
+      .profile-card,.sensor-card { padding:16px; margin-bottom:10px; background:#fff; border:1px solid #e5ece7; border-radius:14px; box-shadow:0 5px 18px #1833260c; }
+      .profile-line { display:flex; align-items:center; gap:12px; }
+      .profile-avatar { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; color:var(--green); background:#e2f1e6; font-weight:800; }
+      .profile-meta { color:var(--muted); font-size:12px; }
+      .count-row { display:grid; grid-template-columns:1fr 1fr; margin-top:15px; padding:12px; border-radius:10px; background:#f4f7f4; }
+      .count-row strong { display:block; font-size:22px; }
+      .view-actions { display:grid; gap:9px; margin-top:15px; }
+      .view-actions button { min-height:54px; text-align:left; }
+      .sensor-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+      .sensor-toolbar input { flex:1 1 240px; min-height:38px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; font:inherit; }
+      .filter-button[aria-pressed="true"] { color:#fff; background:var(--green); border-color:var(--green); }
+      .sensor-title { display:flex; gap:10px; align-items:center; }
+      .sensor-title strong { flex:1; }
+      .sensor-reading { display:flex; gap:14px; margin-top:10px; font-weight:700; }
+      .sensor-meta { margin-top:5px; color:var(--muted); font-size:11px; }
+      .sensor-status { color:var(--green); font-size:11px; }
+      .sensor-status.attention { color:var(--red); }
+      .top-nav { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+      @media (max-width:460px) { .auth-card { padding:21px; } .view-heading h2 { font-size:22px; } }
       @media (max-width:760px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); } .lower { grid-template-columns:1fr; } }
       @media (max-width:600px) { header { align-items:flex-start; flex-direction:column; gap:13px; } .header-actions { width:100%; justify-content:space-between; flex-wrap:wrap; } .status-chip { flex:1 1 120px; } .account-button { flex:1 1 150px; } }
       @media (max-width:460px) { .toolbar { align-items:flex-start; flex-direction:column; } .value { font-size:24px; } .card { padding:13px; } .chart-heading { align-items:flex-start; flex-direction:column; } #trendChart { height:200px; } .account-email { max-width:155px; overflow:hidden; text-overflow:ellipsis; } }
     </style>
   </head>
   <body>
-    <header>
+    <section class="auth-shell" id="authShell" aria-live="polite">
+      <div class="auth-card" id="loginPanel">
+        <div class="auth-brand"><span aria-hidden="true">🌱</span> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
+        <form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" value="+267 71 234 567" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><button class="primary" type="submit">Continue with OTP →</button></form>
+        <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
+        <div class="auth-notice">Demo only. No PIN is sent and no account is authenticated.</div>
+      </div>
+      <div class="auth-card" id="otpPanel" hidden>
+        <div class="auth-brand">🌱 Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p>Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
+        <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" maxlength="1" inputmode="numeric" value="1"><input aria-label="PIN digit 2" maxlength="1" inputmode="numeric" value="2"><input aria-label="PIN digit 3" maxlength="1" inputmode="numeric" value="3"><input aria-label="PIN digit 4" maxlength="1" inputmode="numeric" value="4"><input aria-label="PIN digit 5" maxlength="1" inputmode="numeric" value="5"><input aria-label="PIN digit 6" maxlength="1" inputmode="numeric" value="6"></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
+        <button class="auth-link" id="resendPin" type="button">Resend PIN</button><div class="auth-notice">Sample PIN is prefilled for this prototype. No SMS is sent.</div>
+      </div>
+      <div class="auth-card" id="profilePanel" hidden>
+        <div class="auth-brand">🌱 Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div><h2>Create demo account</h2><p>This profile is stored only in this browser.</p>
+        <form id="profileForm"><label>Farmer name<input name="name" value="Olerato" required></label><label>Mobile number<input name="phone" type="tel" value="+267 71 234 567" required></label><button class="primary" type="submit">Create demo profile →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
+      </div>
+    </section>
+    <header id="appHeader" hidden>
       <div class="brand"><span class="brand-plant" aria-hidden="true">🌱</span><h1>Peo Yame</h1></div>
       <div class="header-actions">
-        <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Status</strong> · Connecting<small>Waiting for backend</small></div>
-        <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.4 3.1-5.2 7-5.2s6.4 1.8 7 5.2"/></svg></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name">Olerato.M</div><button id="demoToggle" type="button">Enable demo mode</button><button id="logout" type="button">Log out</button></div></div>
+        <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Backend</strong> · Connecting<small>Waiting for demo service</small></div>
+        <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" id="accountInitial">O</span><span><strong class="account-name" id="accountName">Olerato</strong><small class="account-email" id="accountPhone">Demo profile</small></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name" id="menuName">Demo farmer account</div><button id="openAccounts" type="button">Accounts &amp; crops</button><button id="logout" type="button">Sign out</button></div></div>
         <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
         <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
         <button class="icon-button" id="trigger" aria-label="Trigger a demo breach" title="Trigger a demo breach" hidden>⚠</button>
       </div>
     </header>
-    <main>
-      <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Simulation mode</strong>Readings are generated by this system. No physical sensors are connected and SMS messages are logged only; they are not sent.</div></div>
+    <main id="dashboard" hidden>
+      <nav class="top-nav" aria-label="Application sections"><button type="button" data-open-view="accounts">Accounts</button><button type="button" data-open-view="crops">My Crops</button></nav>
+      <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Simulation mode</strong>Dashboard readings are generated by this system. The account, OTP, crop and sensor screens are prototype data; no physical sensors are connected and SMS messages are logged only, not sent.</div></div>
       <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
       <div id="error" role="status" aria-live="polite"></div>
       <section class="cards" aria-label="Current storage status">
-        <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div><div class="sub" id="qualityEstimate">Estimated crop quality —</div></article>
+        <article class="card"><div class="label">Storage status</div><div class="value" id="status">—</div><div class="sub" id="statusNote">Waiting for reading</div><div class="sub" id="qualityEstimate">Status is based on configured crop limits.</div></article>
         <article class="card"><div class="label">Temperature</div><div class="value" id="temperature">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="tempMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="tempRange">Waiting for reading</div></article>
         <article class="card"><div class="label">Humidity</div><div class="value" id="humidity">—</div><div class="risk"><div class="risk-track"><span class="risk-marker" id="humidityMarker"></span></div><div class="risk-legend"><span>High</span><span>Low</span><span>High</span></div></div><div class="sub" id="humidityRange">Waiting for reading</div></article>
-        <article class="card"><div class="label">Harvest</div><div class="harvest-controls"><select class="harvest-select" id="harvest" aria-label="Select harvest"></select><button class="add-crop" id="addCrop" type="button" aria-label="Add crop" title="Add crop">+</button></div><div class="sub">Illustrative storage time estimate · not validated</div><div class="info-value" id="storageEstimate">—</div></article>
+        <article class="card"><div class="label">Harvest</div><div class="harvest-controls"><select class="harvest-select" id="harvest" aria-label="Select harvest"></select><button class="add-crop" id="addCrop" type="button" aria-label="Add crop" title="Add crop">+</button></div><div class="sub">Selected crop · configured monitoring limits</div><div class="info-value" id="storageEstimate">Awaiting readings</div></article>
       </section>
 
       <article class="panel chart-panel">
@@ -130,39 +185,98 @@
       <section class="lower">
         <article class="panel"><h2>Recent readings</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Temperature</th><th>Humidity</th><th>Result</th></tr></thead><tbody id="readings"></tbody></table></div></article>
         <div>
-          <article class="panel quality-panel"><h2>Crop quality estimate</h2><div class="value" id="qualityValue">—</div><div class="sub" id="qualityNote">Based on the latest reading and selected crop limits.</div><div class="quality-meter"><span id="qualityMeter"></span></div></article>
+          <article class="panel quality-panel"><h2>Configured monitoring limits</h2><div class="sub" id="qualityNote">Status is determined by comparing readings with the selected crop’s configured temperature and humidity ranges.</div></article>
           <article class="panel"><h2>Alerts &amp; SMS</h2><div id="logs" class="log"></div><h2 style="margin-top:14px">Alert history</h2><div id="alertHistory" class="log"></div></article>
         </div>
       </section>
     </main>
+    <section class="view" id="accountsView" hidden>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Accounts</h2><button type="button" id="editProfile">Edit</button></div>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">O</div><div><strong id="profileName">Olerato</strong><div class="profile-meta" id="profilePhone">+267 71 234 567</div><div class="profile-meta">Farmer account · Demo profile</div></div></div><div class="count-row"><div><strong>2</strong><span class="profile-meta">Crops in storage</span></div><div><strong>4</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small>Maize · Sorghum · 4 sensors</small></button><button type="button" data-open-view="crops">◉ &nbsp; Manage linked sensors <small>3 online · 1 offline · assign to crops</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Add by sensor ID or QR code</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
+      <div class="demo-note" style="margin-top:14px">Demo profile and sensor links. No live connections. Account editing and sensor linking are visual previews.</div>
+    </section>
+    <section class="view" id="cropsView" hidden>
+      <div class="view-heading"><button type="button" data-back-accounts>←</button><h2>My Crops</h2><button type="button" id="addDemoSensor">＋ Add</button></div>
+      <div class="demo-note">Demo readings. Sensors are not connected. Offline readings are last known values, not current measurements.</div>
+      <div class="profile-card"><strong id="cropAccountLabel">Olerato’s account · 2 crops · 4 sensors</strong><div class="profile-meta">3 online · 1 offline · 1 needs attention</div></div>
+      <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, store or sensor ID" aria-label="Search crop, store or sensor ID"><button class="filter-button" data-sensor-filter="all" aria-pressed="true">All sensors (4)</button><button class="filter-button" data-sensor-filter="attention" aria-pressed="false">Attention (1)</button><button class="filter-button" data-sensor-filter="offline" aria-pressed="false">Offline (1)</button></div>
+      <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
+    </section>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
       const $ = (id) => document.getElementById(id);
       const fmtTime = (value) => value ? new Date(value).toLocaleString() : '—';
       const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
-      function estimateCropQuality(reading, threshold) {
-        if (!reading || !threshold) return null;
-        const score = (value, min, max) => {
-          const distance = value < min ? min - value : value > max ? value - max : 0;
-          return Math.max(0, Math.min(100, 100 - distance / (max - min) * 100));
-        };
-        return Math.round((score(reading.temperature, threshold.minTemp, threshold.maxTemp) + score(reading.humidity, threshold.minHumidity, threshold.maxHumidity)) / 2);
-      }
       let selectedRange = '24h';
       let chartData = [];
       let refreshRevision = 0;
       let lastSyncAt = null;
-      let demoMode = localStorage.getItem('demo_mode') === 'true';
+      let demoMode = true;
+      let demoProfile = null;
+      let pendingProfile = null;
+      let authPhone = '';
+      let currentView = 'dashboard';
+      const demoSensors = [
+        {crop:'Maize',id:'PY-001',store:'Store A',temperature:'24.8°C',humidity:'66% RH',state:'Safe',freshness:'Online · 2 min ago',online:true,attention:false},
+        {crop:'Maize',id:'PY-002',store:'Store B',temperature:'25.6°C',humidity:'82% RH',state:'High humidity',freshness:'Online · 5 min ago',online:true,attention:true},
+        {crop:'Sorghum',id:'PY-003',store:'Store C',temperature:'23.2°C',humidity:'58% RH',state:'Safe',freshness:'Online · 2 min ago',online:true,attention:false},
+        {crop:'Sorghum',id:'PY-004',store:'Store D',temperature:'22.7°C',humidity:'61% RH',state:'Offline',freshness:'Last seen 3 hr ago',online:false,attention:false}
+      ];
+      let sensorFilter = 'all';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
         $('harvest').innerHTML = available.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
         $('harvest').value = selected;
       }
       function updateDemoControls() {
-        $('trigger').hidden = !demoMode;
-        $('demoToggle').textContent = demoMode ? 'Disable demo mode' : 'Enable demo mode';
+        $('trigger').hidden = !demoMode || !demoProfile;
       }
+      function showAuthPanel(name) {
+        for (const id of ['loginPanel','otpPanel','profilePanel']) $(id).hidden = id !== name;
+        $('authShell').hidden = false;
+        $('appHeader').hidden = true;
+        $('dashboard').hidden = true;
+        $('accountsView').hidden = true;
+        $('cropsView').hidden = true;
+      }
+      function showView(name) {
+        currentView = name;
+        $('authShell').hidden = true;
+        $('appHeader').hidden = false;
+        $('dashboard').hidden = name !== 'dashboard';
+        $('accountsView').hidden = name !== 'accounts';
+        $('cropsView').hidden = name !== 'crops';
+        $('accountMenu').hidden = true;
+        $('accountButton').setAttribute('aria-expanded','false');
+        if (name === 'crops') renderSensors();
+      }
+      function activateProfile(profile) {
+        demoProfile = { name:profile.name || 'Olerato', phone:profile.phone || '+267 71 234 567' };
+        localStorage.setItem('peo_yame_demo_profile', JSON.stringify(demoProfile));
+        $('accountName').textContent = demoProfile.name;
+        $('accountPhone').textContent = demoProfile.phone;
+        $('menuName').textContent = `${demoProfile.name} · Demo profile`;
+        $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+        $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+        $('profileName').textContent = demoProfile.name;
+        $('profilePhone').textContent = demoProfile.phone;
+        $('cropAccountLabel').textContent = `${demoProfile.name}’s account · 2 crops · 4 sensors`;
+        updateDemoControls();
+        showView('dashboard');
+        refresh();
+      }
+      function renderSensors() {
+        const query = $('sensorSearch').value.trim().toLowerCase();
+        const filtered = demoSensors.filter((sensor) => {
+          const matchesQuery = `${sensor.crop} ${sensor.store} ${sensor.id}`.toLowerCase().includes(query);
+          const matchesFilter = sensorFilter === 'all' || (sensorFilter === 'attention' && sensor.attention) || (sensorFilter === 'offline' && !sensor.online);
+          return matchesQuery && matchesFilter;
+        });
+        $('sensorList').innerHTML = filtered.map((sensor) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(sensor.crop.slice(0,1))}</span><strong>${escapeHtml(sensor.crop)}</strong><span class="profile-meta">${escapeHtml(sensor.id)} · ${escapeHtml(sensor.store)}</span></div><div class="sensor-reading"><span>${escapeHtml(sensor.temperature)}</span><span>${escapeHtml(sensor.humidity)}</span></div><div class="sensor-title" style="margin-top:6px"><span class="sensor-status ${sensor.attention ? 'attention' : ''}">${escapeHtml(sensor.state)}</span><span class="profile-meta">${escapeHtml(sensor.freshness)} · Demo reading</span></div></article>`).join('') || '<div class="empty">No sensors match this search.</div>';
+      }
+      try { demoProfile = JSON.parse(localStorage.getItem('peo_yame_demo_profile') || 'null'); } catch { demoProfile = null; }
       async function getJson(url) {
         const response = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
@@ -187,17 +301,14 @@
         $('harvest').value = t.commodity;
         $('temperature').textContent = `${latest.temperature.toFixed(1)} °C`;
         $('humidity').textContent = `${latest.humidity.toFixed(1)} %`;
-        $('status').textContent = 'Safe';
-        $('status').className = 'value status-safe';
+        const breached = isBreach(latest, t);
+        $('status').textContent = breached ? 'ALERT' : 'Safe';
+        $('status').className = `value ${breached ? 'status-alert' : 'status-safe'}`;
         $('statusNote').textContent = `Last reading ${fmtTime(latest.recordedAt)}`;
-        $('qualityEstimate').textContent = `Estimated crop quality ${estimateCropQuality(latest, t)}%`;
+        $('qualityEstimate').textContent = 'Status is based on configured crop limits.';
         $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
         $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
-        const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
-        const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
-        const combinedRisk = Math.max(tempRisk, humidityRisk);
-        const estimateDays = combinedRisk > .8 ? 30 : combinedRisk > .55 ? 60 : combinedRisk > .3 ? 120 : 180;
-        $('storageEstimate').textContent = `~${estimateDays} days`;
+        $('storageEstimate').textContent = 'Monitoring configured limits';
         positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
         positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
       }
@@ -243,6 +354,7 @@
         } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
       }
       async function refresh() {
+        if (!demoProfile) return;
         const revision = ++refreshRevision;
         try {
           const [status, history, alerts, sms, crops] = await Promise.all([
@@ -254,27 +366,12 @@
           $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
           $('status').className = `value ${status.breached ? 'status-alert' : 'status-safe'}`;
           $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
-          const quality = estimateCropQuality(latest, t);
-          $('qualityEstimate').textContent = quality == null ? 'Estimated crop quality —' : `Estimated crop quality ${quality}%`;
-          $('qualityValue').textContent = quality == null ? '—' : `${quality}%`;
-          $('qualityMeter').style.width = `${100 - (quality || 0)}%`;
-          $('qualityNote').textContent = quality == null
-            ? 'Waiting for a reading from the monitor.'
-            : quality >= 80 ? 'Conditions are close to the selected crop limits.'
-              : quality >= 50 ? 'Conditions may affect crop quality; keep monitoring.'
-                : 'Severe threshold breach. Check storage conditions now.';
+          $('qualityEstimate').textContent = 'Status is based on configured crop limits.';
+          $('qualityNote').textContent = 'Status is determined by comparing readings with the selected crop’s configured temperature and humidity ranges.';
           $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
           $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
           renderCrops(crops, t.commodity);
-          if (latest) {
-            const tempRisk = Math.min(1, Math.abs(latest.temperature - (t.minTemp + t.maxTemp) / 2) / ((t.maxTemp - t.minTemp) / 2));
-            const humidityRisk = Math.min(1, Math.abs(latest.humidity - (t.minHumidity + t.maxHumidity) / 2) / ((t.maxHumidity - t.minHumidity) / 2));
-            const combinedRisk = Math.max(tempRisk, humidityRisk);
-            const estimateDays = status.breached ? 7 : combinedRisk > .8 ? 30 : combinedRisk > .55 ? 60 : combinedRisk > .3 ? 120 : 180;
-            $('storageEstimate').textContent = `~${estimateDays} days`;
-          } else {
-            $('storageEstimate').textContent = 'Awaiting readings';
-          }
+          $('storageEstimate').textContent = latest ? 'Monitoring configured limits' : 'Awaiting readings';
           $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
           $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
           if (latest) { positionRisk('tempMarker',latest.temperature,t.minTemp,t.maxTemp); positionRisk('humidityMarker',latest.humidity,t.minHumidity,t.maxHumidity); }
@@ -292,18 +389,18 @@
           }));
           $('updated').textContent = `Data refreshed ${new Date().toLocaleTimeString()}`;
           lastSyncAt = new Date();
-          $('connectionHeader').innerHTML = `<span class="connected-dot"></span><strong>Status</strong> · Connected<small>Synced ${new Date().toLocaleTimeString()}</small>`;
+          $('connectionHeader').innerHTML = `<span class="connected-dot"></span><strong>Backend</strong> · Connected<small>Synced ${new Date().toLocaleTimeString()}</small>`;
           await loadTrend();
         } catch (err) {
           if (revision !== refreshRevision) return;
           $('updated').textContent = 'Backend unavailable';
-          $('connectionHeader').innerHTML = `<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Disconnected<small>${lastSyncAt ? `Last sync ${lastSyncAt.toLocaleTimeString()}` : 'No successful sync yet'}</small>`;
+          $('connectionHeader').innerHTML = `<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Disconnected<small>${lastSyncAt ? `Last sync ${lastSyncAt.toLocaleTimeString()}` : 'No successful sync yet'}</small>`;
           $('error').className = 'error';
           $('error').textContent = `${err.message}. Start the backend with “cd backend && npm run demo”, then reload this page.`;
         }
       }
       async function recordAction(action, details = {}) {
-        try { await postJson('/api/actions', { action, details, source:'web', actor:'Olerato.M' }); }
+        try { await postJson('/api/actions', { action, details, source:'web', actor:demoProfile?.name || 'Demo' }); }
         catch (err) { console.warn('Could not record action:', err); }
       }
       $('refresh').addEventListener('click', () => { void recordAction('Manual refresh'); refresh(); });
@@ -371,26 +468,66 @@
         $('accountMenu').hidden = !$('accountMenu').hidden;
         $('accountButton').setAttribute('aria-expanded', String(!$('accountMenu').hidden));
       });
-      $('demoToggle').addEventListener('click', () => {
-        demoMode = !demoMode;
-        localStorage.setItem('demo_mode', String(demoMode));
-        updateDemoControls();
-        $('accountMenu').hidden = true;
-        $('accountButton').setAttribute('aria-expanded', 'false');
+      $('openAccounts').addEventListener('click', () => showView('accounts'));
+      document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
+      document.querySelectorAll('[data-back-dashboard]').forEach((button) => button.addEventListener('click', () => showView('dashboard')));
+      document.querySelectorAll('[data-back-accounts]').forEach((button) => button.addEventListener('click', () => showView('accounts')));
+      $('loginForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        authPhone = $('phoneInput').value.trim();
+        pendingProfile = null;
+        if (!authPhone) return;
+        $('phonePreview').textContent = authPhone;
+        showAuthPanel('otpPanel');
       });
+      $('backToLogin').addEventListener('click', () => showAuthPanel('loginPanel'));
+      $('resendPin').addEventListener('click', () => { $('resendPin').textContent = 'Demo PIN is already shown above'; });
+      $('otpForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const pin = [...document.querySelectorAll('.pin-row input')].map((input) => input.value).join('');
+        if (!/^\d{6}$/.test(pin)) { $('phonePreview').textContent = `${authPhone} · Enter all six demo digits`; return; }
+        activateProfile(pendingProfile || {name:demoProfile?.name || 'Olerato',phone:authPhone});
+        pendingProfile = null;
+      });
+      $('createProfile').addEventListener('click', () => showAuthPanel('profilePanel'));
+      $('profileCancel').addEventListener('click', () => showAuthPanel('loginPanel'));
+      $('profileForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+        authPhone = values.phone.trim();
+        pendingProfile = {name:values.name.trim(),phone:authPhone};
+        $('phonePreview').textContent = authPhone;
+        showAuthPanel('otpPanel');
+      });
+      $('editProfile').addEventListener('click', () => { $('accountActionNotice').textContent = 'Profile editing is a design preview; no account service is connected.'; });
+      $('linkSensor').addEventListener('click', () => { $('accountActionNotice').textContent = 'Sensor linking is a design preview; no sensor registry is connected.'; });
+      $('addDemoSensor').addEventListener('click', () => { $('cropActionNotice').textContent = 'Adding a sensor is a design preview; no sensor registry is connected.'; });
+      $('sensorSearch').addEventListener('input', renderSensors);
+      document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g,'').slice(-1);
+        if (input.value && inputs[index + 1]) inputs[index + 1].focus();
+      }));
+      document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('keydown', (event) => {
+        if (event.key === 'Backspace' && !input.value && inputs[index - 1]) inputs[index - 1].focus();
+      }));
+      document.querySelectorAll('[data-sensor-filter]').forEach((button) => button.addEventListener('click', () => {
+        sensorFilter = button.dataset.sensorFilter;
+        document.querySelectorAll('[data-sensor-filter]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
+        renderSensors();
+      }));
       $('logout').addEventListener('click', () => {
-        demoMode = false;
-        localStorage.setItem('demo_mode', 'false');
+        demoProfile = null;
+        localStorage.removeItem('peo_yame_demo_profile');
         updateDemoControls();
         $('accountMenu').hidden = true;
         $('accountButton').setAttribute('aria-expanded', 'false');
+        showAuthPanel('loginPanel');
       });
-      updateDemoControls();
-      refresh();
+      if (demoProfile) activateProfile(demoProfile); else showAuthPanel('loginPanel');
       const updates = new EventSource('/api/events');
       updates.onmessage = () => refresh();
       updates.onerror = () => {
-        $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Status</strong> · Reconnecting<small>Waiting for live updates</small>';
+        $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Reconnecting<small>Waiting for demo service</small>';
       };
       setInterval(refresh, 30000);
     </script>

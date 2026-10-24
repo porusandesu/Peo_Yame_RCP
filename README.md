@@ -1,12 +1,11 @@
-# Peo Yame
+# Peo Yame — Storage Monitor
 
-Peo Yame is a presentation prototype for monitoring produce-storage conditions.
-The responsive web dashboard and Flutter app read temperature, humidity,
-status, and alerts from the same Node.js backend. No physical sensor is
-connected and no SMS is sent. The backend stores readings in SQLite and streams
-updates to both apps; each client also reconnects and refreshes if the live
-stream drops. In demo mode, the database gets a deterministic 90-day hourly
-history once, then adds current simulated readings.
+Peo Yame is a Flutter and responsive web prototype for monitoring produce
+storage conditions. Both clients display simulated temperature/humidity data,
+configured-limit status, trends, and alerts through a Node.js backend. SQLite
+persists crop settings and readings; no physical sensor or SMS provider is
+connected. Phone/OTP, account, and multi-sensor screens are local demo UI, not
+authentication or account-linked live device data.
 
 ## Start the backend on the PC
 
@@ -38,11 +37,25 @@ open the run and download the `storage-monitor-android-debug` artifact. Extract
 it and install `app-debug.apk` on an Android device. This is a debug build for
 testing, not a Play Store release.
 
-Enable **Demo mode** from the account menu on the web dashboard or from
-Settings in the mobile app to reveal the demo breach control. Repeated taps
-cycle through four breach levels and quality estimates. Both clients update
-from the same saved reading. Open `http://<PC-IP>:3000` on another device on the
-same Wi-Fi network.
+On the web app, sign in with a phone number and use the prefilled six-digit
+sample PIN. The sign-in, account summary and My Crops views are browser-local
+demo UI; they do not authenticate a user or connect sensor records to an
+account. The mobile app has the same demo sign-in and account/crop views. The
+dashboard breach control remains a simulation of configured-limit alerts.
+Open `http://<PC-IP>:3000` on another device on the same Wi-Fi network.
+
+The mobile sign-in screens now follow the Peo Yame Figma direction: enter a
+Botswana phone number, then continue through a six-digit OTP demo screen. The
+sample PIN is prefilled and any six digits continue locally; no account is
+authenticated and no PIN is sent by SMS. This is a presentation flow only, not
+a security boundary.
+
+In the web app, use the header account menu or the Accounts/My Crops shortcuts.
+In the mobile app, open **Accounts & crops** from the Overview user menu. The
+crop groups, sensor IDs, readings and online/offline states on these screens are
+fixed demo fixtures. Search and filters work locally; sensor linking, account
+editing and live sensor status are not connected to backend records or physical
+devices.
 
 Use the **Harvest** selector to switch between Maize and Tomato. Each selection
 loads that crop's illustrative temperature and humidity limits and immediately
@@ -81,6 +94,7 @@ For a build-time address override, use
 
 ## Project context
 
+- [Interim report specification pack](docs/interim-report-specs/README.md)
 - [Build guide](BUILD_GUIDE_FOR_CURSOR_AI.md)
 - [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
 - [Baseline audit, traceability, and research-claim status](docs/BASELINE_AUDIT.md)
@@ -91,8 +105,10 @@ For a build-time address override, use
 The audit documents the implementation present in this branch, including
 known gaps between the presentation prototype and the research proposal. Crop
 limits in the demo are illustrative software settings; they are not validated
-spoilage thresholds. The UI's storage-time estimate is a heuristic and must
-not be presented as a validated prediction.
+spoilage thresholds. The web dashboard reports configured-limit status and
+does not estimate crop quality or remaining storage time. Treat any such
+heuristics shown in the mobile prototype as illustrative only, never as a
+validated prediction.
 
 Use the project only as a controlled local-network demonstration. The backend
 uses plain HTTP and the account menu is a demo UI, not authentication.

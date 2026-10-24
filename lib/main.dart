@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart' hide Threshold;
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'account_screens.dart';
 import 'config.dart';
 import 'dashboard_controller.dart';
 import 'models.dart';
@@ -74,17 +76,58 @@ class _AppGate extends StatefulWidget {
 
 class _AppGateState extends State<_AppGate> {
   AccountInfo? _account;
+  String? _pendingPhone;
+  String _pendingName = 'Olerato';
 
-  void _login(AccountInfo account) => setState(() => _account = account);
+  void _requestCode(DemoSignInRequest request) {
+    setState(() {
+      _pendingPhone = request.phone;
+      _pendingName = request.name;
+    });
+  }
 
-  void _logout() => setState(() => _account = null);
+  void _backToLogin() => setState(() => _pendingPhone = null);
+
+  void _continueDemo() {
+    final phone = _pendingPhone ?? '+267 71 234 567';
+    setState(() {
+      _account = AccountInfo(
+        name: _pendingName,
+        email: 'Demo profile',
+        phone: phone,
+      );
+      _pendingPhone = null;
+    });
+  }
+
+  void _logout() => setState(() {
+    _account = null;
+    _pendingPhone = null;
+  });
 
   @override
   Widget build(BuildContext context) {
     final account = _account;
-    if (account == null) return _LoginSplash(onLogin: _login);
-    return DashboardPage(account: account, onLogout: _logout);
+    if (account != null) {
+      return DashboardPage(account: account, onLogout: _logout);
+    }
+    final pendingPhone = _pendingPhone;
+    if (pendingPhone != null) {
+      return OtpVerificationPage(
+        phone: pendingPhone,
+        onBack: _backToLogin,
+        onContinue: _continueDemo,
+      );
+    }
+    return _LoginSplash(onContinue: _requestCode);
   }
+}
+
+class DemoSignInRequest {
+  const DemoSignInRequest({required this.name, required this.phone});
+
+  final String name;
+  final String phone;
 }
 
 class AccountInfo {
@@ -100,181 +143,565 @@ class AccountInfo {
 }
 
 class _LoginSplash extends StatefulWidget {
-  const _LoginSplash({required this.onLogin});
+  const _LoginSplash({required this.onContinue});
 
-  final ValueChanged<AccountInfo> onLogin;
+  final ValueChanged<DemoSignInRequest> onContinue;
 
   @override
   State<_LoginSplash> createState() => _LoginSplashState();
 }
 
 class _LoginSplashState extends State<_LoginSplash> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController(text: '71234567');
+  final _nameController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
     _phoneController.dispose();
-    _passwordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final email = _emailController.text.trim();
-      final name = email
-          .split('@')
-          .first
-          .replaceAll(RegExp(r'[._-]+'), ' ')
-          .split(' ')
-          .map(
-            (part) => part.isEmpty
-                ? part
-                : '${part[0].toUpperCase()}${part.substring(1)}',
-          )
-          .join(' ');
-      widget.onLogin(
-        AccountInfo(
-          name: name,
-          email: email,
-          phone: _phoneController.text.trim().isEmpty
-              ? 'Not provided'
-              : _phoneController.text.trim(),
+  String get _phone => _phoneController.text;
+
+  String _formatPhone(String digits) {
+    if (digits.length <= 3) return digits;
+    return '${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}';
+  }
+
+  void _submit({String name = 'Olerato'}) {
+    if (_phone.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter the 8-digit phone number linked to your demo profile.',
+          ),
         ),
       );
+      return;
     }
+    widget.onContinue(
+      DemoSignInRequest(name: name, phone: '+267 ${_formatPhone(_phone)}'),
+    );
+  }
+
+  Future<void> _createAccount() async {
+    _nameController.clear();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Create a demo profile'),
+        content: TextField(
+          controller: _nameController,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Farmer name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _nameController.text.trim()),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || name == null) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a name to continue with the demo profile.'),
+        ),
+      );
+      return;
+    }
+    _submit(name: name);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFFF8FAF8),
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 20),
-                  const Center(child: _BrandMark(size: 76)),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Peo Yame',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _forest,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                    ),
+            constraints: const BoxConstraints(maxWidth: 390),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _AuthBrandHeader(),
+                const SizedBox(height: 38),
+                const Icon(Icons.spa_outlined, size: 42, color: _forest),
+                const SizedBox(height: 16),
+                const Text(
+                  'Welcome back',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'A safer place for every harvest.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF65776F), fontSize: 15),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Your harvest, your sensors.\nAll in one place.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Color(0xFF65776F),
                   ),
-                  const SizedBox(height: 32),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'Welcome back',
-                            style: TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w800,
-                            ),
+                ),
+                const SizedBox(height: 26),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Log in to your account',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
                           ),
-                          const SizedBox(height: 18),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Email address',
-                              prefixIcon: Icon(Icons.mail_outline_rounded),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) =>
-                                value == null || !value.contains('@')
-                                ? 'Enter your email address'
-                                : null,
+                        ),
+                        const SizedBox(height: 13),
+                        const Text(
+                          'Mobile number',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF465A50),
                           ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone number (optional)',
-                              prefixIcon: Icon(Icons.phone_outlined),
-                              border: OutlineInputBorder(),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(8),
+                          ],
+                          decoration: InputDecoration(
+                            prefixText: '+267  |  ',
+                            hintText: '71 234 567',
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAF8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 13,
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _submit(),
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock_outline_rounded),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) => value == null || value.isEmpty
-                                ? 'Enter your password'
-                                : null,
-                          ),
-                          const SizedBox(height: 18),
-                          FilledButton(
-                            onPressed: _submit,
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                              backgroundColor: _forest,
-                            ),
-                            child: const Text('Log in'),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: () => widget.onLogin(
-                              const AccountInfo(
-                                name: 'Test User',
-                                email: 'test@peoyame.demo',
-                                phone: 'Not provided',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(11),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE6ECE7),
                               ),
                             ),
-                            icon: const Icon(Icons.person_outline_rounded),
-                            label: const Text('Login as test user'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _forest,
-                              minimumSize: const Size.fromHeight(50),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(11),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE6ECE7),
+                              ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'Use the number linked to your farmer account.',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF65776F),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        FilledButton.icon(
+                          onPressed: () => _submit(),
+                          iconAlignment: IconAlignment.end,
+                          icon: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                          ),
+                          label: const Text('Continue with OTP'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _forest,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Sign in with a one-time PIN.\nNo password to remember.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 10,
+                            height: 1.4,
+                            color: Color(0xFF65776F),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Demo sign-in · accounts are not verified by a server',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF65776F), fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _createAccount,
+                  child: const Text(
+                    'New farmer? Create an account',
+                    style: TextStyle(
+                      color: _forest,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                const _AuthDemoNotice(
+                  text:
+                      'Demo only. Authentication and SMS are not connected; no PIN will be sent.',
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text(
+                    'Need help signing in? Get support',
+                    style: TextStyle(color: _forest, fontSize: 10),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
+    ),
+  );
+}
+
+class OtpVerificationPage extends StatefulWidget {
+  const OtpVerificationPage({
+    required this.phone,
+    required this.onBack,
+    required this.onContinue,
+    super.key,
+  });
+
+  final String phone;
+  final VoidCallback onBack;
+  final VoidCallback onContinue;
+
+  @override
+  State<OtpVerificationPage> createState() => _OtpVerificationPageState();
+}
+
+class _OtpVerificationPageState extends State<OtpVerificationPage> {
+  late final List<TextEditingController> _controllers;
+  late final List<FocusNode> _focusNodes;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      6,
+      (index) => TextEditingController(text: '${index + 1}'),
+    );
+    _focusNodes = List.generate(6, (_) => FocusNode());
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    for (final focusNode in _focusNodes) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  void _showDemoMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFFF8FAF8),
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 390),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _AuthBrandHeader(),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.chevron_left, size: 17),
+                    label: const Text('Back to login'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _forest,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Icon(
+                  Icons.verified_user_outlined,
+                  size: 38,
+                  color: _forest,
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  'Verify your number',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Enter the 6-digit one-time PIN for',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.phone,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                TextButton(
+                  onPressed: widget.onBack,
+                  child: const Text(
+                    'Change number',
+                    style: TextStyle(color: _forest, fontSize: 11),
+                  ),
+                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'One-time PIN',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: List.generate(
+                            6,
+                            (index) => SizedBox(
+                              width: 39,
+                              height: 44,
+                              child: TextField(
+                                controller: _controllers[index],
+                                focusNode: _focusNodes[index],
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                maxLength: 1,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(1),
+                                ],
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAF8),
+                                  contentPadding: EdgeInsets.zero,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(9),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE6ECE7),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(9),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE6ECE7),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(9),
+                                    borderSide: const BorderSide(
+                                      color: _forest,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  if (value.isNotEmpty && index < 5) {
+                                    _focusNodes[index + 1].requestFocus();
+                                  }
+                                  if (value.isEmpty && index > 0) {
+                                    _focusNodes[index - 1].requestFocus();
+                                  }
+                                  setState(() {});
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Sample PIN entered · not a real verification',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Color(0xFF65776F),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed:
+                              _controllers.every(
+                                (controller) => controller.text.length == 1,
+                              )
+                              ? widget.onContinue
+                              : null,
+                          iconAlignment: IconAlignment.end,
+                          icon: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                          ),
+                          label: const Text('Verify & continue'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _forest,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Didn’t receive a PIN?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 10, color: Color(0xFF65776F)),
+                ),
+                TextButton(
+                  onPressed: () => _showDemoMessage(
+                    'No PIN was sent. This is a local demo screen.',
+                  ),
+                  child: const Text(
+                    'Resend PIN',
+                    style: TextStyle(color: _forest, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const _AuthDemoNotice(
+                  text:
+                      'Demo only. Use the sample PIN to illustrate this flow. No SMS is sent and no account is authenticated.',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _AuthBrandHeader extends StatelessWidget {
+  const _AuthBrandHeader();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 22,
+        height: 22,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE2F1E6),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.eco_rounded, size: 14, color: _forest),
+      ),
+      const SizedBox(width: 8),
+      const Text(
+        'Peo Yame',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: _forest,
+        ),
+      ),
+      const Spacer(),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2F1E6),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Text(
+          'Demo',
+          style: TextStyle(fontSize: 10, color: _forest),
+        ),
+      ),
+    ],
+  );
+}
+
+class _AuthDemoNotice extends StatelessWidget {
+  const _AuthDemoNotice({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF5DF),
+      border: Border.all(color: const Color(0xFFF1DDA7)),
+      borderRadius: BorderRadius.circular(9),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.info_outline_rounded,
+          size: 14,
+          color: Color(0xFF765D24),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 10,
+              height: 1.3,
+              color: Color(0xFF765D24),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
@@ -432,6 +859,24 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     _controller.recordAction('Updated backend address');
     await _controller.refresh();
+  }
+
+  Future<void> _openAccounts() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AccountsScreen(
+          name: widget.account.name,
+          phone: widget.account.phone,
+          onLogout: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            widget.onLogout();
+          },
+          onDestinationSelected: (index) {
+            if (mounted) setState(() => _selectedTab = index);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _refreshSensors() async {
@@ -637,7 +1082,7 @@ class _DashboardPageState extends State<DashboardPage> {
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
+                label: 'Overview',
               ),
               NavigationDestination(
                 icon: Icon(Icons.show_chart_rounded),
@@ -686,7 +1131,11 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   List<Widget> _homeContent(StatusResponse? status) => [
-    _FarmerGreeting(userName: widget.account.name, onLogout: widget.onLogout),
+    _FarmerGreeting(
+      userName: widget.account.name,
+      onAccountTap: _openAccounts,
+      onLogout: widget.onLogout,
+    ),
     const SizedBox(height: 16),
     if (status != null) ...[
       _StatusHero(status: status, offline: _controller.errorMessage != null),
@@ -927,7 +1376,9 @@ class _DashboardPageState extends State<DashboardPage> {
             const Divider(height: 1),
             _AccountDetailRow(
               icon: Icons.mail_outline_rounded,
-              label: 'Email',
+              label: widget.account.email == 'Demo profile'
+                  ? 'Profile'
+                  : 'Email',
               value: widget.account.email,
             ),
             const Divider(height: 1),
@@ -1601,9 +2052,14 @@ class _SimulationBanner extends StatelessWidget {
 }
 
 class _FarmerGreeting extends StatelessWidget {
-  const _FarmerGreeting({required this.userName, required this.onLogout});
+  const _FarmerGreeting({
+    required this.userName,
+    required this.onAccountTap,
+    required this.onLogout,
+  });
 
   final String userName;
+  final VoidCallback onAccountTap;
   final VoidCallback onLogout;
 
   @override
@@ -1613,6 +2069,7 @@ class _FarmerGreeting extends StatelessWidget {
         PopupMenuButton<String>(
           tooltip: 'User menu',
           onSelected: (value) {
+            if (value == 'accounts') onAccountTap();
             if (value == 'logout') onLogout();
           },
           itemBuilder: (context) => [
@@ -1621,6 +2078,16 @@ class _FarmerGreeting extends StatelessWidget {
               child: Text(userName, style: const TextStyle(color: _forest)),
             ),
             const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              value: 'accounts',
+              child: Row(
+                children: [
+                  Icon(Icons.manage_accounts_outlined, size: 18),
+                  SizedBox(width: 10),
+                  Text('Accounts & crops'),
+                ],
+              ),
+            ),
             const PopupMenuItem<String>(
               value: 'logout',
               child: Row(

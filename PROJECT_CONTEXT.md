@@ -1,15 +1,15 @@
 # Project Context: Low-Cost IoT-Based Post-Harvest Storage Monitoring System
 
-> **Baseline status (15 Oct 2026):** The architecture and status below describe
-> the intended research system and include historical notes; they do not all
-> describe the current top-level implementation. For the inspected code, test
-> evidence, objective traceability, risks, and current limitations, see
-> [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md),
+> **Current implementation (24 Oct 2026):** This is a Flutter + Node/Express
+> local-network demonstration. SQLite stores crop settings, app settings, and
+> readings; alerts, SMS log entries, and incidents are in memory, and the
+> action log is JSONL. Readings are simulated. There is no physical sensor,
+> real SMS dispatch, authenticated server session, or account-owned device
+> registry. The phone/OTP, Accounts, and My Crops screens use local demo state
+> and fixed sample sensor rows. See [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md),
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
-> [docs/TEST_REPORT.md](docs/TEST_REPORT.md). In particular, the current
-> runtime is a Flutter + Node/Express simulation with in-memory domain data,
-> two illustrative crop settings, and no physical sensor, SQLite database, or
-> real SMS dispatch.
+> [docs/TEST_REPORT.md](docs/TEST_REPORT.md) for inspection evidence and gaps.
+> Sections below describe research intent unless explicitly marked current.
 
 > Import this file into Antigravity (drop it in your project root, or `@`
 > reference it in your first prompt) so the agent has full context without
@@ -24,22 +24,21 @@ spoilage occurs. Built for a university Research Capstone Project
 with unreliable internet connectivity — this is why GSM/SMS alerting is a
 first-class requirement, not an optional extra.
 
-## Current status (update this section as work progresses)
+## Current status (24 Oct 2026)
 
-- [x] Database schema designed (see ER diagram below)
-- [x] HTML dashboard built (currently showing MOCK/SIMULATED data, not live sensor data)
-- [x] Demo backend (Node.js/Express) built with a mock data generator standing in for real sensors
-- [x] Demo Android app (Kotlin + Jetpack Compose) built, polling the demo backend
-- [ ] ESP32 + DHT22 + GSM/SMS hardware NOT yet wired to the backend — **this is the current #1 blocker**
-- [ ] Real database (not in-memory mock) not yet connected
-- [ ] SMS alert dispatch not yet tested with real hardware
-- [ ] End-to-end testing not yet started
+- [x] Responsive HTML/JavaScript dashboard and Flutter mobile client use the demo API.
+- [x] Local demo phone/OTP journey and Accounts/My Crops screens are present in both clients; these are not authentication or live sensor features.
+- [x] SQLite persists crop settings, app settings, and readings; action history is JSONL.
+- [x] Simulated readings, threshold alerts, trend views, exports, and demo breach controls are available.
+- [ ] ESP32/DHT22 sensor ingestion and GSM/SMS delivery are not connected.
+- [ ] Authenticated farmer accounts, account-scoped readings, and a live multi-sensor registry are not implemented.
+- [ ] Thresholds and sample sensor readings are illustrative; no calibration, field pilot, or validated spoilage model is established.
 
 **If you are an agent reading this: do not assume the hardware integration
 is done. Always check `backend/server.js` for whether `generateReading()`
 is still a mock function before assuming live data is flowing.**
 
-## Architecture
+## Research target architecture (not the current runtime)
 
 ```
 ESP32 + DHT22 sensor + GSM/SMS module
@@ -58,31 +57,21 @@ HTML Dashboard   Android App (Kotlin + Compose + Retrofit)
 
 ## Tech stack
 
-- **Firmware**: ESP32, DHT22 sensor, GSM/SMS module (e.g. SIM800/900 class)
-- **Backend**: Node.js + Express, currently in-memory mock data — needs
-  migrating to a real database (SQLite is the lowest-friction choice for a
-  single-site pilot; don't over-engineer into Postgres/MySQL unless asked)
-- **Database schema**: see ER diagram below — readings, thresholds,
-  alerts, storage sites, sensors, commodities, spoilage incidents, users
-- **Android app**: Kotlin, Jetpack Compose, Retrofit, polling-based (not
-  push notifications) — keep it this way unless explicitly asked to add
-  push, polling is sufficient for this use case
-- **Dashboard**: plain HTML/JS, already built by a teammate — do not
-  rewrite it from scratch; extend it to point at the real API instead
+- **Current backend**: Node.js + Express; SQLite for crops, settings, and readings; in-memory alert/SMS/incident collections; JSONL action history.
+- **Current clients**: responsive plain HTML/CSS/JavaScript web dashboard and Flutter mobile app.
+- **Current data**: simulated readings plus seeded synthetic trend history; no physical device or SMS provider.
+- **Research target**: ESP32/DHT22/GSM integration and authenticated account/device data. These remain future scope, not current capabilities.
+- **Dashboard guidance**: extend the existing UI and preserve clear simulation labels; do not rewrite it from scratch.
 
-## API contract (DO NOT change these routes/shapes without updating both the dashboard AND the Android app)
+## Current demo API compatibility
 
-- `GET /api/status` → `{ latest, threshold, breached }`
-- `GET /api/readings/history?limit=50` → array of readings
-- `GET /api/thresholds` → current threshold config
-- `GET /api/alerts` → array of alerts
+The web and Flutter clients use the current route shapes in `backend/server.js`.
+Before changing a route, inspect its handlers and both clients, then update the
+API, web dashboard, Flutter models/services, and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) together. The Kotlin/Retrofit
+contract described in older proposal material is not the current client.
 
-The Android app and dashboard are both built against these exact shapes.
-If you need to change a response shape, update all three (backend route,
-dashboard JS, Android `Models.kt` + `ApiService.kt`) in the same task —
-don't let them drift out of sync.
-
-## Database schema (ER diagram, Mermaid)
+## Proposed research-target database schema (not the current SQLite schema)
 
 ```mermaid
 erDiagram
@@ -109,7 +98,7 @@ Note: this schema is a draft inferred from the project proposal — if the
 team's actual built database differs, treat the real schema as the source
 of truth and update this file to match it.
 
-## Non-functional requirements (don't silently drop these for convenience)
+## Research non-functional requirements (confirm before changing scope)
 
 - **Low cost**: don't suggest paid cloud services, premium APIs, or
   managed hosting unless explicitly asked — this project is cost-sensitive
@@ -123,16 +112,13 @@ of truth and update this file to match it.
   restarts (this is exactly why the mock in-memory backend needs
   replacing with a real database)
 
-## Immediate priority order (as of Interim Report 3, testing phase)
+## Implementation backlog (confirm scope and access before scheduling)
 
-1. Confirm/complete real sensor → backend integration (replace mock
-   `generateReading()` in `backend/server.js`)
-2. Migrate from in-memory arrays to a real database (SQLite)
-3. Test SMS alert dispatch with real hardware
-4. Run 24-48 hours of continuous accuracy/uptime logging
-5. Manually trigger and time several alerts for response-time data
-6. Document results (screenshots, logs) for the report — don't just fix
-   things silently, capture evidence as you go
+1. Agree the approved interim-report scope and list unimplemented items accurately.
+2. Decide whether authentication and account-owned multi-sensor data are in scope.
+3. Confirm access, budget, ethics, and safety before adding hardware or SMS integration.
+4. If devices become available, document calibration, uptime, alert timing, and data provenance.
+5. Capture dated screenshots, logs, and evaluation evidence for report claims.
 
 ## Working conventions for the agent
 

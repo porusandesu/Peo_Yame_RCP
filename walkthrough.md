@@ -20,26 +20,26 @@ connect both devices to the same Wi-Fi, open the app's settings, and enter the
 PC's LAN address, for example `192.168.1.42:3000`. Android emulators use the
 default `http://10.0.2.2:3000` address.
 
-The web and mobile clients receive live updates from the backend and reconnect
-if the event stream drops; a slower periodic refresh is also available. Pull
-down to refresh manually. Enable Demo mode in Settings (mobile) or the account
-menu (web) to show the breach control. Repeated triggers cycle through four
-quality impact levels. The trend selector shows 24 hours, one month, or three
-months. Demo startup seeds a deterministic 90-day hourly history in SQLite;
-new simulated readings are then stored alongside it.
+The web and mobile clients receive updates from the backend and refresh when
+the event stream drops. The web login uses a prefilled six-digit sample PIN
+(123456); account profiles and the four sensor rows are demo fixtures. The OTP
+flow is local UI only. The dashboard breach control simulates configured-limit
+alerts. The trend selector shows 24 hours, one month, or three months. Demo
+startup seeds a deterministic 90-day hourly history in SQLite; newer simulated
+readings are stored alongside it.
 
 ## Presentation flow
 
-1. Show the desktop dashboard and the phone app together.
-2. Point out the safe or breached status, the temperature and humidity risk
-   gauges, and the selected trend range.
-3. Change Harvest between Maize and Tomato and show the matching limits and
+1. Sign in to the web demo using the prefilled sample PIN, then open Accounts
+   and My Crops to show the local demo profile and grouped sensor fixtures.
+2. Show the mobile sign-in and Accounts/My Crops screens alongside the web app.
+3. Point out the configured-limit status, temperature and humidity values,
+   trend range, alert history, and simulation labels.
+4. Change Harvest between Maize and Tomato and show the configured limits and
    simulated reading update.
-4. Enable Demo mode, trigger a sample breach, and show the alert and quality
-   estimate updating in both interfaces.
-5. Explain the system limitations: readings are simulated, no physical sensor
-   is connected, SMS alerts are logged but not sent, and the storage-time
-   estimate is illustrative rather than a validated spoilage model.
+5. Trigger the demo breach and show the resulting alert in the dashboard.
+6. Explain limitations: no physical sensor, real SMS, server authentication,
+   account-linked sensor registry, or validated spoilage model is implemented.
 
 ## Key files
 
@@ -51,5 +51,6 @@ new simulated readings are then stored alongside it.
 - `lib/models.dart` — API response models.
 - `lib/config.dart` — emulator default and saved-address normalization.
 
-The backend uses plain HTTP, in-memory storage, and no authentication. Keep the
-system on a controlled local network during demonstrations.
+The backend uses plain HTTP and has no authentication. SQLite persists crop
+settings and readings; some event collections remain in memory. Keep the system
+on a controlled local network during demonstrations.
