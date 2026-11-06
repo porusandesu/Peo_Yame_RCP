@@ -12,6 +12,7 @@ $sqliteAsset = Join-Path $vendorDirectory "sqlite3.exe"
 $rceditExecutable = Join-Path $temporaryDirectory "rcedit-x64.exe"
 $rceditUrl = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
 $applicationIcon = Join-Path $PSScriptRoot "..\Peo_Yame_logo_assets\Peo_Yame_Dev_Assets\windows\PeoYame.ico"
+$pkgCacheDirectory = Join-Path $temporaryDirectory "pkg-cache"
 $createdSqliteAsset = $false
 
 New-Item -ItemType Directory -Path $temporaryDirectory, $sqliteExtracted, $vendorDirectory, $distributionDirectory -Force | Out-Null
@@ -31,12 +32,23 @@ try {
   Invoke-WebRequest -Uri $rceditUrl -OutFile $rceditExecutable
   if (-not (Test-Path $applicationIcon)) { throw "The Peo Yame Windows icon was not found at $applicationIcon." }
 
-  Write-Host "Building the standalone Windows executable..."
+  $previousPkgCache = $env:PKG_CACHE_PATH
+  $env:PKG_CACHE_PATH = $pkgCacheDirectory
+  Write-Host "Preparing the standalone Windows runtime..."
   $backendExecutable = Join-Path $distributionDirectory "Peo-Yame-Backend.exe"
   npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
   if ($LASTEXITCODE -ne 0) { throw "The Windows executable build failed with exit code $LASTEXITCODE." }
-  & $rceditExecutable $backendExecutable --set-icon $applicationIcon
-  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the Windows executable." }
+
+  # pkg appends its application snapshot to a cached Node runtime. Apply the
+  # icon to that base runtime, then package again so its appended payload stays intact.
+  $runtimeBinary = Get-ChildItem -Path $pkgCacheDirectory -Recurse -File -Filter "fetched-v18.5.0-win-x64" | Select-Object -First 1
+  if (-not $runtimeBinary) { throw "The pkg Windows runtime was not found in its cache." }
+  & $rceditExecutable $runtimeBinary.FullName --set-icon $applicationIcon
+  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the Windows runtime." }
+
+  Write-Host "Building the branded standalone Windows executable..."
+  npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
+  if ($LASTEXITCODE -ne 0) { throw "The branded Windows executable build failed with exit code $LASTEXITCODE." }
 
   Write-Host "Starting the built executable for a startup check..."
   $smokeDataDirectory = Join-Path $temporaryDirectory "runtime-data"
@@ -77,6 +89,7 @@ try {
     if ($null -eq $previousPort) { Remove-Item Env:PORT -ErrorAction SilentlyContinue } else { $env:PORT = $previousPort }
     if ($null -eq $previousHost) { Remove-Item Env:HOST -ErrorAction SilentlyContinue } else { $env:HOST = $previousHost }
     if ($null -eq $previousNoBrowser) { Remove-Item Env:NO_BROWSER -ErrorAction SilentlyContinue } else { $env:NO_BROWSER = $previousNoBrowser }
+    if ($null -eq $previousPkgCache) { Remove-Item Env:PKG_CACHE_PATH -ErrorAction SilentlyContinue } else { $env:PKG_CACHE_PATH = $previousPkgCache }
   }
 
   $instructions = @'
