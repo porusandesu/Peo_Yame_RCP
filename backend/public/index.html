@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#10251f" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/peo-yame-32.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/peo-yame-192.png" />
     <title>Peo Yame | Storage dashboard</title>
     <style>
       :root { color-scheme:light; --ink:#172923; --muted:#65776f; --line:#dce6df; --green:#176b4a; --bg:#f3f7f3; --red:#a8332d; }
@@ -12,7 +14,7 @@
       header { padding:21px max(22px,calc((100vw - 1120px)/2)); background:#10251f; color:white; display:flex; justify-content:space-between; align-items:center; gap:20px; box-shadow:0 8px 26px #10251f2b; }
       h1 { margin:0; font-size:clamp(25px,4vw,34px); letter-spacing:-.03em; }
       .brand { display:flex; align-items:center; gap:10px; }
-      .brand-plant { font-size:29px; filter:drop-shadow(0 3px 4px #0005); }
+      .brand-plant { width:36px; height:36px; border-radius:8px; background:white; object-fit:cover; }
       .header-actions { display:flex; align-items:center; gap:8px; }
       .status-chip { padding:8px 11px; border:1px solid #ffffff30; border-radius:11px; background:#ffffff12; font-size:12px; white-space:nowrap; }
       .status-chip small { display:block; margin-left:15px; color:#c4d7cd; font-size:10px; }
@@ -94,6 +96,7 @@
       .auth-shell[hidden], .view[hidden], main[hidden], header[hidden] { display:none; }
       .auth-card { width:min(440px,100%); padding:26px; background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:0 12px 34px #18332612; }
       .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
+      .auth-brand img { width:32px; height:32px; border-radius:7px; object-fit:cover; }
       .auth-card h2 { margin:30px 0 5px; font-size:25px; }
       .auth-card p { color:var(--muted); font-size:13px; }
       .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
@@ -133,26 +136,26 @@
   <body>
     <section class="auth-shell" id="authShell" aria-live="polite">
       <div class="auth-card" id="loginPanel">
-        <div class="auth-brand"><span aria-hidden="true">🌱</span> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
         <form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue with OTP →</button></form>
         <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
         <div class="auth-notice">A real SMS PIN requires a connected messaging service. In this local edition, the server displays a temporary demo PIN.</div>
       </div>
       <div class="auth-card" id="otpPanel" hidden>
-        <div class="auth-brand">🌱 Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p>Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 2" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 3" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 4" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 5" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 6" maxlength="1" inputmode="numeric" required></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
         <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
       </div>
       <div class="auth-card" id="profilePanel" hidden>
-        <div class="auth-brand">🌱 Peo Yame</div><h2>Create farmer account</h2><p>Your account and linked crop list will be saved on this backend.</p>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Create farmer account</h2><p>Your account and linked crop list will be saved on this backend.</p>
         <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue with PIN →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
       </div>
     </section>
     <header id="appHeader" hidden>
-      <div class="brand"><span class="brand-plant" aria-hidden="true">🌱</span><h1>Peo Yame</h1></div>
+      <div class="brand"><img class="brand-plant" src="/icons/peo-yame-128.png" alt="" /><h1>Peo Yame</h1></div>
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Backend</strong> · Connecting<small>Waiting for demo service</small></div>
         <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" id="accountInitial">O</span><span><strong class="account-name" id="accountName">Olerato</strong><small class="account-email" id="accountPhone">Demo profile</small></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name" id="menuName">Demo farmer account</div><button id="openAccounts" type="button">Accounts &amp; crops</button><button id="logout" type="button">Sign out</button></div></div>
