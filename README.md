@@ -35,10 +35,13 @@ firewall and that both devices are on the same network.
 
 ## Connect the Android phone
 
-Run the Flutter app on the phone. Tap the settings gear and enter the PC address,
-for example `192.168.1.42:3000`. The app adds `http://` when needed and saves
-the address on the phone. The default `10.0.2.2` address is for an Android
-emulator only.
+Keep the backend running on the PC and connect the PC and phone to the same
+Wi-Fi. In the PC dashboard, choose **Connect mobile app by QR**. In the mobile
+app, open **Settings → Backend address → Scan QR code**, scan the code on the PC,
+then save the address. The connection is remembered on the phone. The dashboard
+streams new readings to the app as they arrive, with periodic refresh as a
+fallback. If the PC backend window is closed, the app stays open and shows an
+offline message; it reconnects automatically after the backend starts again.
 
 ## Build the Android app with GitHub Actions
 

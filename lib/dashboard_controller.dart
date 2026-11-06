@@ -39,6 +39,7 @@ class DashboardController extends ChangeNotifier {
   bool demoMode = false;
   List<Threshold> crops = const [];
   String? errorMessage;
+  bool isBackendConnected = false;
 
   Timer? _timer;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
@@ -79,9 +80,11 @@ class DashboardController extends ChangeNotifier {
   Future<void> _connectEvents() async {
     if (_connectingEvents || _disposed) return;
     _connectingEvents = true;
+    var retrySeconds = 2;
     try {
       while (!_disposed) {
         StreamSubscription<Map<String, dynamic>>? subscription;
+        var receivedEvent = false;
         final disconnected = Completer<void>();
         _eventDisconnect = disconnected;
         try {
@@ -90,6 +93,7 @@ class DashboardController extends ChangeNotifier {
           subscription = stream.listen(
             (event) {
               if (_disposed) return;
+              receivedEvent = true;
               if (event['type'] == 'crops') unawaited(loadCrops());
               unawaited(_refresh());
             },
@@ -117,7 +121,9 @@ class DashboardController extends ChangeNotifier {
           }
         }
         if (!_disposed) {
-          await Future<void>.delayed(const Duration(seconds: 2));
+          if (receivedEvent) retrySeconds = 2;
+          await Future<void>.delayed(Duration(seconds: retrySeconds));
+          retrySeconds = (retrySeconds * 2).clamp(2, 30).toInt();
         }
       }
     } finally {
@@ -236,12 +242,14 @@ class DashboardController extends ChangeNotifier {
       status = results[0] as StatusResponse;
       alerts = results[1] as List<Alert>;
       history = results[2] as List<Reading>;
+      isBackendConnected = true;
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (_) {
       if (_disposed || generation != _refreshGeneration) return;
+      isBackendConnected = false;
       errorMessage =
-          'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
+          'Backend disconnected. Your last readings are saved on screen. Reconnecting automatically; check that the PC backend is running and your phone is on the same Wi-Fi.';
     } finally {
       _refreshInFlight = false;
       final shouldRefreshAgain = _refreshQueued && !_disposed;

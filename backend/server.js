@@ -17,6 +17,7 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { dataDirectory } = require("./runtime_paths");
@@ -384,6 +385,35 @@ app.get("/api/status", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
+
+function lanIpv4Addresses() {
+  const addresses = new Set();
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (!entry.internal && (entry.family === "IPv4" || entry.family === 4) && isPrivateIpv4(entry.address)) addresses.add(entry.address);
+    }
+  }
+  return [...addresses];
+}
+
+function isPrivateIpv4(address) {
+  const parts = address.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  return parts[0] === 10 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127);
+}
+
+app.get("/api/connection-info", (req, res) => {
+  const addresses = lanIpv4Addresses().map((address) => ({
+    address,
+    url: `http://${address}:${PORT}`,
+  }));
+  res.json({ port: PORT, addresses });
+});
+
 
 app.get("/api/events", (req, res) => {
   res.status(200);

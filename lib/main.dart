@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart' hide Threshold;
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -814,6 +815,21 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
           actions: [
+            TextButton.icon(
+              onPressed: () async {
+                final scanned = await Navigator.of(dialogContext).push<String>(
+                  MaterialPageRoute<String>(
+                    builder: (_) => const _BackendQrScannerPage(),
+                  ),
+                );
+                if (scanned != null) {
+                  textController.text = scanned;
+                  setDialogState(() => validationMessage = '');
+                }
+              },
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+              label: const Text('Scan QR code'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
@@ -1044,8 +1060,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final connected =
-            _controller.status != null && _controller.errorMessage == null;
+        final connected = _controller.isBackendConnected;
         final status = _controller.status;
         return Scaffold(
           appBar: AppBar(
@@ -3112,4 +3127,121 @@ String _relativeTime(String raw) {
   if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
   if (difference.inHours < 24) return '${difference.inHours} hr ago';
   return '${difference.inDays} days ago';
+}
+
+class _BackendQrScannerPage extends StatefulWidget {
+  const _BackendQrScannerPage();
+
+  @override
+  State<_BackendQrScannerPage> createState() => _BackendQrScannerPageState();
+}
+
+class _BackendQrScannerPageState extends State<_BackendQrScannerPage> {
+  bool _finished = false;
+  bool _showedInvalidCode = false;
+  late final MobileScannerController _scannerController =
+      MobileScannerController(formats: const [BarcodeFormat.qrCode]);
+
+  void _handleDetection(BarcodeCapture capture) {
+    if (_finished) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue;
+      if (raw == null) continue;
+      final uri = Uri.tryParse(raw.trim());
+      if (uri == null) continue;
+      final valid =
+          (uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.host.isNotEmpty &&
+          _isPrivateIpv4(uri.host) &&
+          uri.userInfo.isEmpty &&
+          (uri.path.isEmpty || uri.path == '/') &&
+          !uri.hasQuery &&
+          !uri.hasFragment;
+      if (valid) {
+        _finished = true;
+        final baseUrl = uri
+            .replace(path: '', query: '', fragment: '')
+            .toString();
+        Navigator.of(context).pop(
+          baseUrl.endsWith('/')
+              ? baseUrl.substring(0, baseUrl.length - 1)
+              : baseUrl,
+        );
+        return;
+      }
+      if (!_showedInvalidCode) {
+        _showedInvalidCode = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This QR code is not a Peo Yame backend address.'),
+          ),
+        );
+      }
+    }
+  }
+
+  bool _isPrivateIpv4(String host) {
+    final parts = host.split('.').map(int.tryParse).toList();
+    if (parts.length != 4 ||
+        parts.any((part) => part == null || part < 0 || part > 255)) {
+      return false;
+    }
+    final a = parts[0]!;
+    final b = parts[1]!;
+    return a == 10 ||
+        (a == 172 && b >= 16 && b <= 31) ||
+        (a == 192 && b == 168) ||
+        (a == 169 && b == 254) ||
+        (a == 100 && b >= 64 && b <= 127);
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Scan backend QR code'),
+      backgroundColor: _header,
+      foregroundColor: Colors.white,
+    ),
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        MobileScanner(
+          controller: _scannerController,
+          onDetect: _handleDetection,
+          errorBuilder: (context, error) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Camera access is needed to scan the QR code. Allow camera access, or close this screen and enter the address manually. (${error.errorCode.message})',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            margin: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.68),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Point your camera at the QR code on the computer dashboard.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

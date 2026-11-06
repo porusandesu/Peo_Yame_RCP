@@ -81,8 +81,11 @@ Your saved readings and activity log are kept in your Windows Local AppData fold
 No Node.js, npm, SQLite installation, or command prompt knowledge is needed.
 
 To use the dashboard from a phone on the same Wi-Fi, open the PC's local network
-address in the phone browser. The backend uses plain local-network HTTP and is
-intended only for a controlled demonstration.
+address in the phone browser, or use Connect mobile app by QR in the dashboard
+and scan it in the Peo Yame mobile app Settings. Keep the PC and phone on the
+same Wi-Fi. The backend uses plain local-network HTTP and is intended only for a
+controlled demonstration. Closing this window stops the backend; the mobile app
+will show an offline message and reconnect when the backend is started again.
 '@
   Set-Content -Path (Join-Path $distributionDirectory "Read Me - Start Here.txt") -Value $instructions -Encoding UTF8
 
