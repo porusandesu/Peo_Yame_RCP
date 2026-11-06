@@ -43,3 +43,33 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  windows-backend:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Build portable Windows app
+        run: ./build-windows.ps1
+        shell: pwsh
+
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: peo-yame-backend-windows
+          path: backend/dist/Peo-Yame-Backend.zip
+          if-no-files-found: error
+          retention-days: 30

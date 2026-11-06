@@ -1,10 +1,23 @@
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-// Uses SQLite's native CLI so the backend has no downloaded native npm addon.
-// User supplied strings are always SQL string literals (single quotes doubled).
-const file = process.env.DATABASE_PATH || path.join(__dirname, "data", "storage-monitor.sqlite");
+// Packaged Windows builds embed sqlite3.exe and extract it to the OS temp
+// directory on first use. Source runs continue to use sqlite3 from PATH.
+let sqliteCommand = process.env.SQLITE3_PATH || "sqlite3";
+if (process.pkg) {
+  sqliteCommand = path.join(os.tmpdir(), "peo-yame-sqlite3.exe");
+  if (!fs.existsSync(sqliteCommand)) {
+    fs.writeFileSync(sqliteCommand, fs.readFileSync(path.join(__dirname, "vendor", "sqlite3.exe")));
+  }
+}
+
+// Keep portable-build data beside the EXE. Source runs keep their data in
+// backend/data; DATABASE_PATH can override either location.
+const appDirectory = process.pkg ? path.dirname(process.execPath) : __dirname;
+const dataDirectory = process.env.APP_DATA_DIR || path.join(appDirectory, "data");
+const file = process.env.DATABASE_PATH || path.join(dataDirectory, "storage-monitor.sqlite");
 fs.mkdirSync(path.dirname(file), { recursive: true });
 function quote(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 function sql(statement, asJson = false) {
@@ -12,7 +25,7 @@ function sql(statement, asJson = false) {
   // Set the CLI timeout with its dot command. `PRAGMA busy_timeout` returns a
   // result row, which would otherwise be concatenated with SELECT results in
   // `-json` mode and make the combined output invalid JSON.
-  const output = execFileSync("sqlite3", args, { input: `.timeout 5000\nPRAGMA foreign_keys=ON;\n${statement}\n`, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+  const output = execFileSync(sqliteCommand, args, { input: `.timeout 5000\nPRAGMA foreign_keys=ON;\n${statement}\n`, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
   // sqlite3 emits no output (rather than `[]`) for a JSON query with no rows.
   return asJson ? (output.trim() ? JSON.parse(output) : []) : output;
 }

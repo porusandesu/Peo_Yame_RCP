@@ -7,7 +7,16 @@ persists crop settings and readings; no physical sensor or SMS provider is
 connected. Phone/OTP, account, and multi-sensor screens are local demo UI, not
 authentication or account-linked live device data.
 
-## Start the backend on the PC
+## Start the backend on Windows (no setup)
+
+After these changes are pushed, download the **peo-yame-backend-windows** artifact
+from its GitHub Actions run, extract the ZIP to a writable folder, and double-click
+`Peo-Yame-Backend.exe`. The dashboard opens automatically in your browser. Keep
+the server window open while using it; close the window to stop the backend.
+The app stores its database and activity log in a `data` folder beside the EXE.
+No Node.js, npm, or SQLite installation is required.
+
+## Start the backend from source
 
 ```bash
 cd backend
