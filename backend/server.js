@@ -123,6 +123,12 @@ app.post("/api/farmer/crops", requireFarmer, (req, res) => {
     throw error;
   }
 });
+app.delete("/api/farmer/crops/:id", requireFarmer, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Choose a valid crop location." });
+  if (!cropDatabase.removeFarmerCrop(req.farmer.id, id)) return res.status(404).json({ error: "That crop location is not on your account." });
+  res.json({ removed: true });
+});
 app.get("/api/farmer/sensors", requireFarmer, (req, res) => res.json(cropDatabase.farmerSensors(req.farmer.id)));
 app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
   const cropId = Number(req.body?.farmerCropId);

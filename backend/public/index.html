@@ -98,6 +98,7 @@
       .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
       .auth-brand img { width:32px; height:32px; border-radius:7px; object-fit:cover; }
       #connectionQr svg { display:block; width:min(240px,70vw); height:auto; }
+      #authQr svg { display:block; width:min(210px,62vw); height:auto; margin:10px auto; }
       .auth-card h2 { margin:30px 0 5px; font-size:25px; }
       .auth-card p { color:var(--muted); font-size:13px; }
       .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
@@ -147,6 +148,8 @@
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p>Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
+        <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
+        <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
         <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 2" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 3" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 4" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 5" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 6" maxlength="1" inputmode="numeric" required></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
         <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
       </div>
@@ -304,7 +307,7 @@
         const cards = farmerCrops.map(crop => {
           const sensors = farmerSensors.filter(sensor => sensor.farmerCropId === crop.id);
           if (!`${crop.commodity} ${crop.label} ${sensors.map(sensor => `${sensor.sensorCode} ${sensor.label}`).join(' ')}`.toLowerCase().includes(query)) return '';
-          return `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</strong><span class="profile-meta">${sensors.length} sensor${sensors.length === 1 ? '' : 's'}</span></div>${sensors.map(sensor => `<div class="sensor-title" style="margin-top:10px;padding-top:9px;border-top:1px solid var(--line)"><strong>${escapeHtml(sensor.label)}</strong><span class="profile-meta">${escapeHtml(sensor.sensorCode)}</span><span class="sensor-status">Linked to this account</span><button type="button" data-unlink-sensor="${sensor.id}">Unlink</button></div>`).join('') || '<div class="empty">No sensors assigned yet. Use Link a sensor to add one.</div>'}</article>`;
+          return `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</strong><span class="profile-meta">${sensors.length} sensor${sensors.length === 1 ? '' : 's'}</span></div>${sensors.map(sensor => `<div class="sensor-title" style="margin-top:10px;padding-top:9px;border-top:1px solid var(--line)"><strong>${escapeHtml(sensor.label)}</strong><span class="profile-meta">${escapeHtml(sensor.sensorCode)}</span><span class="sensor-status">Linked to this account</span><button type="button" data-unlink-sensor="${sensor.id}">Unlink</button></div>`).join('') || '<div class="empty">No sensors assigned yet. Use Link a sensor to add one.</div>'}<div style="margin-top:10px;text-align:right"><button type="button" data-delete-crop="${crop.id}">Delete crop location</button></div></article>`;
         }).filter(Boolean).join('');
         $('sensorList').innerHTML = cards || (farmerCrops.length ? '<div class="empty">No crop locations match your search.</div>' : '<div class="empty">No crops yet. Add a crop location to get started.</div>');
         $('sensorList').querySelectorAll('[data-unlink-sensor]').forEach(button => button.addEventListener('click', async () => {
@@ -313,6 +316,16 @@
             const response = await fetch(`/api/farmer/sensors/${button.dataset.unlinkSensor}`, { method:'DELETE', headers:authHeaders() });
             const body = await response.json();
             if (!response.ok) throw new Error(body.error || 'Could not unlink sensor');
+            await loadFarmerData();
+          } catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+        $('sensorList').querySelectorAll('[data-delete-crop]').forEach(button => button.addEventListener('click', async () => {
+          const crop = farmerCrops.find(item => item.id === Number(button.dataset.deleteCrop));
+          if (!crop || !window.confirm(`Delete ${crop.commodity} · ${crop.label} and unlink its sensors?`)) return;
+          try {
+            const response = await fetch(`/api/farmer/crops/${crop.id}`, { method:'DELETE', headers:authHeaders() });
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.error || 'Could not delete crop location');
             await loadFarmerData();
           } catch (error) { $('cropActionNotice').textContent = error.message; }
         }));
@@ -539,6 +552,21 @@
         authPhone = result.phone;
         $('phonePreview').textContent = authPhone;
         $('otpNotice').textContent = result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
+        $('authQr').hidden = true;
+        $('authQrHint').hidden = true;
+        if (result.demoCode) {
+          try {
+            const info = await getJson('/api/connection-info');
+            const address = info.addresses.find(item => item.address === location.hostname)?.address || info.addresses[0]?.address;
+            const authBackend = address ? `http://${address}:${Number(info.port) || 3000}` : location.origin;
+            const qr = qrcode(0, 'M');
+            qr.addData(JSON.stringify({ type:'peo-yame-auth', backend:authBackend, phone:result.phone, code:result.demoCode }));
+            qr.make();
+            $('authQr').innerHTML = qr.createSvgTag({ cellSize:5, margin:4, scalable:true });
+            $('authQr').hidden = false;
+            $('authQrHint').hidden = false;
+          } catch (_) { $('otpNotice').textContent += ' The QR code could not be drawn.'; }
+        }
         document.querySelectorAll('.pin-row input').forEach(input => input.value = '');
         showAuthPanel('otpPanel');
         document.querySelector('.pin-row input').focus();

@@ -15,6 +15,9 @@ class AccountsScreen extends StatelessWidget {
   const AccountsScreen({
     required this.name,
     required this.phone,
+    required this.onEditName,
+    required this.onLoadFarmerCrops,
+    required this.onDeleteFarmerCrop,
     required this.onLogout,
     required this.onDestinationSelected,
     super.key,
@@ -22,6 +25,9 @@ class AccountsScreen extends StatelessWidget {
 
   final String name;
   final String phone;
+  final Future<void> Function(String name) onEditName;
+  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
+  final Future<void> Function(int id) onDeleteFarmerCrop;
   final VoidCallback onLogout;
   final ValueChanged<int> onDestinationSelected;
 
@@ -30,10 +36,51 @@ class AccountsScreen extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => MyCropsScreen(
           name: name,
+          onLoadFarmerCrops: onLoadFarmerCrops,
+          onDeleteFarmerCrop: onDeleteFarmerCrop,
           onDestinationSelected: onDestinationSelected,
         ),
       ),
     );
+  }
+
+  Future<void> _editAccount(BuildContext context) async {
+    final controller = TextEditingController(text: name);
+    final updatedName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit account'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Farmer name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (updatedName == null || updatedName.isEmpty || !context.mounted) return;
+    try {
+      await onEditName(updatedName);
+      if (context.mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update account: $error')),
+        );
+    }
   }
 
   void _showDemoMessage(BuildContext context, String feature) {
@@ -49,7 +96,7 @@ class AccountsScreen extends StatelessWidget {
     return _DesignShell(
       title: 'Accounts',
       action: TextButton(
-        onPressed: () => _showDemoMessage(context, 'Profile editing'),
+        onPressed: () => _editAccount(context),
         child: const Text('Edit'),
       ),
       onBack: () => Navigator.of(context).maybePop(),
@@ -169,11 +216,15 @@ class AccountsScreen extends StatelessWidget {
 class MyCropsScreen extends StatefulWidget {
   const MyCropsScreen({
     required this.name,
+    required this.onLoadFarmerCrops,
+    required this.onDeleteFarmerCrop,
     required this.onDestinationSelected,
     super.key,
   });
 
   final String name;
+  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
+  final Future<void> Function(int id) onDeleteFarmerCrop;
   final ValueChanged<int> onDestinationSelected;
 
   @override
@@ -183,6 +234,32 @@ class MyCropsScreen extends StatefulWidget {
 class _MyCropsScreenState extends State<MyCropsScreen> {
   final _searchController = TextEditingController();
   String _filter = 'All sensors';
+  final Set<String> _deletedCrops = {};
+  List<Map<String, dynamic>>? _farmerCrops;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFarmerCrops();
+  }
+
+  Future<void> _loadFarmerCrops() async {
+    try {
+      final crops = await widget.onLoadFarmerCrops();
+      if (mounted)
+        setState(() {
+          _farmerCrops = crops;
+          _loadError = null;
+        });
+    } catch (error) {
+      if (mounted)
+        setState(() {
+          _farmerCrops = [];
+          _loadError = '$error';
+        });
+    }
+  }
 
   static const _sensors = <_DemoSensor>[
     _DemoSensor(
@@ -248,8 +325,10 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_farmerCrops != null) return _buildAccountCrops();
     final query = _searchController.text.trim().toLowerCase();
     final visible = _sensors.where((sensor) {
+      if (_deletedCrops.contains(sensor.crop)) return false;
       final matchesQuery =
           query.isEmpty ||
           '${sensor.crop} ${sensor.id} ${sensor.store}'.toLowerCase().contains(
@@ -347,6 +426,29 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
               crop: entry.key,
               initial: entry.value.first.initial,
               sensors: entry.value,
+              onDelete: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Delete this crop?'),
+                    content: Text(
+                      'Remove ${entry.key} and its displayed sensors from this demo account?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true && mounted)
+                  setState(() => _deletedCrops.add(entry.key));
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -366,6 +468,111 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildAccountCrops() {
+    final query = _searchController.text.trim().toLowerCase();
+    final crops = _farmerCrops!
+        .where(
+          (crop) => '${crop['commodity']} ${crop['label']}'
+              .toLowerCase()
+              .contains(query),
+        )
+        .toList();
+    return _DesignShell(
+      title: 'My Crops',
+      action: TextButton.icon(
+        onPressed: _loadFarmerCrops,
+        icon: const Icon(Icons.refresh, size: 16),
+        label: const Text('Refresh'),
+      ),
+      onBack: () => Navigator.of(context).maybePop(),
+      selectedDestination: 3,
+      onDestinationSelected: widget.onDestinationSelected,
+      children: [
+        _AccountScopeBanner(name: widget.name),
+        const SizedBox(height: 10),
+        if (_loadError != null)
+          _DemoNotice(text: 'Could not load crop locations: $_loadError'),
+        TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            hintText: 'Search crop or field name',
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (crops.isEmpty)
+          const _EmptySearch()
+        else
+          for (final crop in crops)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.spa_outlined, color: _forest),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${crop['commodity']} · ${crop['label']}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            '${crop['sensorCount'] ?? 0} linked sensors',
+                            style: const TextStyle(fontSize: 11, color: _muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _deleteCrop(crop),
+                      icon: const Icon(Icons.delete_outline, size: 17),
+                      label: const Text('Delete'),
+                      style: TextButton.styleFrom(foregroundColor: _red),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Future<void> _deleteCrop(Map<String, dynamic> crop) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete crop location?'),
+        content: Text(
+          'Delete ${crop['commodity']} · ${crop['label']} and unlink its sensors?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.onDeleteFarmerCrop((crop['id'] as num).toInt());
+      await _loadFarmerCrops();
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete crop: $error')),
+        );
+    }
   }
 }
 
@@ -774,10 +981,12 @@ class _CropGroupCard extends StatelessWidget {
     required this.crop,
     required this.initial,
     required this.sensors,
+    required this.onDelete,
   });
   final String crop;
   final String initial;
   final List<_DemoSensor> sensors;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -828,6 +1037,15 @@ class _CropGroupCard extends StatelessWidget {
           if (index > 0) const Divider(height: 1, indent: 11, endIndent: 11),
           _SensorRow(sensor: sensors[index]),
         ],
+        const Divider(height: 1),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline, size: 17),
+            label: const Text('Delete crop'),
+          ),
+        ),
       ],
     ),
   );

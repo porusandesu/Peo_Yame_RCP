@@ -11,7 +11,91 @@ class ApiService {
       _client = client ?? http.Client();
 
   String baseUrl;
+  String? authToken;
   final http.Client _client;
+
+  Map<String, String> get _authHeaders =>
+      authToken == null ? const {} : {'Authorization': 'Bearer $authToken'};
+
+  Future<Map<String, dynamic>> requestOtp({
+    required String phone,
+    String name = '',
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/request-otp'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone, 'name': name}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> verifyOtp({
+    required String phone,
+    required String code,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/verify-otp'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone, 'code': code}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result['farmer'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateAccountName(String name) async {
+    final response = await _client
+        .patch(
+          _uri('/api/account'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: jsonEncode({'name': name}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getAccount() async {
+    final response = await _client
+        .get(_uri('/api/account'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 6));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> getFarmerCrops() async {
+    final response = await _client
+        .get(_uri('/api/farmer/crops'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+  }
+
+  Future<void> deleteFarmerCrop(int id) async {
+    final response = await _client
+        .delete(_uri('/api/farmer/crops/$id'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+  }
+
+  Future<void> logout() async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/logout'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: '{}',
+        )
+        .timeout(const Duration(seconds: 5));
+    _ensureOk(response);
+    authToken = null;
+  }
 
   Uri _uri(String path, [Map<String, String>? query]) {
     return Uri.parse('$baseUrl$path').replace(queryParameters: query);

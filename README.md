@@ -53,10 +53,14 @@ testing, not a Play Store release.
 
 On the web app, choose **Create account**, enter the farmer name and phone
 number, then enter the one-time PIN shown by the local server. Returning farmers
-can sign in with their saved phone number. Account and My Crops records are
-stored in the backend database. The Flutter app still uses its separate local
-demo sign-in and account/crop views. The dashboard breach control remains a
-simulation of configured-limit alerts.
+can sign in with their saved phone number. The temporary PIN also appears as a
+QR code on the web sign-in screen; tap **Scan sign-in QR** in the Flutter app to
+authenticate without requesting or typing another PIN. First-time mobile users
+can scan the backend QR from the sign-in screen to set the server address.
+Account names and crop locations are stored in the backend database. The mobile
+Accounts screen can edit the farmer name, and My Crops can delete a saved crop
+location (which also unlinks its sensors). The dashboard breach control remains
+a simulation of configured-limit alerts.
 Open `http://<PC-IP>:3000` on another device on the same Wi-Fi network.
 
 In **Accounts**, review or edit the farmer profile and see crop and sensor

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'account_screens.dart';
+import 'api_service.dart';
 import 'config.dart';
 import 'dashboard_controller.dart';
 import 'models.dart';
@@ -76,41 +77,100 @@ class _AppGate extends StatefulWidget {
 }
 
 class _AppGateState extends State<_AppGate> {
+  final ApiService _authApi = ApiService();
   AccountInfo? _account;
   String? _pendingPhone;
-  String _pendingName = 'Olerato';
+  bool _loadingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      _authApi.baseUrl = normalizeApiBaseUrl(
+        preferences.getString(apiBaseUrlPreferenceKey) ?? defaultApiBaseUrl,
+      );
+      _authApi.authToken = preferences.getString('farmer_auth_token');
+      if (_authApi.authToken != null) {
+        final farmer = await _authApi.getAccount();
+        _account = AccountInfo(
+          name: farmer['name'] as String,
+          email: '',
+          phone: farmer['phone'] as String,
+        );
+      }
+    } catch (_) {
+      _authApi.authToken = null;
+    }
+    if (mounted) setState(() => _loadingSession = false);
+  }
 
   void _requestCode(DemoSignInRequest request) {
     setState(() {
       _pendingPhone = request.phone;
-      _pendingName = request.name;
     });
   }
 
   void _backToLogin() => setState(() => _pendingPhone = null);
 
-  void _continueDemo() {
-    final phone = _pendingPhone ?? '+267 71 234 567';
+  Future<void> _continueDemo(String code) async {
+    final phone = _pendingPhone ?? '';
+    final farmer = await _authApi.verifyOtp(phone: phone, code: code);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('farmer_auth_token', _authApi.authToken!);
+    if (!mounted) return;
     setState(() {
       _account = AccountInfo(
-        name: _pendingName,
-        email: 'Demo profile',
-        phone: phone,
+        name: farmer['name'] as String,
+        email: '',
+        phone: farmer['phone'] as String,
       );
       _pendingPhone = null;
     });
   }
 
-  void _logout() => setState(() {
-    _account = null;
-    _pendingPhone = null;
-  });
+  Future<void> _logout() async {
+    try {
+      await _authApi.logout();
+    } catch (_) {}
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('farmer_auth_token');
+    if (mounted)
+      setState(() {
+        _account = null;
+        _pendingPhone = null;
+      });
+  }
+
+  Future<void> _editName(String name) async {
+    final farmer = await _authApi.updateAccountName(name);
+    if (!mounted) return;
+    setState(
+      () => _account = AccountInfo(
+        name: farmer['name'] as String,
+        email: '',
+        phone: farmer['phone'] as String,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingSession)
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final account = _account;
     if (account != null) {
-      return DashboardPage(account: account, onLogout: _logout);
+      return DashboardPage(
+        account: account,
+        onLogout: _logout,
+        onEditName: _editName,
+        onLoadFarmerCrops: _authApi.getFarmerCrops,
+        onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
+      );
     }
     final pendingPhone = _pendingPhone;
     if (pendingPhone != null) {
@@ -118,9 +178,89 @@ class _AppGateState extends State<_AppGate> {
         phone: pendingPhone,
         onBack: _backToLogin,
         onContinue: _continueDemo,
+        onScanQr: () async {
+          final raw = await Navigator.of(context).push<String>(
+            MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
+          );
+          if (raw == null) return;
+          final data = jsonDecode(raw) as Map<String, dynamic>;
+          if (data['type'] != 'peo-yame-auth' ||
+              data['phone'] != pendingPhone ||
+              data['backend'] is! String ||
+              data['code'] is! String)
+            throw Exception(
+              'This sign-in QR code is invalid or for a different phone.',
+            );
+          final backend = Uri.tryParse(data['backend'] as String);
+          if (backend == null ||
+              backend.host.isEmpty ||
+              !['http', 'https'].contains(backend.scheme))
+            throw Exception('The sign-in QR has an invalid backend address.');
+          _authApi.baseUrl = normalizeApiBaseUrl(data['backend'] as String);
+          final preferences = await SharedPreferences.getInstance();
+          await preferences.setString(
+            apiBaseUrlPreferenceKey,
+            _authApi.baseUrl,
+          );
+          await _continueDemo(data['code'] as String);
+        },
       );
     }
-    return _LoginSplash(onContinue: _requestCode);
+    return _LoginSplash(
+      onScanSignInQr: () async {
+        final raw = await Navigator.of(context).push<String>(
+          MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
+        );
+        if (raw == null) return;
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final backend = Uri.tryParse(data['backend'] as String? ?? '');
+        if (data['type'] != 'peo-yame-auth' ||
+            backend == null ||
+            backend.host.isEmpty ||
+            data['phone'] is! String ||
+            data['code'] is! String)
+          throw Exception('This is not a valid sign-in QR code.');
+        _pendingPhone = data['phone'] as String;
+        _authApi.baseUrl = normalizeApiBaseUrl(data['backend'] as String);
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
+        await _continueDemo(data['code'] as String);
+      },
+      onScanBackend: () async {
+        final address = await Navigator.of(context).push<String>(
+          MaterialPageRoute(builder: (_) => const _BackendQrScannerPage()),
+        );
+        if (address == null) return;
+        _authApi.baseUrl = normalizeApiBaseUrl(address);
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
+      },
+      onContinue: (request) async {
+        try {
+          _authApi.baseUrl = normalizeApiBaseUrl(
+            (await SharedPreferences.getInstance()).getString(
+                  apiBaseUrlPreferenceKey,
+                ) ??
+                defaultApiBaseUrl,
+          );
+          final result = await _authApi.requestOtp(
+            phone: request.phone,
+            name: request.name,
+          );
+          _requestCode(
+            DemoSignInRequest(
+              name: request.name,
+              phone: result['phone'] as String,
+            ),
+          );
+        } catch (error) {
+          if (context.mounted)
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('$error')));
+        }
+      },
+    );
   }
 }
 
@@ -144,9 +284,15 @@ class AccountInfo {
 }
 
 class _LoginSplash extends StatefulWidget {
-  const _LoginSplash({required this.onContinue});
+  const _LoginSplash({
+    required this.onContinue,
+    required this.onScanBackend,
+    required this.onScanSignInQr,
+  });
 
-  final ValueChanged<DemoSignInRequest> onContinue;
+  final Future<void> Function(DemoSignInRequest) onContinue;
+  final Future<void> Function() onScanBackend;
+  final Future<void> Function() onScanSignInQr;
 
   @override
   State<_LoginSplash> createState() => _LoginSplashState();
@@ -170,7 +316,7 @@ class _LoginSplashState extends State<_LoginSplash> {
     return '${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}';
   }
 
-  void _submit({String name = 'Olerato'}) {
+  void _submit({String name = ''}) {
     if (_phone.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -338,6 +484,49 @@ class _LoginSplashState extends State<_LoginSplash> {
                             ),
                           ),
                         ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await widget.onScanSignInQr();
+                            } catch (error) {
+                              if (mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Could not sign in: $error'),
+                                  ),
+                                );
+                            }
+                          },
+                          icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                          label: const Text('Scan sign-in QR'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await widget.onScanBackend();
+                              if (mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Backend connected. You can now request your sign-in PIN.',
+                                    ),
+                                  ),
+                                );
+                            } catch (error) {
+                              if (mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Could not connect: $error'),
+                                  ),
+                                );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 17,
+                          ),
+                          label: const Text('Scan backend QR'),
+                        ),
                         const SizedBox(height: 10),
                         const Text(
                           'Sign in with a one-time PIN.\nNo password to remember.',
@@ -391,12 +580,14 @@ class OtpVerificationPage extends StatefulWidget {
     required this.phone,
     required this.onBack,
     required this.onContinue,
+    required this.onScanQr,
     super.key,
   });
 
   final String phone;
   final VoidCallback onBack;
-  final VoidCallback onContinue;
+  final Future<void> Function(String code) onContinue;
+  final Future<void> Function() onScanQr;
 
   @override
   State<OtpVerificationPage> createState() => _OtpVerificationPageState();
@@ -409,10 +600,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   void initState() {
     super.initState();
-    _controllers = List.generate(
-      6,
-      (index) => TextEditingController(text: '${index + 1}'),
-    );
+    _controllers = List.generate(6, (_) => TextEditingController());
     _focusNodes = List.generate(6, (_) => FocusNode());
   }
 
@@ -431,6 +619,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _verify() async {
+    final code = _controllers.map((controller) => controller.text).join();
+    try {
+      await widget.onContinue(code);
+    } catch (error) {
+      _showDemoMessage('$error');
+    }
   }
 
   @override
@@ -567,13 +764,16 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Sample PIN entered · not a real verification',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: Color(0xFF65776F),
-                          ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await widget.onScanQr();
+                            } catch (error) {
+                              _showDemoMessage('$error');
+                            }
+                          },
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
+                          label: const Text('Scan sign-in QR code'),
                         ),
                         const SizedBox(height: 12),
                         FilledButton.icon(
@@ -581,7 +781,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                               _controllers.every(
                                 (controller) => controller.text.length == 1,
                               )
-                              ? widget.onContinue
+                              ? _verify
                               : null,
                           iconAlignment: IconAlignment.end,
                           icon: const Icon(
@@ -711,11 +911,17 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
     required this.onLogout,
+    required this.onEditName,
+    required this.onLoadFarmerCrops,
+    required this.onDeleteFarmerCrop,
     super.key,
   });
 
   final AccountInfo account;
   final VoidCallback onLogout;
+  final Future<void> Function(String name) onEditName;
+  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
+  final Future<void> Function(int id) onDeleteFarmerCrop;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -883,6 +1089,9 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (_) => AccountsScreen(
           name: widget.account.name,
           phone: widget.account.phone,
+          onEditName: widget.onEditName,
+          onLoadFarmerCrops: widget.onLoadFarmerCrops,
+          onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
           onLogout: () {
             Navigator.of(context).popUntil((route) => route.isFirst);
             widget.onLogout();
@@ -3127,6 +3336,88 @@ String _relativeTime(String raw) {
   if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
   if (difference.inHours < 24) return '${difference.inHours} hr ago';
   return '${difference.inDays} days ago';
+}
+
+class _AuthQrScannerPage extends StatefulWidget {
+  const _AuthQrScannerPage();
+  @override
+  State<_AuthQrScannerPage> createState() => _AuthQrScannerPageState();
+}
+
+class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
+  bool _finished = false;
+  late final MobileScannerController _scannerController =
+      MobileScannerController(formats: const [BarcodeFormat.qrCode]);
+  void _handleDetection(BarcodeCapture capture) {
+    if (_finished) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue;
+      if (raw == null) continue;
+      try {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final uri = Uri.parse(data['backend'] as String);
+        final parts = uri.host.split('.').map(int.tryParse).toList();
+        final local =
+            parts.length == 4 &&
+            parts.every((part) => part != null) &&
+            (parts[0] == 10 ||
+                (parts[0] == 172 && parts[1]! >= 16 && parts[1]! <= 31) ||
+                (parts[0] == 192 && parts[1] == 168));
+        if (data['type'] == 'peo-yame-auth' &&
+            uri.hasAuthority &&
+            local &&
+            RegExp(r'^\d{6}$').hasMatch('${data['code']}')) {
+          _finished = true;
+          Navigator.of(context).pop(raw);
+          return;
+        }
+      } catch (_) {}
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This is not a valid Peo Yame sign-in QR code.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Scan sign-in QR code')),
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        MobileScanner(
+          controller: _scannerController,
+          onDetect: _handleDetection,
+          errorBuilder: (context, error) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Allow camera access to scan the sign-in code. ${error.errorCode.message}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+        const Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Scan the temporary QR code shown on the backend sign-in page.',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _BackendQrScannerPage extends StatefulWidget {

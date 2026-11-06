@@ -160,6 +160,7 @@ module.exports = {
     sql(`INSERT INTO farmer_crops(account_id,crop_id,label) VALUES(${Number(accountId)},${crop.id},${quote(label)});`);
     return sql(`SELECT id,label FROM farmer_crops WHERE account_id=${Number(accountId)} AND crop_id=${crop.id} AND label=${quote(label)};`, true)[0];
   },
+  removeFarmerCrop: (accountId, cropId) => sql(`DELETE FROM farmer_crops WHERE account_id=${Number(accountId)} AND id=${Number(cropId)}; SELECT changes() AS removed;`, true)[0]?.removed > 0,
   farmerSensors: (accountId) => sql(`SELECT fs.id,fs.sensor_code AS sensorCode,fs.label,fc.id AS farmerCropId,fc.label AS cropLabel,c.name AS commodity,fs.created_at AS createdAt FROM farmer_sensors fs JOIN farmer_crops fc ON fc.id=fs.farmer_crop_id JOIN crops c ON c.id=fc.crop_id WHERE fs.account_id=${Number(accountId)} ORDER BY fs.id;`, true),
   addFarmerSensor: (accountId, cropId, sensorCode, label) => {
     const crop = sql(`SELECT id FROM farmer_crops WHERE id=${Number(cropId)} AND account_id=${Number(accountId)};`, true)[0];
