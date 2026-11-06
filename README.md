@@ -123,4 +123,6 @@ heuristics shown in the mobile prototype as illustrative only, never as a
 validated prediction.
 
 Use the project only as a controlled local-network demonstration. The backend
-uses plain HTTP and the account menu is a demo UI, not authentication.
+uses plain HTTP, OTP delivery is a local demo flow, sessions are in memory, and
+the global monitoring and sensor-ingestion APIs are not account-scoped. This is
+not ready for exposure to an untrusted network.
