@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Local demo API for the IoT storage monitoring dashboard + Android app",
   "main": "server.js",
+  "bin": "launcher.js",
   "scripts": {
     "start": "node server.js",
     "demo": "node server.js",

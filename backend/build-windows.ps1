@@ -25,7 +25,7 @@ try {
   }
 
   Write-Host "Building the standalone Windows executable..."
-  npx --yes pkg@5.8.1 launcher.js --targets node18-win-x64 --output (Join-Path $distributionDirectory "Peo-Yame-Backend.exe") --compress GZip
+  npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output (Join-Path $distributionDirectory "Peo-Yame-Backend.exe") --compress GZip
   if ($LASTEXITCODE -ne 0) { throw "The Windows executable build failed with exit code $LASTEXITCODE." }
 
   Write-Host "Starting the built executable for a startup check..."
