@@ -17,6 +17,21 @@ class ApiService {
   Map<String, String> get _authHeaders =>
       authToken == null ? const {} : {'Authorization': 'Bearer $authToken'};
 
+  Future<void> checkConnection() async {
+    final response = await _client
+        .get(_uri('/api/health'))
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FormatException(
+        'This address returned HTTP ${response.statusCode}.',
+      );
+    }
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    if (result['status'] != 'ok') {
+      throw const FormatException('This address is not a Peo Yame backend.');
+    }
+  }
+
   Future<Map<String, dynamic>> requestOtp({
     required String phone,
     String name = '',

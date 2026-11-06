@@ -11,7 +11,7 @@ $distributionDirectory = Join-Path $PSScriptRoot "dist"
 $sqliteAsset = Join-Path $vendorDirectory "sqlite3.exe"
 $rceditExecutable = Join-Path $temporaryDirectory "rcedit-x64.exe"
 $rceditUrl = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
-$applicationIcon = Join-Path $PSScriptRoot "..\Peo_Yame_logo_assets\Peo_Yame_Dev_Assets\windows\PeoYame.ico"
+$applicationIcon = Join-Path $PSScriptRoot "..\assets\branding\peo-yame.ico"
 $pkgCacheDirectory = Join-Path $temporaryDirectory "pkg-cache"
 $createdSqliteAsset = $false
 

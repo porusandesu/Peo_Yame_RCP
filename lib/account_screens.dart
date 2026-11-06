@@ -69,26 +69,40 @@ class AccountsScreen extends StatelessWidget {
     final updatedProfile = await showDialog<(String, String)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         title: const Text('Edit profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              maxLength: 80,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Farmer name'),
-            ),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Phone number',
-                hintText: '+26771234567',
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                maxLength: 80,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  alignLabelWithHint: true,
+                  labelText: 'Farmer name',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  alignLabelWithHint: true,
+                  labelText: 'Phone number',
+                  hintText: '+26771234567',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -128,7 +142,7 @@ class AccountsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _DesignShell(
-      title: 'Accounts',
+      title: 'Settings',
       action: TextButton(
         onPressed: () => _editAccount(context),
         child: const Text('Edit'),
@@ -710,6 +724,7 @@ class _DesignShell extends StatelessWidget {
     bottomNavigationBar: NavigationBar(
       selectedIndex: selectedDestination,
       onDestinationSelected: (index) {
+        if (index == selectedDestination) return;
         Navigator.of(context).popUntil((route) => route.isFirst);
         onDestinationSelected(index);
       },
@@ -727,16 +742,12 @@ class _DesignShell extends StatelessWidget {
           label: 'Alerts',
         ),
         NavigationDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          label: 'Accounts',
+          icon: Icon(Icons.settings_outlined),
+          label: 'Settings',
         ),
         NavigationDestination(
           icon: Icon(Icons.spa_outlined),
           label: 'My Crops',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          label: 'Settings',
         ),
       ],
     ),
@@ -779,21 +790,6 @@ class _BrandHeader extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          decoration: BoxDecoration(
-            color: _paleGreen,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: const Text(
-            'Local',
-            style: TextStyle(
-              fontSize: 10,
-              color: _forest,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
       ],
     ),
   );

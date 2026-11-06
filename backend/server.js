@@ -30,25 +30,33 @@ app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = Number(process.env.PORT || 3000);
-const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
+const isPackagedWindowsDemo = Boolean(process.pkg) && process.platform === "win32";
+const isDemoMode = process.env.NODE_ENV !== "production" || isPackagedWindowsDemo;
+const HOSTS = process.env.HOST
+  ? [process.env.HOST]
+  : isDemoMode
+    ? [...new Set(["127.0.0.1", ...lanIpv4Addresses()])]
+    : ["127.0.0.1"];
 const ACTION_LOG_PATH = path.join(dataDirectory, "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
 const otpChallenges = new Map();
-const farmerSessions = new Map();
+
+function sessionHash(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 function normalizePhone(value) {
   return typeof value === "string" ? value.replace(/[\s().-]/g, "") : "";
 }
 function farmerFromRequest(req) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const session = token && farmerSessions.get(token);
-  if (!session || session.expiresAt <= Date.now()) {
-    if (token) farmerSessions.delete(token);
-    return null;
-  }
-  return session.farmer;
+  if (!token) return null;
+  const hash = sessionHash(token);
+  const farmer = cropDatabase.findFarmerBySession(hash);
+  if (!farmer) cropDatabase.removeFarmerSession(hash);
+  return farmer;
 }
 function requireFarmer(req, res, next) {
   req.farmer = farmerFromRequest(req);
@@ -57,7 +65,7 @@ function requireFarmer(req, res, next) {
 }
 
 app.post("/api/auth/request-otp", (req, res) => {
-  if (process.env.NODE_ENV === "production") return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
+  if (!isDemoMode) return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
   const phone = normalizePhone(req.body?.phone);
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
   if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
@@ -68,7 +76,7 @@ app.post("/api/auth/request-otp", (req, res) => {
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   otpChallenges.set(phone, { hash: crypto.createHash("sha256").update(code).digest("hex"), name, createdAt: Date.now(), attempts: 0 });
   const payload = { sent: true, phone, expiresInSeconds: 300, delivery: "demo" };
-  if (process.env.NODE_ENV !== "production") payload.demoCode = code;
+  if (isDemoMode) payload.demoCode = code;
   res.json(payload);
 });
 
@@ -89,14 +97,14 @@ app.post("/api/auth/verify-otp", (req, res) => {
   if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name);
   otpChallenges.delete(phone);
   const token = crypto.randomBytes(32).toString("base64url");
-  farmerSessions.set(token, { farmer, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  cropDatabase.createFarmerSession(sessionHash(token), farmer.id, Date.now() + 7 * 24 * 60 * 60 * 1000);
   res.json({ token, expiresInSeconds: 604800, farmer });
 });
 
 app.get("/api/account", requireFarmer, (req, res) => res.json(req.farmer));
 app.post("/api/auth/logout", requireFarmer, (req, res) => {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  farmerSessions.delete(token);
+  if (token) cropDatabase.removeFarmerSession(sessionHash(token));
   res.json({ signedOut: true });
 });
 app.patch("/api/account", requireFarmer, (req, res) => {
@@ -107,9 +115,7 @@ app.patch("/api/account", requireFarmer, (req, res) => {
   try {
     const farmer = cropDatabase.updateFarmerAccount(req.farmer.id, name, phone);
     if (!farmer) return res.status(404).json({ error: "Farmer account was not found." });
-    const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-    const session = farmerSessions.get(token);
-    if (session) session.farmer = farmer;
+    broadcastUpdate("farmer-account");
     return res.json(farmer);
   } catch (error) {
     if (`${error.message || error} ${error.stderr?.toString() || ""}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That phone number is already linked to another farmer account." });
@@ -254,7 +260,7 @@ const thresholds = Object.fromEntries(cropDatabase.listCrops().map((crop) => [cr
 let threshold = cropDatabase.getCrop(cropDatabase.activeCropName()) || thresholds.Maize;
 
 // ---- In-memory "database" (swap for real DB queries later) ----
-if (process.env.NODE_ENV !== "production") cropDatabase.seedDemoHistory();
+if (isDemoMode) cropDatabase.seedDemoHistory();
 let readings = cropDatabase.recentReadings(200);
 // Keep one compact aggregate per hour from SQLite, then add live minute buckets.
 let trendBuckets = cropDatabase.trendHistory(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()).map((point) => ({
@@ -396,7 +402,7 @@ function generateSafeReading() {
 }
 
 // Simulate a sensor pushing a new reading every 5 seconds
-if (process.env.NODE_ENV !== "production") {
+if (isDemoMode) {
   setInterval(() => {
     try {
       if (!demoBreachActive) generateReading();
@@ -451,10 +457,10 @@ function isPrivateIpv4(address) {
 }
 
 app.get("/api/connection-info", (req, res) => {
-  const addresses = lanIpv4Addresses().map((address) => ({
-    address,
-    url: `http://${address}:${PORT}`,
-  }));
+  const peerAddress = (req.socket.remoteAddress || "").replace(/^::ffff:/, "");
+  const localPeer = peerAddress === "::1" || peerAddress.startsWith("127.") || isPrivateIpv4(peerAddress);
+  const acceptsLanClients = HOSTS.includes("0.0.0.0");
+  const addresses = (localPeer ? lanIpv4Addresses().filter((address) => acceptsLanClients || HOSTS.includes(address)) : []).map((address) => ({ address }));
   res.json({ port: PORT, addresses });
 });
 
@@ -710,7 +716,7 @@ app.post("/api/commodity", (req, res) => {
   });
   // Re-seed the chart around the newly selected crop and record an immediate,
   // in-range reading so the dashboard updates without waiting for the timer.
-  const reading = process.env.NODE_ENV === "production"
+  const reading = !isDemoMode
     ? readings.filter((item) => item.commodity === name).at(-1) || null
     : generateSafeReading();
   res.json({ threshold, reading });
@@ -795,13 +801,19 @@ app.post("/api/sim/breach", (req, res) => {
   res.status(201).json({ reading, alert: alerts[0] });
 });
 
-app.listen(PORT, HOST, () => {
-  logAction("Backend started", { source: "system", details: { port: PORT } });
-  console.log(`Storage monitor API running on http://${HOST}:${PORT} (${process.env.NODE_ENV || "development"})`);
-  if (process.pkg && process.platform === "win32" && process.env.NO_BROWSER !== "1") {
-    execFile("cmd.exe", ["/c", "start", "", `http://127.0.0.1:${PORT}`], (error) => {
-      if (error) console.warn(`Open http://127.0.0.1:${PORT} in your browser.`);
-    });
-    console.log("Your dashboard is opening. Keep this window open while you use it.");
-  }
-});
+let startupLogged = false;
+for (const host of HOSTS) {
+  app.listen(PORT, host, () => {
+    if (!startupLogged) {
+      startupLogged = true;
+      logAction("Backend started", { source: "system", details: { port: PORT } });
+    }
+    console.log(`Storage monitor API running on http://${host}:${PORT} (${process.env.NODE_ENV || "development"})`);
+    if (process.pkg && process.platform === "win32" && host === "127.0.0.1" && process.env.NO_BROWSER !== "1") {
+      execFile("cmd.exe", ["/c", "start", "", `http://127.0.0.1:${PORT}`], (error) => {
+        if (error) console.warn(`Open http://127.0.0.1:${PORT} in your browser.`);
+      });
+      console.log("Your dashboard is opening. Keep this window open while you use it.");
+    }
+  });
+}

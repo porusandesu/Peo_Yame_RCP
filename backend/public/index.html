@@ -29,6 +29,11 @@
       .account-menu button { display:block; width:100%; text-align:left; border:0; background:white; font-size:13px; }
       .account-menu button:hover { background:var(--bg); }
       .account-menu .menu-name { padding:8px 9px; color:var(--muted); font-size:12px; }
+      .app-menu-wrap { position:relative; }
+      .app-menu { position:absolute; z-index:8; top:calc(100% + 7px); right:0; width:220px; padding:7px; background:white; color:var(--ink); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 28px #10251f30; }
+      .app-menu[hidden] { display:none; }
+      .app-menu button { display:block; width:100%; text-align:left; border:0; background:white; font-size:13px; }
+      .app-menu button:hover { background:var(--bg); }
       dialog { width:min(440px,calc(100% - 28px)); border:1px solid var(--line); border-radius:16px; padding:20px; color:var(--ink); box-shadow:0 18px 60px #10251f35; }
       dialog::backdrop { background:#10251f77; }
       dialog h2 { margin:0 0 14px; }
@@ -38,6 +43,9 @@
       .form-grid input { width:100%; min-width:0; padding:9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink); }
       .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
       .dialog-error { min-height:18px; margin-top:8px; color:var(--red); font-size:12px; }
+      #editProfileForm { display:grid; gap:10px; }
+      #editProfileForm > label { display:grid; gap:6px; color:var(--muted); font-size:13px; text-align:left; }
+      #editProfileForm input { width:100%; min-height:42px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; color:var(--ink); font:inherit; }
       .harvest-controls { display:flex; gap:6px; align-items:center; margin-top:7px; }
       .harvest-controls .harvest-select { flex:1; min-width:0; margin:0; }
       .add-crop { min-width:36px; width:38px; height:40px; color:var(--green); font-size:20px; }
@@ -150,7 +158,7 @@
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
         <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
-        <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 2" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 3" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 4" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 5" maxlength="1" inputmode="numeric" required><input aria-label="PIN digit 6" maxlength="1" inputmode="numeric" required></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
+        <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" autocomplete="one-time-code" inputmode="numeric" required><input aria-label="PIN digit 2" inputmode="numeric" required><input aria-label="PIN digit 3" inputmode="numeric" required><input aria-label="PIN digit 4" inputmode="numeric" required><input aria-label="PIN digit 5" inputmode="numeric" required><input aria-label="PIN digit 6" inputmode="numeric" required></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
         <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
       </div>
       <div class="auth-card" id="profilePanel" hidden>
@@ -162,15 +170,13 @@
       <div class="brand"><img class="brand-plant" src="/icons/peo-yame-128.png" alt="" /><h1>Peo Yame</h1></div>
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Backend</strong> · Connecting<small>Waiting for demo service</small></div>
-        <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" id="accountInitial">O</span><span><strong class="account-name" id="accountName">Olerato</strong><small class="account-email" id="accountPhone">Demo profile</small></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name" id="menuName">Demo farmer account</div><button id="openAccounts" type="button">Accounts &amp; crops</button><button id="logout" type="button">Sign out</button></div></div>
-        <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
-        <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
+        <div class="account-wrap"><div class="account-button" id="accountSummary"><span class="account-avatar" id="accountInitial">F</span><span><strong class="account-name" id="accountName">Farmer</strong><small class="account-email" id="accountPhone"></small></span></div></div>
+        <button class="icon-button" id="homeButton" type="button" aria-label="Home" title="Home" hidden>⌂</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
-        <button class="icon-button" id="trigger" aria-label="Trigger a demo breach" title="Trigger a demo breach" hidden>⚠</button>
+        <div class="app-menu-wrap"><button class="icon-button" id="appMenuButton" type="button" aria-label="Open settings menu" aria-expanded="false" title="Settings">☰</button><div class="app-menu" id="appMenu" hidden><button type="button" data-open-view="settings">Settings &amp; profile</button><button type="button" data-open-view="crops">My Crops</button><button id="connectPhone" type="button">Connect mobile app</button><button id="logout" type="button">Sign out</button></div></div>
       </div>
     </header>
     <main id="dashboard" hidden>
-      <nav class="top-nav" aria-label="Application sections"><button type="button" data-open-view="accounts">Accounts</button><button type="button" data-open-view="crops">My Crops</button><button type="button" id="connectPhone">Connect mobile app by QR</button></nav>
       <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Demo sensor mode</strong>Farmer accounts, crop locations and linked sensor IDs are saved on this backend. Sensor readings are still generated by the demo, and one-time PIN delivery is shown locally until an SMS provider is connected.</div></div>
       <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
       <div id="error" role="status" aria-live="polite"></div>
@@ -198,13 +204,15 @@
         </div>
       </section>
     </main>
-    <section class="view" id="accountsView" hidden>
-      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Accounts</h2><button type="button" data-edit-profile>Edit</button></div>
-      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div><button type="button" data-edit-profile>Edit profile</button></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
-      <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View your crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
+    <section class="view" id="settingsView" hidden>
+      <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
+      <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
+      <h2 style="margin-top:18px">Crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
     </section>
     <section class="view" id="cropsView" hidden>
-      <div class="view-heading"><button type="button" data-back-accounts>←</button><h2>My Crops</h2><button type="button" id="addFarmerCrop">＋ Add crop</button></div>
+      <div class="view-heading"><h2>My Crops</h2><button type="button" id="addFarmerCrop">＋ Add crop</button></div>
       <div class="demo-note">Add as many crop locations and sensor IDs as you need. Sensor IDs are saved to your farmer account.</div>
       <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, storage or sensor ID" aria-label="Search your crops and sensors"></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
@@ -212,7 +220,7 @@
     <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
     <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
     <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
-    <dialog id="connectionDialog"><h2>Connect your mobile app</h2><p>Make sure your phone and this computer are on the same Wi-Fi network. In the mobile app, open Settings and tap Scan QR code.</p><label class="profile-meta" for="connectionAddress">This computer’s network address</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="QR code to connect the Peo Yame mobile app" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
+    <dialog id="connectionDialog"><h2>Connect your mobile app</h2><p>Put the phone and this computer on the same Wi-Fi network. In the mobile app, open Settings and scan this QR code.</p><label class="profile-meta" for="connectionAddress">Choose a network</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="QR code to connect the Peo Yame mobile app" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
     <script src="/qrcode-generator.js"></script>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
@@ -222,6 +230,7 @@
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
       let selectedRange = '24h';
       let chartData = [];
+      let activeThreshold = null;
       let refreshRevision = 0;
       let lastSyncAt = null;
       let demoMode = true;
@@ -247,7 +256,7 @@
         $('authShell').hidden = false;
         $('appHeader').hidden = true;
         $('dashboard').hidden = true;
-        $('accountsView').hidden = true;
+        $('settingsView').hidden = true;
         $('cropsView').hidden = true;
       }
       function showView(name) {
@@ -255,10 +264,11 @@
         $('authShell').hidden = true;
         $('appHeader').hidden = false;
         $('dashboard').hidden = name !== 'dashboard';
-        $('accountsView').hidden = name !== 'accounts';
+        $('settingsView').hidden = name !== 'settings';
         $('cropsView').hidden = name !== 'crops';
-        $('accountMenu').hidden = true;
-        $('accountButton').setAttribute('aria-expanded','false');
+        $('homeButton').hidden = name === 'dashboard';
+        $('appMenu').hidden = true;
+        $('appMenuButton').setAttribute('aria-expanded','false');
         if (name === 'crops') void loadFarmerData();
       }
       function activateProfile(profile) {
@@ -274,6 +284,21 @@
         showView('dashboard');
         void loadFarmerData();
         refresh();
+      }
+      async function syncAccountProfile() {
+        if (!authToken || !demoProfile) return;
+        try {
+          const profile = await getJson('/api/account');
+          if (profile.name === demoProfile.name && profile.phone === demoProfile.phone) return;
+          demoProfile = profile;
+          $('accountName').textContent = profile.name;
+          $('accountPhone').textContent = profile.phone;
+          $('accountInitial').textContent = profile.name.slice(0,1).toUpperCase();
+          $('profileInitial').textContent = profile.name.slice(0,1).toUpperCase();
+          $('profileName').textContent = profile.name;
+          $('profilePhone').textContent = profile.phone;
+          updateDemoControls();
+        } catch (_) {}
       }
       function authHeaders() { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
       async function getJson(url) {
@@ -348,7 +373,20 @@
         $(id).style.left = `${Math.max(0, Math.min(100, risk * 100))}%`;
       }
       function applyHarvestSelection({ threshold: t, reading: latest }) {
+        activeThreshold = t;
         $('harvest').value = t.commodity;
+        $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
+        $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+        if (!latest) {
+          $('temperature').textContent = '—';
+          $('humidity').textContent = '—';
+          $('status').textContent = 'No data';
+          $('status').className = 'value';
+          $('statusNote').textContent = 'Waiting for a reading for this crop';
+          $('storageEstimate').textContent = 'Awaiting readings';
+          drawChart(chartData, activeThreshold);
+          return;
+        }
         $('temperature').textContent = `${latest.temperature.toFixed(1)} °C`;
         $('humidity').textContent = `${latest.humidity.toFixed(1)} %`;
         const breached = isBreach(latest, t);
@@ -361,19 +399,40 @@
         $('storageEstimate').textContent = 'Monitoring configured limits';
         positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
         positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
+        drawChart(chartData, activeThreshold);
       }
-      function drawChart(points) {
+      function chartAxis(min, max, hardMin = -Infinity, hardMax = Infinity) {
+        const span = Math.max(max - min, 1);
+        const rawStep = span * 1.4 / 4;
+        const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+        const normalized = rawStep / magnitude;
+        const step = magnitude * (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10);
+        let axisMin = Math.max(hardMin, Math.floor((min - span * .2) / step) * step);
+        let axisMax = Math.min(hardMax, Math.ceil((max + span * .2) / step) * step);
+        if (axisMax <= axisMin) { axisMin = Math.max(hardMin, min - 1); axisMax = Math.min(hardMax, max + 1); }
+        return { min:axisMin, max:axisMax };
+      }
+      function drawChart(points, t = activeThreshold) {
         const svg = $('trendChart');
-        const W = 800, H = 240, pad = { l:42, r:14, t:16, b:30 };
+        const W = 800, H = 240, pad = { l:52, r:42, t:16, b:30 };
         const innerW = W - pad.l - pad.r, innerH = H - pad.t - pad.b;
         const rangeMs = ({ '24h':24, month:720, '3months':2160 }[selectedRange]) * 3600000;
         const end = Date.now(), start = end - rangeMs;
         const x = (time) => pad.l + ((time - start) / rangeMs) * innerW;
-        const tempY = (value) => pad.t + innerH - ((value - 0) / 40) * innerH;
-        const humY = (value) => pad.t + innerH - (value / 100) * innerH;
-        const grid = [0,25,50,75,100].map((v) => {
-          const y = pad.t + innerH - v / 100 * innerH;
-          return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#e8eee9"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#65776f" font-size="10">${v}</text>`;
+        const safeTempMin = Number(t?.minTemp ?? 0), safeTempMax = Number(t?.maxTemp ?? 40);
+        const safeHumidityMin = Number(t?.minHumidity ?? 0), safeHumidityMax = Number(t?.maxHumidity ?? 100);
+        const tempValues = points.map(point => Number(point.temperature)).filter(Number.isFinite);
+        const humidityValues = points.map(point => Number(point.humidity)).filter(Number.isFinite);
+        const tempAxis = chartAxis(Math.min(safeTempMin, ...tempValues), Math.max(safeTempMax, ...tempValues));
+        const humidityAxis = chartAxis(Math.min(safeHumidityMin, ...humidityValues), Math.max(safeHumidityMax, ...humidityValues), 0, 100);
+        const tempY = (value) => pad.t + innerH - ((value - tempAxis.min) / (tempAxis.max - tempAxis.min)) * innerH;
+        const humY = (value) => pad.t + innerH - ((value - humidityAxis.min) / (humidityAxis.max - humidityAxis.min)) * innerH;
+        const grid = [0,1,2,3,4].map((step) => {
+          const portion = 1 - step / 4;
+          const y = pad.t + innerH - portion * innerH;
+          const tempValue = tempAxis.min + portion * (tempAxis.max - tempAxis.min);
+          const humidityValue = humidityAxis.min + portion * (humidityAxis.max - humidityAxis.min);
+          return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#e8eee9"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#65776f" font-size="10">${tempValue.toFixed(0)}°</text><text x="${W-pad.r+8}" y="${y+4}" text-anchor="start" fill="#65776f" font-size="10">${humidityValue.toFixed(0)}%</text>`;
         }).join('');
         const paths = (key, color, yFn) => {
           const data = points.filter((p) => {
@@ -400,7 +459,7 @@
         try {
           const result = await getJson(`/api/readings/trends?range=${selectedRange}`);
           chartData = result.points || [];
-          drawChart(chartData);
+          drawChart(chartData, activeThreshold);
         } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
       }
       async function refresh() {
@@ -412,6 +471,8 @@
           ]);
           if (revision !== refreshRevision) return;
           const t = status.threshold, latest = status.latest;
+          activeThreshold = t;
+          drawChart(chartData, activeThreshold);
           $('error').textContent = '';
           $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
           $('status').className = `value ${status.breached ? 'status-alert' : 'status-safe'}`;
@@ -514,18 +575,26 @@
         void recordAction('Changed trend range', {range:selectedRange});
         loadTrend();
       }));
-      $('accountButton').addEventListener('click', () => {
-        $('accountMenu').hidden = !$('accountMenu').hidden;
-        $('accountButton').setAttribute('aria-expanded', String(!$('accountMenu').hidden));
+      $('appMenuButton').addEventListener('click', () => {
+        $('appMenu').hidden = !$('appMenu').hidden;
+        $('appMenuButton').setAttribute('aria-expanded', String(!$('appMenu').hidden));
       });
-      $('openAccounts').addEventListener('click', () => showView('accounts'));
+      $('homeButton').addEventListener('click', () => showView('dashboard'));
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('.app-menu-wrap')) {
+          $('appMenu').hidden = true;
+          $('appMenuButton').setAttribute('aria-expanded', 'false');
+        }
+      });
       $('connectPhone').addEventListener('click', async () => {
+        $('appMenu').hidden = true;
+        $('appMenuButton').setAttribute('aria-expanded', 'false');
         $('connectionDialog').showModal();
         $('connectionQrError').textContent = 'Finding this computer’s network addresses…';
         try {
           const info = await getJson('/api/connection-info');
           connectionPort = Number(info.port) || 3000;
-          $('connectionAddress').innerHTML = info.addresses.map(item => `<option value="${escapeHtml(item.address)}">${escapeHtml(item.address)}:${connectionPort}</option>`).join('');
+          $('connectionAddress').innerHTML = info.addresses.map((item, index) => `<option value="${escapeHtml(item.address)}">Wi-Fi network ${index + 1}</option>`).join('');
           if (!info.addresses.length) {
             $('connectionQrError').textContent = 'No network address was found. Connect this computer to Wi-Fi and try again.';
             $('connectionQr').hidden = true;
@@ -539,7 +608,7 @@
         const address = $('connectionAddress').value;
         if (!address) return;
         const url = `http://${address}:${connectionPort}`;
-        $('connectionUrl').textContent = url;
+        $('connectionUrl').textContent = 'The address is carried in this QR code for this local network session.';
         try {
           const qr = qrcode(0, 'M');
           qr.addData(url);
@@ -549,13 +618,12 @@
           $('connectionQrError').textContent = '';
         } catch (_) {
           $('connectionQr').hidden = true;
-          $('connectionQrError').textContent = 'Could not draw this QR code. You can enter the address shown above in Settings.';
+          $('connectionQrError').textContent = 'Could not draw this QR code. Close the dialog and try connecting again.';
         }
       }
       $('connectionAddress').addEventListener('change', () => { void loadConnectionQr(); });
       document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
       document.querySelectorAll('[data-back-dashboard]').forEach((button) => button.addEventListener('click', () => showView('dashboard')));
-      document.querySelectorAll('[data-back-accounts]').forEach((button) => button.addEventListener('click', () => showView('accounts')));
       async function requestOtp(phone, name = '') {
         const result = await postJson('/api/auth/request-otp', { phone, name });
         authPhone = result.phone;
@@ -649,7 +717,14 @@
       });
       document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $(button.dataset.closeDialog).close()));
       document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('input', () => {
-        input.value = input.value.replace(/\D/g,'').slice(-1);
+        const digits = input.value.replace(/\D/g,'');
+        if (digits.length > 1) {
+          inputs.forEach((digitInput) => { digitInput.value = ''; });
+          digits.slice(0, inputs.length).split('').forEach((digit, digitIndex) => { inputs[digitIndex].value = digit; });
+          inputs[Math.min(digits.length, inputs.length) - 1].focus();
+          return;
+        }
+        input.value = digits.slice(-1);
         if (input.value && inputs[index + 1]) inputs[index + 1].focus();
       }));
       document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('keydown', (event) => {
@@ -661,18 +736,26 @@
         authToken = '';
         localStorage.removeItem('peo_yame_farmer_token');
         updateDemoControls();
-        $('accountMenu').hidden = true;
-        $('accountButton').setAttribute('aria-expanded', 'false');
+        $('appMenu').hidden = true;
+        $('appMenuButton').setAttribute('aria-expanded', 'false');
         showAuthPanel('loginPanel');
       });
       if (authToken) getJson('/api/account').then(activateProfile).catch(() => { authToken=''; localStorage.removeItem('peo_yame_farmer_token'); showAuthPanel('loginPanel'); });
       else showAuthPanel('loginPanel');
       const updates = new EventSource('/api/events');
-      updates.onmessage = () => refresh();
+      updates.onmessage = (event) => {
+        try {
+          const update = JSON.parse(event.data);
+          if (update.type === 'farmer-account') void syncAccountProfile();
+          if (update.type === 'farmer-crops' || update.type === 'farmer-sensors') void loadFarmerData();
+        } catch (_) {}
+        refresh();
+      };
       updates.onerror = () => {
         $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Reconnecting<small>Waiting for demo service</small>';
       };
       setInterval(refresh, 30000);
+      setInterval(syncAccountProfile, 20000);
     </script>
   </body>
 </html>

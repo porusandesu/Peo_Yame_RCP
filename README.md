@@ -11,8 +11,8 @@ Sensor assignments are saved records; sensor readings remain simulated.
 
 ## Start the backend on Windows (no setup)
 
-After these changes are pushed, download the **peo-yame-backend-windows** artifact
-from its GitHub Actions run, extract the ZIP to a writable folder, and double-click
+Download the **peo-yame-backend-windows** artifact from the latest successful
+GitHub Actions run, extract the ZIP to a writable folder, and double-click
 `Peo-Yame-Backend.exe`. The dashboard opens automatically in your browser. Keep
 the server window open while using it; close the window to stop the backend.
 The app stores its database and activity log in your Windows Local AppData folder.
@@ -27,19 +27,22 @@ npm run demo
 ```
 
 Open `http://localhost:3000` to view the web dashboard, or
-`http://localhost:3000/api/status` to inspect the API. The server listens on
-`0.0.0.0:3000` for a phone on the same Wi-Fi network. Find the PC's
-Wi-Fi IP with `hostname -I` on Linux, `ipconfig` on Windows, or
-`ipconfig getifaddr en0` on macOS. If the phone cannot reach the PC, check the
-firewall and that both devices are on the same network.
+`http://localhost:3000/api/status` to inspect the API. In demo mode, the server
+binds to loopback and private Wi-Fi interfaces so a phone on the same network
+can connect without exposing the listener on public interfaces. Use the
+dashboard QR flow instead of sharing the address manually. If the phone cannot
+connect, check the firewall and that both devices are on the same network.
 
 ## Connect the Android phone
 
 Keep the backend running on the PC and connect the PC and phone to the same
-Wi-Fi. In the PC dashboard, choose **Connect mobile app by QR**. In the mobile
-app, open **Settings → Backend address → Scan QR code**, scan the code on the PC,
-then save the address. The connection is remembered on the phone. The dashboard
-streams new readings to the app as they arrive, with periodic refresh as a
+Wi-Fi. In the PC dashboard, open the hamburger menu and choose **Connect mobile
+app**. In the mobile app, open **Settings → Monitor connection address**, scan
+the QR code, and wait for the connection check before signing in. The backend
+address stays hidden in the app settings and is remembered on the phone. Both
+clients share farmer accounts and crop assignments when they use this backend;
+sign in on each device with the same phone number. The dashboard streams new
+readings to the app as they arrive, with periodic refresh as a
 fallback. If the PC backend window is closed, the app stays open and shows an
 offline message; it reconnects automatically after the backend starts again.
 

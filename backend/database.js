@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS farmer_accounts (
   id INTEGER PRIMARY KEY, phone TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE TABLE IF NOT EXISTS farmer_sessions (
+  token_hash TEXT PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES farmer_accounts(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS farmer_crops (
   id INTEGER PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES farmer_accounts(id) ON DELETE CASCADE,
   crop_id INTEGER NOT NULL REFERENCES crops(id), label TEXT NOT NULL,
@@ -163,6 +168,11 @@ module.exports = {
     sql(`UPDATE farmer_accounts SET name=${quote(name)},phone=${quote(phone)} WHERE id=${Number(id)};`);
     return sql(`SELECT id,name,phone FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null;
   },
+  createFarmerSession: (tokenHash, accountId, expiresAt) => {
+    sql(`DELETE FROM farmer_sessions WHERE expires_at<=${Number(Date.now())}; INSERT INTO farmer_sessions(token_hash,account_id,expires_at) VALUES(${quote(tokenHash)},${Number(accountId)},${Number(expiresAt)});`);
+  },
+  findFarmerBySession: (tokenHash, now = Date.now()) => sql(`SELECT a.id,a.name,a.phone FROM farmer_sessions s JOIN farmer_accounts a ON a.id=s.account_id WHERE s.token_hash=${quote(tokenHash)} AND s.expires_at>${Number(now)};`, true)[0] || null,
+  removeFarmerSession: (tokenHash) => sql(`DELETE FROM farmer_sessions WHERE token_hash=${quote(tokenHash)};`),
   farmerCrops: (accountId) => sql(`SELECT fc.id,fc.label,c.name AS commodity,c.min_temp AS minTemp,c.max_temp AS maxTemp,c.min_humidity AS minHumidity,c.max_humidity AS maxHumidity,(SELECT COUNT(*) FROM farmer_sensors fs WHERE fs.farmer_crop_id=fc.id) AS sensorCount FROM farmer_crops fc JOIN crops c ON c.id=fc.crop_id WHERE fc.account_id=${Number(accountId)} ORDER BY fc.id;`, true),
   addFarmerCrop: (accountId, commodity, label) => {
     const crop = findCrop(commodity);

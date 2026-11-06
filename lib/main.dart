@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Threshold;
 import 'package:flutter/services.dart';
@@ -139,6 +140,26 @@ class _AppGateState extends State<_AppGate> {
     _pendingDemoCode = null;
   });
 
+  Future<void> _connectBackend(String address) async {
+    final previousAddress = _authApi.baseUrl;
+    final nextAddress = normalizeApiBaseUrl(address);
+    _authApi.baseUrl = nextAddress;
+    try {
+      await _authApi.checkConnection();
+    } catch (error) {
+      _authApi.baseUrl = previousAddress;
+      throw Exception(
+        'Could not reach the monitor at this address. Check that the PC and phone share Wi-Fi and that Windows allows Peo Yame through the firewall. ($error)',
+      );
+    }
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(apiBaseUrlPreferenceKey, nextAddress);
+    } catch (_) {
+      // The connection works for this session even if preferences are unavailable.
+    }
+  }
+
   Future<void> _continueDemo(String code) async {
     final phone = _pendingPhone ?? '';
     final farmer = await _authApi.verifyOtp(phone: phone, code: code);
@@ -180,6 +201,25 @@ class _AppGateState extends State<_AppGate> {
     );
   }
 
+  Future<void> _refreshAccount() async {
+    try {
+      final farmer = await _authApi.getAccount();
+      if (!mounted ||
+          (_account?.name == farmer['name'] &&
+              _account?.phone == farmer['phone'])) {
+        return;
+      }
+      setState(
+        () => _account = AccountInfo(
+          name: farmer['name'] as String,
+          phone: farmer['phone'] as String,
+        ),
+      );
+    } catch (_) {
+      // Keep the current screen usable while the backend reconnects.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loadingSession)
@@ -190,6 +230,9 @@ class _AppGateState extends State<_AppGate> {
         account: account,
         onLogout: _logout,
         onEditProfile: _editProfile,
+        onRefreshAccount: _refreshAccount,
+        onBackendChanged: (address) =>
+            _authApi.baseUrl = normalizeApiBaseUrl(address),
         onLoadFarmerCrops: _authApi.getFarmerCrops,
         onLoadFarmerSensors: _authApi.getFarmerSensors,
         onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
@@ -229,12 +272,7 @@ class _AppGateState extends State<_AppGate> {
               backend.host.isEmpty ||
               !['http', 'https'].contains(backend.scheme))
             throw Exception('The sign-in QR has an invalid backend address.');
-          _authApi.baseUrl = normalizeApiBaseUrl(data['backend'] as String);
-          final preferences = await SharedPreferences.getInstance();
-          await preferences.setString(
-            apiBaseUrlPreferenceKey,
-            _authApi.baseUrl,
-          );
+          await _connectBackend(data['backend'] as String);
           await _continueDemo(data['code'] as String);
         },
       );
@@ -253,20 +291,21 @@ class _AppGateState extends State<_AppGate> {
             data['phone'] is! String ||
             data['code'] is! String)
           throw Exception('This is not a valid sign-in QR code.');
+        await _connectBackend(data['backend'] as String);
         _pendingPhone = data['phone'] as String;
-        _authApi.baseUrl = normalizeApiBaseUrl(data['backend'] as String);
-        final preferences = await SharedPreferences.getInstance();
-        await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
-        await _continueDemo(data['code'] as String);
+        try {
+          await _continueDemo(data['code'] as String);
+        } catch (_) {
+          _pendingPhone = null;
+          rethrow;
+        }
       },
       onScanBackend: () async {
         final address = await Navigator.of(context).push<String>(
           MaterialPageRoute(builder: (_) => const _BackendQrScannerPage()),
         );
         if (address == null) return;
-        _authApi.baseUrl = normalizeApiBaseUrl(address);
-        final preferences = await SharedPreferences.getInstance();
-        await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
+        await _connectBackend(address);
       },
       onContinue: (request) async {
         try {
@@ -801,11 +840,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 controller: _controllers[index],
                                 focusNode: _focusNodes[index],
                                 keyboardType: TextInputType.number,
+                                autofillHints: index == 0
+                                    ? const [AutofillHints.oneTimeCode]
+                                    : null,
                                 textAlign: TextAlign.center,
-                                maxLength: 1,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly,
-                                  LengthLimitingTextInputFormatter(1),
                                 ],
                                 decoration: InputDecoration(
                                   counterText: '',
@@ -833,6 +873,28 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                   ),
                                 ),
                                 onChanged: (value) {
+                                  if (value.length > 1) {
+                                    final digits = value.replaceAll(
+                                      RegExp(r'\D'),
+                                      '',
+                                    );
+                                    for (
+                                      var digitIndex = 0;
+                                      digitIndex < _controllers.length;
+                                      digitIndex++
+                                    ) {
+                                      _controllers[digitIndex].text =
+                                          digitIndex < digits.length
+                                          ? digits[digitIndex]
+                                          : '';
+                                    }
+                                    _focusNodes[(digits.length - 1)
+                                            .clamp(0, 5)
+                                            .toInt()]
+                                        .requestFocus();
+                                    setState(() {});
+                                    return;
+                                  }
                                   if (value.isNotEmpty && index < 5) {
                                     _focusNodes[index + 1].requestFocus();
                                   }
@@ -935,17 +997,6 @@ class _AuthBrandHeader extends StatelessWidget {
         ),
       ),
       const Spacer(),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE2F1E6),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Text(
-          'Local',
-          style: TextStyle(fontSize: 10, color: _forest),
-        ),
-      ),
     ],
   );
 }
@@ -991,6 +1042,8 @@ class DashboardPage extends StatefulWidget {
     required this.account,
     required this.onLogout,
     required this.onEditProfile,
+    required this.onRefreshAccount,
+    required this.onBackendChanged,
     required this.onLoadFarmerCrops,
     required this.onLoadFarmerSensors,
     required this.onDeleteFarmerCrop,
@@ -1003,6 +1056,8 @@ class DashboardPage extends StatefulWidget {
   final AccountInfo account;
   final VoidCallback onLogout;
   final Future<void> Function(String name, String phone) onEditProfile;
+  final Future<void> Function() onRefreshAccount;
+  final ValueChanged<String> onBackendChanged;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
@@ -1021,9 +1076,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
+  Timer? _accountRefreshTimer;
   String _baseUrl = defaultApiBaseUrl;
   int _selectedTab = 0;
-  bool _showBackendAddress = false;
   DateTime _sensorStartedAt = DateTime.now();
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
@@ -1078,6 +1133,10 @@ class _DashboardPageState extends State<DashboardPage> {
     _controller = DashboardController();
     _controller.loadCrops();
     _loadSavedAddress();
+    _accountRefreshTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => widget.onRefreshAccount(),
+    );
   }
 
   Future<void> _loadSavedAddress() async {
@@ -1161,6 +1220,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _baseUrl = address;
       _controller.setBaseUrl(address);
     });
+    widget.onBackendChanged(address);
     try {
       final preferences = await SharedPreferences.getInstance();
       await preferences.setString(apiBaseUrlPreferenceKey, address);
@@ -1175,29 +1235,79 @@ class _DashboardPageState extends State<DashboardPage> {
     await _controller.refresh();
   }
 
-  Future<void> _openAccounts() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => AccountsScreen(
-          name: widget.account.name,
-          phone: widget.account.phone,
-          onEditProfile: widget.onEditProfile,
-          onLoadFarmerCrops: widget.onLoadFarmerCrops,
-          onLoadFarmerSensors: widget.onLoadFarmerSensors,
-          onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
-          onLoadCropOptions: widget.onLoadCropOptions,
-          onLoadAvailableSensors: widget.onLoadAvailableSensors,
-          onCreateCropSetup: widget.onCreateCropSetup,
-          onLogout: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            widget.onLogout();
-          },
-          onDestinationSelected: _selectSection,
+  Future<void> _editFarmerProfile() async {
+    final nameController = TextEditingController(text: widget.account.name);
+    final phoneController = TextEditingController(text: widget.account.phone);
+    final updatedProfile = await showDialog<(String, String)>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        title: const Text('Edit farmer profile'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                maxLength: 80,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  alignLabelWithHint: true,
+                  labelText: 'Farmer name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  alignLabelWithHint: true,
+                  labelText: 'Phone number',
+                  hintText: '+26771234567',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, (
+              nameController.text.trim(),
+              phoneController.text.trim(),
+            )),
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
-    if (mounted && (_selectedTab == 3 || _selectedTab == 4)) {
-      setState(() => _selectedTab = 0);
+    nameController.dispose();
+    phoneController.dispose();
+    if (updatedProfile == null || !mounted) return;
+    if (updatedProfile.$1.isEmpty || updatedProfile.$2.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter both your name and phone number.')),
+      );
+      return;
+    }
+    try {
+      await widget.onEditProfile(updatedProfile.$1, updatedProfile.$2);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update profile: $error')),
+        );
+      }
     }
   }
 
@@ -1216,15 +1326,11 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
-    if (mounted && (_selectedTab == 3 || _selectedTab == 4)) {
-      setState(() => _selectedTab = 0);
-    }
   }
 
   void _selectSection(int index) {
     if (index == 3) {
       setState(() => _selectedTab = 3);
-      _openAccounts();
     } else if (index == 4) {
       setState(() => _selectedTab = 4);
       _openMyCrops();
@@ -1389,6 +1495,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _accountRefreshTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -1446,19 +1553,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 label: 'Alerts',
               ),
               NavigationDestination(
-                icon: Icon(Icons.manage_accounts_outlined),
-                selectedIcon: Icon(Icons.manage_accounts_rounded),
-                label: 'Accounts',
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings_rounded),
+                label: 'Settings',
               ),
               NavigationDestination(
                 icon: Icon(Icons.spa_outlined),
                 selectedIcon: Icon(Icons.spa_rounded),
                 label: 'My Crops',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings_rounded),
-                label: 'Settings',
               ),
             ],
           ),
@@ -1495,7 +1597,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
       userName: widget.account.name,
-      onAccountTap: _openAccounts,
+      onAccountTap: () => _selectSection(3),
       onLogout: widget.onLogout,
     ),
     const SizedBox(height: 16),
@@ -1601,6 +1703,7 @@ class _DashboardPageState extends State<DashboardPage> {
       points: _controller.trends,
       error: _controller.trendError,
       range: _controller.trendRange,
+      threshold: _controller.status?.threshold,
     ),
     const SizedBox(height: 18),
     const _SectionTitle(title: 'Recent readings'),
@@ -1718,7 +1821,7 @@ class _DashboardPageState extends State<DashboardPage> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: _openAccounts,
+                onPressed: _editFarmerProfile,
                 icon: const Icon(Icons.edit_outlined, size: 17),
                 label: const Text('Edit full profile'),
               ),
@@ -1784,20 +1887,11 @@ class _DashboardPageState extends State<DashboardPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.router_outlined, color: _forest),
               title: const Text('Monitor connection address'),
-              subtitle: Text(
-                _showBackendAddress ? _baseUrl : 'Address hidden',
-                style: const TextStyle(fontSize: 12),
+              subtitle: const Text(
+                'Address hidden · tap to change connection',
+                style: TextStyle(fontSize: 12),
               ),
-              trailing: IconButton(
-                tooltip: _showBackendAddress ? 'Hide address' : 'Show address',
-                onPressed: () =>
-                    setState(() => _showBackendAddress = !_showBackendAddress),
-                icon: Icon(
-                  _showBackendAddress
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                ),
-              ),
+              trailing: const Icon(Icons.chevron_right),
               onTap: _editServerAddress,
             ),
             Wrap(
@@ -2361,7 +2455,7 @@ class _FarmerGreeting extends StatelessWidget {
         PopupMenuButton<String>(
           tooltip: 'User menu',
           onSelected: (value) {
-            if (value == 'accounts') onAccountTap();
+            if (value == 'settings') onAccountTap();
             if (value == 'logout') onLogout();
           },
           itemBuilder: (context) => [
@@ -2371,12 +2465,12 @@ class _FarmerGreeting extends StatelessWidget {
             ),
             const PopupMenuDivider(),
             const PopupMenuItem<String>(
-              value: 'accounts',
+              value: 'settings',
               child: Row(
                 children: [
-                  Icon(Icons.manage_accounts_outlined, size: 18),
+                  Icon(Icons.settings_outlined, size: 18),
                   SizedBox(width: 10),
-                  Text('Accounts & crops'),
+                  Text('Settings'),
                 ],
               ),
             ),
@@ -3035,11 +3129,13 @@ class _TrendCard extends StatelessWidget {
     required this.points,
     required this.error,
     required this.range,
+    required this.threshold,
   });
 
   final List<TrendPoint> points;
   final String? error;
   final String range;
+  final Threshold? threshold;
 
   @override
   Widget build(BuildContext context) {
@@ -3073,7 +3169,13 @@ class _TrendCard extends StatelessWidget {
                         ),
                       ),
                     )
-                  : CustomPaint(painter: _TrendPainter(points: sampled)),
+                  : CustomPaint(
+                      painter: _TrendPainter(
+                        points: sampled,
+                        bounds: points,
+                        threshold: threshold,
+                      ),
+                    ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -3090,39 +3192,94 @@ class _TrendCard extends StatelessWidget {
 }
 
 class _TrendPainter extends CustomPainter {
-  const _TrendPainter({required this.points});
+  const _TrendPainter({
+    required this.points,
+    required this.bounds,
+    required this.threshold,
+  });
 
   final List<TrendPoint> points;
+  final List<TrendPoint> bounds;
+  final Threshold? threshold;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const inset = 8.0;
+    const leftInset = 34.0;
+    const rightInset = 34.0;
+    const verticalInset = 8.0;
     final chart = Rect.fromLTWH(
-      inset,
-      inset,
-      size.width - inset * 2,
-      size.height - inset * 2,
+      leftInset,
+      verticalInset,
+      size.width - leftInset - rightInset,
+      size.height - verticalInset * 2,
+    );
+    final temperatures = bounds.map((point) => point.temperature).toList();
+    final humidities = bounds.map((point) => point.humidity).toList();
+    final sampledTemperatures = points
+        .map((point) => point.temperature)
+        .toList();
+    final sampledHumidities = points.map((point) => point.humidity).toList();
+    final safeTempMin = threshold?.minTemp ?? 0;
+    final safeTempMax = threshold?.maxTemp ?? 40;
+    final safeHumidityMin = threshold?.minHumidity ?? 0;
+    final safeHumidityMax = threshold?.maxHumidity ?? 100;
+    final tempAxis = _metricAxis(
+      math
+          .min(safeTempMin, temperatures.reduce((a, b) => a < b ? a : b))
+          .toDouble(),
+      math
+          .max(safeTempMax, temperatures.reduce((a, b) => a > b ? a : b))
+          .toDouble(),
+    );
+    final humidityAxis = _metricAxis(
+      math
+          .min(safeHumidityMin, humidities.reduce((a, b) => a < b ? a : b))
+          .toDouble(),
+      math
+          .max(safeHumidityMax, humidities.reduce((a, b) => a > b ? a : b))
+          .toDouble(),
+      hardMin: 0,
+      hardMax: 100,
     );
     final gridPaint = Paint()
       ..color = const Color(0xFFE8EEE9)
       ..strokeWidth = 1;
+    final stepSize = (tempAxis.$2 - tempAxis.$1) / 4;
+    final humidityStepSize = (humidityAxis.$2 - humidityAxis.$1) / 4;
     for (var i = 0; i <= 4; i++) {
       final y = chart.top + chart.height * i / 4;
       canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), gridPaint);
+      final temperature = tempAxis.$2 - stepSize * i;
+      final humidity = humidityAxis.$2 - humidityStepSize * i;
+      _paintAxisLabel(
+        canvas,
+        '${temperature.toStringAsFixed(stepSize < 1 ? 1 : 0)}°',
+        Offset(0, y),
+        alignRight: true,
+      );
+      _paintAxisLabel(
+        canvas,
+        '${humidity.toStringAsFixed(humidityStepSize < 1 ? 1 : 0)}%',
+        Offset(chart.right + 4, y),
+      );
     }
     _drawBars(
       canvas,
       chart,
-      points.map((p) => p.temperature).toList(),
+      sampledTemperatures,
       const Color(0xFF25865C),
       seriesIndex: 0,
+      minimum: tempAxis.$1,
+      maximum: tempAxis.$2,
     );
     _drawBars(
       canvas,
       chart,
-      points.map((p) => p.humidity).toList(),
+      sampledHumidities,
       const Color(0xFF4E81CE),
       seriesIndex: 1,
+      minimum: humidityAxis.$1,
+      maximum: humidityAxis.$2,
     );
   }
 
@@ -3132,9 +3289,9 @@ class _TrendPainter extends CustomPainter {
     List<double> values,
     Color color, {
     required int seriesIndex,
+    required double minimum,
+    required double maximum,
   }) {
-    final minimum = values.reduce((a, b) => a < b ? a : b);
-    final maximum = values.reduce((a, b) => a > b ? a : b);
     final spread = maximum - minimum;
     final slotWidth = rect.width / values.length;
     final barWidth = (slotWidth * .32).clamp(2.0, 7.0).toDouble();
@@ -3142,8 +3299,10 @@ class _TrendPainter extends CustomPainter {
     final groupWidth = barWidth * 2 + gap;
     final paint = Paint()..color = color;
     for (var i = 0; i < values.length; i++) {
-      final normalized = spread == 0 ? .55 : (values[i] - minimum) / spread;
-      final height = rect.height * (.16 + normalized * .78);
+      final normalized = spread == 0
+          ? .55
+          : ((values[i] - minimum) / spread).clamp(0.0, 1.0).toDouble();
+      final height = rect.height * normalized;
       final x =
           rect.left +
           i * slotWidth +
@@ -3159,7 +3318,74 @@ class _TrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
-      oldDelegate.points != points;
+      oldDelegate.points != points ||
+      oldDelegate.bounds != bounds ||
+      oldDelegate.threshold?.commodity != threshold?.commodity ||
+      oldDelegate.threshold?.minTemp != threshold?.minTemp ||
+      oldDelegate.threshold?.maxTemp != threshold?.maxTemp ||
+      oldDelegate.threshold?.minHumidity != threshold?.minHumidity ||
+      oldDelegate.threshold?.maxHumidity != threshold?.maxHumidity;
+}
+
+(double, double, double) _metricAxis(
+  double minimum,
+  double maximum, {
+  double hardMin = double.negativeInfinity,
+  double hardMax = double.infinity,
+}) {
+  final span = math.max(maximum - minimum, 1.0).toDouble();
+  final rawStep = span * 1.4 / 4;
+  var magnitude = 1.0;
+  while (rawStep < magnitude) {
+    magnitude /= 10;
+  }
+  while (rawStep >= magnitude * 10) {
+    magnitude *= 10;
+  }
+  final normalized = rawStep / magnitude;
+  final step =
+      (magnitude *
+              (normalized <= 1
+                  ? 1
+                  : normalized <= 2
+                  ? 2
+                  : normalized <= 5
+                  ? 5
+                  : 10))
+          .toDouble();
+  var axisMin = math
+      .max(hardMin, ((minimum - span * .2) / step).floor() * step)
+      .toDouble();
+  var axisMax = math
+      .min(hardMax, ((maximum + span * .2) / step).ceil() * step)
+      .toDouble();
+  if (axisMax <= axisMin) {
+    axisMin = math.max(hardMin, minimum - 1).toDouble();
+    axisMax = math.min(hardMax, maximum + 1).toDouble();
+  }
+  return (axisMin, axisMax, step);
+}
+
+void _paintAxisLabel(
+  Canvas canvas,
+  String text,
+  Offset center, {
+  bool alignRight = false,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: const TextStyle(fontSize: 8, color: Color(0xFF65776F)),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  painter.paint(
+    canvas,
+    Offset(
+      alignRight ? center.dx - painter.width : center.dx,
+      center.dy - painter.height / 2,
+    ),
+  );
 }
 
 List<TrendPoint> _samplePoints(List<TrendPoint> points, int maximum) {
