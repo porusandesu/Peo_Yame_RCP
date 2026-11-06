@@ -44,6 +44,23 @@ CREATE TABLE IF NOT EXISTS readings (
   temperature REAL NOT NULL, humidity REAL NOT NULL CHECK(humidity BETWEEN 0 AND 100),
   data_source TEXT NOT NULL, recorded_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS farmer_accounts (
+  id INTEGER PRIMARY KEY, phone TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE IF NOT EXISTS farmer_crops (
+  id INTEGER PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES farmer_accounts(id) ON DELETE CASCADE,
+  crop_id INTEGER NOT NULL REFERENCES crops(id), label TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(account_id,crop_id,label)
+);
+CREATE TABLE IF NOT EXISTS farmer_sensors (
+  id INTEGER PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES farmer_accounts(id) ON DELETE CASCADE,
+  farmer_crop_id INTEGER NOT NULL REFERENCES farmer_crops(id) ON DELETE CASCADE,
+  sensor_code TEXT NOT NULL, label TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(account_id,sensor_code)
+);
 CREATE INDEX IF NOT EXISTS readings_recorded_at_idx ON readings(recorded_at);`);
 
 function toCrop(row) {
@@ -130,4 +147,25 @@ module.exports = {
     sql(`INSERT INTO readings(id,site,crop_id,temperature,humidity,data_source,recorded_at) VALUES(${reading.id},${quote(reading.site)},${crop.id},${reading.temperature},${reading.humidity},${quote(reading.dataSource)},${quote(reading.recordedAt)});`);
   },
   recentReadings: (limit = 200) => sql(`SELECT r.id,r.site,c.name AS commodity,r.temperature,r.humidity,r.data_source AS dataSource,r.recorded_at AS recordedAt FROM readings r JOIN crops c ON c.id=r.crop_id ORDER BY r.recorded_at DESC,r.id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 200, 2000))};`, true).reverse(),
+  findFarmer: (phone) => sql(`SELECT id,name,phone FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
+  createFarmer: (phone, name) => {
+    sql(`INSERT INTO farmer_accounts(phone,name) VALUES(${quote(phone)},${quote(name)});`);
+    return sql(`SELECT id,name,phone FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0];
+  },
+  updateFarmerName: (id, name) => sql(`UPDATE farmer_accounts SET name=${quote(name)} WHERE id=${Number(id)};`),
+  farmerCrops: (accountId) => sql(`SELECT fc.id,fc.label,c.name AS commodity,c.min_temp AS minTemp,c.max_temp AS maxTemp,c.min_humidity AS minHumidity,c.max_humidity AS maxHumidity,(SELECT COUNT(*) FROM farmer_sensors fs WHERE fs.farmer_crop_id=fc.id) AS sensorCount FROM farmer_crops fc JOIN crops c ON c.id=fc.crop_id WHERE fc.account_id=${Number(accountId)} ORDER BY fc.id;`, true),
+  addFarmerCrop: (accountId, commodity, label) => {
+    const crop = findCrop(commodity);
+    if (!crop) return null;
+    sql(`INSERT INTO farmer_crops(account_id,crop_id,label) VALUES(${Number(accountId)},${crop.id},${quote(label)});`);
+    return sql(`SELECT id,label FROM farmer_crops WHERE account_id=${Number(accountId)} AND crop_id=${crop.id} AND label=${quote(label)};`, true)[0];
+  },
+  farmerSensors: (accountId) => sql(`SELECT fs.id,fs.sensor_code AS sensorCode,fs.label,fc.id AS farmerCropId,fc.label AS cropLabel,c.name AS commodity,fs.created_at AS createdAt FROM farmer_sensors fs JOIN farmer_crops fc ON fc.id=fs.farmer_crop_id JOIN crops c ON c.id=fc.crop_id WHERE fs.account_id=${Number(accountId)} ORDER BY fs.id;`, true),
+  addFarmerSensor: (accountId, cropId, sensorCode, label) => {
+    const crop = sql(`SELECT id FROM farmer_crops WHERE id=${Number(cropId)} AND account_id=${Number(accountId)};`, true)[0];
+    if (!crop) return null;
+    sql(`INSERT INTO farmer_sensors(account_id,farmer_crop_id,sensor_code,label) VALUES(${Number(accountId)},${Number(cropId)},${quote(sensorCode)},${quote(label)});`);
+    return sql(`SELECT id,sensor_code AS sensorCode,label,farmer_crop_id AS farmerCropId FROM farmer_sensors WHERE account_id=${Number(accountId)} AND sensor_code=${quote(sensorCode)};`, true)[0];
+  },
+  removeFarmerSensor: (accountId, sensorId) => sql(`DELETE FROM farmer_sensors WHERE account_id=${Number(accountId)} AND id=${Number(sensorId)}; SELECT changes() AS removed;`, true)[0]?.removed > 0,
 };

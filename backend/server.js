@@ -15,6 +15,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
@@ -33,6 +34,117 @@ const ACTION_LOG_PATH = path.join(dataDirectory, "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
+const otpChallenges = new Map();
+const farmerSessions = new Map();
+
+function normalizePhone(value) {
+  return typeof value === "string" ? value.replace(/[\s().-]/g, "") : "";
+}
+function farmerFromRequest(req) {
+  const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const session = token && farmerSessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) farmerSessions.delete(token);
+    return null;
+  }
+  return session.farmer;
+}
+function requireFarmer(req, res, next) {
+  req.farmer = farmerFromRequest(req);
+  if (!req.farmer) return res.status(401).json({ error: "Sign in with your phone and one-time PIN to continue." });
+  next();
+}
+
+app.post("/api/auth/request-otp", (req, res) => {
+  if (process.env.NODE_ENV === "production") return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
+  const phone = normalizePhone(req.body?.phone);
+  const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
+  if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
+  const farmer = cropDatabase.findFarmer(phone);
+  if (!farmer && !name) return res.status(404).json({ error: "No farmer account uses that number. Choose Create account to register." });
+  const previous = otpChallenges.get(phone);
+  if (previous && Date.now() - previous.createdAt < 30000) return res.status(429).json({ error: "Please wait 30 seconds before requesting another PIN." });
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+  otpChallenges.set(phone, { hash: crypto.createHash("sha256").update(code).digest("hex"), name, createdAt: Date.now(), attempts: 0 });
+  const payload = { sent: true, phone, expiresInSeconds: 300, delivery: "demo" };
+  if (process.env.NODE_ENV !== "production") payload.demoCode = code;
+  res.json(payload);
+});
+
+app.post("/api/auth/verify-otp", (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const code = typeof req.body?.code === "string" ? req.body.code : "";
+  const challenge = otpChallenges.get(phone);
+  if (!challenge || Date.now() - challenge.createdAt > 300000 || challenge.attempts >= 5) {
+    otpChallenges.delete(phone);
+    return res.status(401).json({ error: "That PIN expired. Request a new one." });
+  }
+  challenge.attempts++;
+  const hash = crypto.createHash("sha256").update(code).digest("hex");
+  if (!/^\d{6}$/.test(code) || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(challenge.hash))) {
+    return res.status(401).json({ error: "That PIN is incorrect. Check it and try again." });
+  }
+  let farmer = cropDatabase.findFarmer(phone);
+  if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name);
+  otpChallenges.delete(phone);
+  const token = crypto.randomBytes(32).toString("base64url");
+  farmerSessions.set(token, { farmer, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+  res.json({ token, expiresInSeconds: 604800, farmer });
+});
+
+app.get("/api/account", requireFarmer, (req, res) => res.json(req.farmer));
+app.post("/api/auth/logout", requireFarmer, (req, res) => {
+  const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+  farmerSessions.delete(token);
+  res.json({ signedOut: true });
+});
+app.patch("/api/account", requireFarmer, (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name || name.length > 80) return res.status(400).json({ error: "Enter a name up to 80 characters." });
+  cropDatabase.updateFarmerName(req.farmer.id, name);
+  const farmer = { ...req.farmer, name };
+  const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const session = farmerSessions.get(token);
+  if (session) session.farmer = farmer;
+  res.json(farmer);
+});
+app.get("/api/farmer/crops", requireFarmer, (req, res) => res.json(cropDatabase.farmerCrops(req.farmer.id)));
+app.post("/api/farmer/crops", requireFarmer, (req, res) => {
+  const commodity = typeof req.body?.commodity === "string" ? req.body.commodity.trim() : "";
+  const label = typeof req.body?.label === "string" ? req.body.label.trim().slice(0, 80) : "";
+  if (!commodity || !label) return res.status(400).json({ error: "Choose a crop and enter a field or storage name." });
+  try {
+    const crop = cropDatabase.addFarmerCrop(req.farmer.id, commodity, label);
+    if (!crop) return res.status(404).json({ error: "Choose a crop from the saved crop list." });
+    res.status(201).json(crop);
+  } catch (error) {
+    if (`${error.message || error}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That crop and storage name are already on your account." });
+    throw error;
+  }
+});
+app.get("/api/farmer/sensors", requireFarmer, (req, res) => res.json(cropDatabase.farmerSensors(req.farmer.id)));
+app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
+  const cropId = Number(req.body?.farmerCropId);
+  const sensorCode = typeof req.body?.sensorCode === "string" ? req.body.sensorCode.trim().toUpperCase() : "";
+  const label = typeof req.body?.label === "string" ? req.body.label.trim().slice(0, 80) : "";
+  if (!Number.isSafeInteger(cropId) || cropId < 1 || !/^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(sensorCode) || !label) {
+    return res.status(400).json({ error: "Choose one of your crops, enter a sensor ID, and give it a name." });
+  }
+  try {
+    const sensor = cropDatabase.addFarmerSensor(req.farmer.id, cropId, sensorCode, label);
+    if (!sensor) return res.status(404).json({ error: "That crop does not belong to your account." });
+    res.status(201).json(sensor);
+  } catch (error) {
+    if (`${error.message || error}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That sensor ID is already linked to your account." });
+    throw error;
+  }
+});
+app.delete("/api/farmer/sensors/:id", requireFarmer, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Choose a valid sensor." });
+  if (!cropDatabase.removeFarmerSensor(req.farmer.id, id)) return res.status(404).json({ error: "That sensor is not linked to your account." });
+  res.json({ removed: true });
+});
 
 function broadcastUpdate(type = "reading") {
   const event = `data: ${JSON.stringify({ type, updatedAt: new Date().toISOString() })}\n\n`;
