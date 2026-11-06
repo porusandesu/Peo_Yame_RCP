@@ -694,7 +694,15 @@
           const body = await response.json();
           if (!response.ok) throw new Error(body.error || 'Could not update account');
           $('editProfileDialog').close();
-          activateProfile(body);
+          demoProfile = body;
+          $('accountName').textContent = body.name;
+          $('accountPhone').textContent = body.phone;
+          $('accountInitial').textContent = body.name.slice(0,1).toUpperCase();
+          $('profileInitial').textContent = body.name.slice(0,1).toUpperCase();
+          $('profileName').textContent = body.name;
+          $('profilePhone').textContent = body.phone;
+          updateDemoControls();
+          $('accountActionNotice').textContent = 'Profile saved.';
         } catch (error) { $('editProfileError').textContent = error.message; }
       });
       $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });

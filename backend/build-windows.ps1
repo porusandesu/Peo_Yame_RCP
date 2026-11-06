@@ -8,14 +8,14 @@ $sqliteArchive = Join-Path $temporaryDirectory $sqliteArchiveName
 $sqliteExtracted = Join-Path $temporaryDirectory "sqlite"
 $vendorDirectory = Join-Path $PSScriptRoot "vendor"
 $distributionDirectory = Join-Path $PSScriptRoot "dist"
+$runtimeDirectory = Join-Path $distributionDirectory "runtime"
 $sqliteAsset = Join-Path $vendorDirectory "sqlite3.exe"
-$rceditExecutable = Join-Path $temporaryDirectory "rcedit-x64.exe"
-$rceditUrl = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
 $applicationIcon = Join-Path $PSScriptRoot "..\assets\branding\peo-yame.ico"
+$windowsLauncherSource = Join-Path $PSScriptRoot "WindowsLauncher.cs"
 $pkgCacheDirectory = Join-Path $temporaryDirectory "pkg-cache"
 $createdSqliteAsset = $false
 
-New-Item -ItemType Directory -Path $temporaryDirectory, $sqliteExtracted, $vendorDirectory, $distributionDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $temporaryDirectory, $sqliteExtracted, $vendorDirectory, $distributionDirectory, $runtimeDirectory -Force | Out-Null
 
 try {
   Write-Host "Preparing the bundled SQLite helper..."
@@ -28,32 +28,27 @@ try {
     $createdSqliteAsset = $true
   }
 
-  Write-Host "Preparing the Peo Yame Windows application icon..."
-  Invoke-WebRequest -Uri $rceditUrl -OutFile $rceditExecutable
   if (-not (Test-Path $applicationIcon)) { throw "The Peo Yame Windows icon was not found at $applicationIcon." }
+  if (-not (Test-Path $windowsLauncherSource)) { throw "The Windows launcher source was not found at $windowsLauncherSource." }
 
   $previousPkgCache = $env:PKG_CACHE_PATH
   $env:PKG_CACHE_PATH = $pkgCacheDirectory
   Write-Host "Preparing the standalone Windows runtime..."
-  $backendExecutable = Join-Path $distributionDirectory "Peo-Yame-Backend.exe"
+  $backendExecutable = Join-Path $runtimeDirectory "Peo-Yame-Backend-Core.exe"
   npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
   if ($LASTEXITCODE -ne 0) { throw "The Windows executable build failed with exit code $LASTEXITCODE." }
 
-  # pkg appends its application snapshot to a cached Node runtime. Apply the
-  # icon to that base runtime, then package again so its appended payload stays intact.
-  $runtimeBinary = Get-ChildItem -Path $pkgCacheDirectory -Recurse -File -Filter "fetched-v18.5.0-win-x64" | Select-Object -First 1
-  if (-not $runtimeBinary) { throw "The pkg Windows runtime was not found in its cache." }
-  & $rceditExecutable $runtimeBinary.FullName --set-icon $applicationIcon
-  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the Windows runtime." }
-
-  Write-Host "Building the branded standalone Windows executable..."
-  npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
-  if ($LASTEXITCODE -ne 0) { throw "The branded Windows executable build failed with exit code $LASTEXITCODE." }
-
-  # Reapply branding to the finished package as pkg may retain the stock icon
-  # from its cached runtime when it creates the distributable executable.
-  & $rceditExecutable $backendExecutable --set-icon $applicationIcon
-  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the packaged executable." }
+  # Keep pkg's executable intact. A tiny native Windows GUI launcher carries
+  # the branded icon and starts the hidden backend from the runtime subfolder.
+  Write-Host "Building the Peo Yame desktop launcher with its app icon..."
+  $csharpCompiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+  if (-not (Test-Path $csharpCompiler)) {
+    $csharpCompiler = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
+  }
+  if (-not (Test-Path $csharpCompiler)) { throw "The Windows C# compiler was not found at $csharpCompiler." }
+  $launcherExecutable = Join-Path $distributionDirectory "Peo-Yame-Backend.exe"
+  & $csharpCompiler /nologo /target:winexe "/win32icon:$applicationIcon" "/out:$launcherExecutable" $windowsLauncherSource
+  if ($LASTEXITCODE -ne 0) { throw "The branded Windows launcher build failed with exit code $LASTEXITCODE." }
 
   Write-Host "Starting the built executable for a startup check..."
   $smokeDataDirectory = Join-Path $temporaryDirectory "runtime-data"
@@ -67,7 +62,7 @@ try {
   $env:PORT = "3188"
   $env:HOST = "127.0.0.1"
   $env:NO_BROWSER = "1"
-  $smokeProcess = Start-Process -FilePath (Join-Path $distributionDirectory "Peo-Yame-Backend.exe") -PassThru -NoNewWindow -RedirectStandardOutput $smokeOutput -RedirectStandardError $smokeError
+  $smokeProcess = Start-Process -FilePath $backendExecutable -PassThru -NoNewWindow -RedirectStandardOutput $smokeOutput -RedirectStandardError $smokeError
   $health = $null
   try {
     for ($attempt = 0; $attempt -lt 45; $attempt++) {
@@ -112,7 +107,7 @@ Your information is saved on this computer. You do not need to install anything.
 
   $zipPath = Join-Path $distributionDirectory "Peo-Yame-Backend.zip"
   Copy-Item -Path (Join-Path $PSScriptRoot "Start Peo Yame.vbs"), (Join-Path $PSScriptRoot "Stop Peo Yame.bat") -Destination $distributionDirectory -Force
-  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), (Join-Path $distributionDirectory "Start Peo Yame.vbs"), (Join-Path $distributionDirectory "Stop Peo Yame.bat"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
+  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), $runtimeDirectory, (Join-Path $distributionDirectory "Start Peo Yame.vbs"), (Join-Path $distributionDirectory "Stop Peo Yame.bat"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
   Write-Host "Ready: $zipPath"
 }
 finally {
