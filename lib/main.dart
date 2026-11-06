@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -300,13 +301,6 @@ class _AppGateState extends State<_AppGate> {
           rethrow;
         }
       },
-      onScanBackend: () async {
-        final address = await Navigator.of(context).push<String>(
-          MaterialPageRoute(builder: (_) => const _BackendQrScannerPage()),
-        );
-        if (address == null) return;
-        await _connectBackend(address);
-      },
       onContinue: (request) async {
         try {
           _authApi.baseUrl = normalizeApiBaseUrl(
@@ -352,14 +346,9 @@ class AccountInfo {
 }
 
 class _LoginSplash extends StatefulWidget {
-  const _LoginSplash({
-    required this.onContinue,
-    required this.onScanBackend,
-    required this.onScanSignInQr,
-  });
+  const _LoginSplash({required this.onContinue, required this.onScanSignInQr});
 
   final Future<void> Function(DemoSignInRequest) onContinue;
-  final Future<void> Function() onScanBackend;
   final Future<void> Function() onScanSignInQr;
 
   @override
@@ -567,33 +556,6 @@ class _LoginSplashState extends State<_LoginSplash> {
                           },
                           icon: const Icon(Icons.qr_code_2_rounded, size: 17),
                           label: const Text('Scan sign-in QR'),
-                        ),
-                        TextButton.icon(
-                          onPressed: () async {
-                            try {
-                              await widget.onScanBackend();
-                              if (mounted)
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Backend connected. You can now request your sign-in PIN.',
-                                    ),
-                                  ),
-                                );
-                            } catch (error) {
-                              if (mounted)
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Could not connect: $error'),
-                                  ),
-                                );
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 17,
-                          ),
-                          label: const Text('Scan backend QR'),
                         ),
                         const SizedBox(height: 10),
                         const Text(
@@ -1745,21 +1707,65 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       const SizedBox(height: 14),
       _CropQualityCard(status: status),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
       if (attentionAlert != null) ...[
-        const _SectionTitle(title: 'Needs attention'),
-        const SizedBox(height: 8),
-        _AlertBreakdownCard(
-          alert: attentionAlert,
-          fallbackReading: _readingForAlert(attentionAlert, status),
-          fallbackThreshold: status?.threshold,
+        Card(
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              leading: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFF9E332B),
+              ),
+              title: const Text(
+                'Needs attention',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: const Text(
+                'Tap to view the current alert',
+                style: TextStyle(fontSize: 12),
+              ),
+              children: [
+                _AlertBreakdownCard(
+                  alert: attentionAlert,
+                  fallbackReading: _readingForAlert(attentionAlert, status),
+                  fallbackThreshold: status?.threshold,
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 16),
-      ] else if (status?.breached ?? false) ...[
-        const _SectionTitle(title: 'Needs attention'),
         const SizedBox(height: 8),
-        _StatusHero(status: status!, offline: _controller.errorMessage != null),
-        const SizedBox(height: 16),
+      ] else if (status?.breached ?? false) ...[
+        Card(
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFF9E332B),
+              ),
+              title: const Text(
+                'Needs attention',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: const Text(
+                'Tap to view current storage conditions',
+                style: TextStyle(fontSize: 12),
+              ),
+              children: [
+                _StatusHero(
+                  status: status!,
+                  offline: _controller.errorMessage != null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
       ],
       _SectionTitle(
         title: 'Alert history',

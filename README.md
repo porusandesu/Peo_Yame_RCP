@@ -12,11 +12,11 @@ Sensor assignments are saved records; sensor readings remain simulated.
 ## Start the backend on Windows (no setup)
 
 Download the **peo-yame-backend-windows** artifact from the latest successful
-GitHub Actions run, extract the ZIP to a writable folder, and double-click
-`Peo-Yame-Backend.exe`. The dashboard opens automatically in your browser. Keep
-the server window open while using it; close the window to stop the backend.
-The app stores its database and activity log in your Windows Local AppData folder.
-No Node.js, npm, or SQLite installation is required.
+GitHub Actions run and extract the ZIP. Double-click **Start Peo Yame.vbs** to
+open the dashboard without a server window. To use your phone, connect both
+devices to the same Wi-Fi, choose **Connect mobile app** on the dashboard, then
+scan its QR code from **Settings** in the phone app. Double-click **Stop Peo
+Yame.bat** when you are finished. Your data stays on this computer.
 
 ## Start the backend from source
 
@@ -58,8 +58,8 @@ On the web app, choose **Create account**, enter the farmer name and phone
 number, then enter the one-time PIN shown by the local server. Returning farmers
 can sign in with their saved phone number. The temporary PIN also appears as a
 QR code on the web sign-in screen; tap **Scan sign-in QR** in the Flutter app to
-authenticate without requesting or typing another PIN. First-time mobile users
-can scan the backend QR from the sign-in screen to set the server address.
+authenticate without requesting or typing another PIN. To connect a phone,
+open Settings in the mobile app and scan the backend QR code.
 Account names and crop locations are stored in the backend database. The mobile
 Accounts screen can edit the farmer name, and My Crops can delete a saved crop
 location (which also unlinks its sensors). The dashboard breach control remains

@@ -50,6 +50,11 @@ try {
   npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
   if ($LASTEXITCODE -ne 0) { throw "The branded Windows executable build failed with exit code $LASTEXITCODE." }
 
+  # Reapply branding to the finished package as pkg may retain the stock icon
+  # from its cached runtime when it creates the distributable executable.
+  & $rceditExecutable $backendExecutable --set-icon $applicationIcon
+  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the packaged executable." }
+
   Write-Host "Starting the built executable for a startup check..."
   $smokeDataDirectory = Join-Path $temporaryDirectory "runtime-data"
   $smokeOutput = Join-Path $temporaryDirectory "startup.stdout.log"
@@ -93,27 +98,21 @@ try {
   }
 
   $instructions = @'
-PEO YAME STORAGE MONITOR - WINDOWS BACKEND
+PEO YAME - QUICK START
 
-1. Extract this ZIP file to a folder you can write to, such as your Desktop.
-2. Double-click Peo-Yame-Backend.exe.
-3. Your dashboard opens in your web browser. Keep the black server window open
-   while using the dashboard; close that window to stop the backend.
+1. Extract this folder somewhere easy to find.
+2. Double-click "Start Peo Yame.vbs". Your dashboard opens in your browser.
+3. To use your phone, put it on the same Wi-Fi, open Connect mobile app on the
+   dashboard, then scan the code in Peo Yame Settings.
+4. To stop Peo Yame, double-click "Stop Peo Yame.bat".
 
-Your saved readings and activity log are kept in your Windows Local AppData folder.
-No Node.js, npm, SQLite installation, or command prompt knowledge is needed.
-
-To use the dashboard from a phone on the same Wi-Fi, open the PC's local network
-address in the phone browser, or use Connect mobile app by QR in the dashboard
-and scan it in the Peo Yame mobile app Settings. Keep the PC and phone on the
-same Wi-Fi. The backend uses plain local-network HTTP and is intended only for a
-controlled demonstration. Closing this window stops the backend; the mobile app
-will show an offline message and reconnect when the backend is started again.
+Your information is saved on this computer. You do not need to install anything.
 '@
   Set-Content -Path (Join-Path $distributionDirectory "Read Me - Start Here.txt") -Value $instructions -Encoding UTF8
 
   $zipPath = Join-Path $distributionDirectory "Peo-Yame-Backend.zip"
-  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
+  Copy-Item -Path (Join-Path $PSScriptRoot "Start Peo Yame.vbs"), (Join-Path $PSScriptRoot "Stop Peo Yame.bat") -Destination $distributionDirectory -Force
+  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), (Join-Path $distributionDirectory "Start Peo Yame.vbs"), (Join-Path $distributionDirectory "Stop Peo Yame.bat"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
   Write-Host "Ready: $zipPath"
 }
 finally {
