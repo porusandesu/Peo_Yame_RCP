@@ -110,6 +110,32 @@ app.patch("/api/account", requireFarmer, (req, res) => {
   res.json(farmer);
 });
 app.get("/api/farmer/crops", requireFarmer, (req, res) => res.json(cropDatabase.farmerCrops(req.farmer.id)));
+app.get("/api/farmer/available-sensors", requireFarmer, (req, res) => {
+  const now = Date.now();
+  const sensors = cropDatabase.availableFarmerSensors().map((sensor) => ({
+    ...sensor,
+    connected: now - Date.parse(sensor.lastSeen) <= 5 * 60 * 1000,
+  }));
+  res.json(sensors);
+});
+app.post("/api/farmer/crop-setup", requireFarmer, (req, res) => {
+  const commodity = typeof req.body?.commodity === "string" ? req.body.commodity.trim() : "";
+  const label = typeof req.body?.label === "string" ? req.body.label.trim().slice(0, 80) : "";
+  const sensorCodes = req.body?.sensorCodes;
+  if (!commodity || !label || !Array.isArray(sensorCodes) || !sensorCodes.length || sensorCodes.length > 20 || sensorCodes.some((code) => typeof code !== "string")) {
+    return res.status(400).json({ error: "Choose a crop, name this field or store, and select at least one connected sensor." });
+  }
+  try {
+    const crop = cropDatabase.addFarmerCropWithSensors(req.farmer.id, commodity, label, sensorCodes);
+    if (!crop) return res.status(404).json({ error: "Choose a crop from the backend crop list." });
+    return res.status(201).json({ id: crop.id, commodity, label: crop.label, sensors: sensorCodes.map((sensorCode) => sensorCode.trim().toUpperCase()) });
+  } catch (error) {
+    const message = String(error.message || error);
+    if (message.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That crop location already exists or a sensor was assigned by another user. Refresh and choose different details." });
+    if (/sensor|select between/i.test(message)) return res.status(409).json({ error: message });
+    throw error;
+  }
+});
 app.post("/api/farmer/crops", requireFarmer, (req, res) => {
   const commodity = typeof req.body?.commodity === "string" ? req.body.commodity.trim() : "";
   const label = typeof req.body?.label === "string" ? req.body.label.trim().slice(0, 80) : "";

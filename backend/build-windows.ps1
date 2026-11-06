@@ -9,6 +9,9 @@ $sqliteExtracted = Join-Path $temporaryDirectory "sqlite"
 $vendorDirectory = Join-Path $PSScriptRoot "vendor"
 $distributionDirectory = Join-Path $PSScriptRoot "dist"
 $sqliteAsset = Join-Path $vendorDirectory "sqlite3.exe"
+$rceditExecutable = Join-Path $temporaryDirectory "rcedit-x64.exe"
+$rceditUrl = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
+$applicationIcon = Join-Path $PSScriptRoot "..\Peo_Yame_logo_assets\Peo_Yame_Dev_Assets\windows\PeoYame.ico"
 $createdSqliteAsset = $false
 
 New-Item -ItemType Directory -Path $temporaryDirectory, $sqliteExtracted, $vendorDirectory, $distributionDirectory -Force | Out-Null
@@ -24,9 +27,16 @@ try {
     $createdSqliteAsset = $true
   }
 
+  Write-Host "Preparing the Peo Yame Windows application icon..."
+  Invoke-WebRequest -Uri $rceditUrl -OutFile $rceditExecutable
+  if (-not (Test-Path $applicationIcon)) { throw "The Peo Yame Windows icon was not found at $applicationIcon." }
+
   Write-Host "Building the standalone Windows executable..."
-  npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output (Join-Path $distributionDirectory "Peo-Yame-Backend.exe") --compress GZip
+  $backendExecutable = Join-Path $distributionDirectory "Peo-Yame-Backend.exe"
+  npx --yes pkg@5.8.1 package.json --targets node18-win-x64 --output $backendExecutable --compress GZip
   if ($LASTEXITCODE -ne 0) { throw "The Windows executable build failed with exit code $LASTEXITCODE." }
+  & $rceditExecutable $backendExecutable --set-icon $applicationIcon
+  if ($LASTEXITCODE -ne 0) { throw "Could not set the Peo Yame icon on the Windows executable." }
 
   Write-Host "Starting the built executable for a startup check..."
   $smokeDataDirectory = Join-Path $temporaryDirectory "runtime-data"

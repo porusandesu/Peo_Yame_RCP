@@ -78,6 +78,46 @@ class ApiService {
         .cast<Map<String, dynamic>>();
   }
 
+  Future<List<String>> getCropOptions() async =>
+      (await getCrops()).map((crop) => crop.commodity).toList();
+
+  Future<List<Map<String, dynamic>>> getAvailableFarmerSensors() async {
+    final response = await _client
+        .get(_uri('/api/farmer/available-sensors'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getFarmerSensors() async {
+    final response = await _client
+        .get(_uri('/api/farmer/sensors'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+  }
+
+  Future<void> addFarmerCropWithSensors({
+    required String commodity,
+    required String label,
+    required List<String> sensorCodes,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/farmer/crop-setup'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: jsonEncode({
+            'commodity': commodity,
+            'label': label,
+            'sensorCodes': sensorCodes,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    _ensureOk(response);
+  }
+
   Future<void> deleteFarmerCrop(int id) async {
     final response = await _client
         .delete(_uri('/api/farmer/crops/$id'), headers: _authHeaders)

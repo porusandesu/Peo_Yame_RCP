@@ -169,7 +169,11 @@ class _AppGateState extends State<_AppGate> {
         onLogout: _logout,
         onEditName: _editName,
         onLoadFarmerCrops: _authApi.getFarmerCrops,
+        onLoadFarmerSensors: _authApi.getFarmerSensors,
         onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
+        onLoadCropOptions: _authApi.getCropOptions,
+        onLoadAvailableSensors: _authApi.getAvailableFarmerSensors,
+        onCreateCropSetup: _authApi.addFarmerCropWithSensors,
       );
     }
     final pendingPhone = _pendingPhone;
@@ -913,7 +917,11 @@ class DashboardPage extends StatefulWidget {
     required this.onLogout,
     required this.onEditName,
     required this.onLoadFarmerCrops,
+    required this.onLoadFarmerSensors,
     required this.onDeleteFarmerCrop,
+    required this.onLoadCropOptions,
+    required this.onLoadAvailableSensors,
+    required this.onCreateCropSetup,
     super.key,
   });
 
@@ -921,7 +929,16 @@ class DashboardPage extends StatefulWidget {
   final VoidCallback onLogout;
   final Future<void> Function(String name) onEditName;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
+  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
+  final Future<List<String>> Function() onLoadCropOptions;
+  final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
+  final Future<void> Function({
+    required String commodity,
+    required String label,
+    required List<String> sensorCodes,
+  })
+  onCreateCropSetup;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -1091,7 +1108,11 @@ class _DashboardPageState extends State<DashboardPage> {
           phone: widget.account.phone,
           onEditName: widget.onEditName,
           onLoadFarmerCrops: widget.onLoadFarmerCrops,
+          onLoadFarmerSensors: widget.onLoadFarmerSensors,
           onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
+          onLoadCropOptions: widget.onLoadCropOptions,
+          onLoadAvailableSensors: widget.onLoadAvailableSensors,
+          onCreateCropSetup: widget.onCreateCropSetup,
           onLogout: () {
             Navigator.of(context).popUntil((route) => route.isFirst);
             widget.onLogout();

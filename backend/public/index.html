@@ -209,8 +209,8 @@
       <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, storage or sensor ID" aria-label="Search your crops and sensors"></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
-    <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop location</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
-    <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Sensor ID<input name="sensorCode" placeholder="For example: PY-005" required maxlength="40"></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
+    <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
+    <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
     <dialog id="connectionDialog"><h2>Connect your mobile app</h2><p>Make sure your phone and this computer are on the same Wi-Fi network. In the mobile app, open Settings and tap Scan QR code.</p><label class="profile-meta" for="connectionAddress">This computer’s network address</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="QR code to connect the Peo Yame mobile app" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
     <script src="/qrcode-generator.js"></script>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
@@ -228,6 +228,7 @@
       let authToken = localStorage.getItem('peo_yame_farmer_token') || '';
       let farmerCrops = [];
       let farmerSensors = [];
+      let availableFarmerSensors = [];
       let pendingProfile = null;
       let authPhone = '';
       let currentView = 'dashboard';
@@ -291,16 +292,23 @@
       async function loadFarmerData() {
         if (!authToken) return;
         try {
-          [farmerCrops, farmerSensors] = await Promise.all([getJson('/api/farmer/crops'), getJson('/api/farmer/sensors')]);
+          [farmerCrops, farmerSensors, availableFarmerSensors] = await Promise.all([getJson('/api/farmer/crops'), getJson('/api/farmer/sensors'), getJson('/api/farmer/available-sensors')]);
           $('accountCropCount').textContent = farmerCrops.length;
           $('accountSensorCount').textContent = farmerSensors.length;
           $('accountCropSummary').textContent = `${farmerCrops.length} crop locations · ${farmerSensors.length} assigned sensors`;
           const cropOptions = await getJson('/api/crops');
           $('farmerCropSelect').innerHTML = cropOptions.map(crop => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
           $('farmerSensorCrop').innerHTML = farmerCrops.map(crop => `<option value="${crop.id}">${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</option>`).join('');
-          $('linkSensor').disabled = farmerCrops.length === 0;
+          $('farmerSensorCode').innerHTML = `<option value="" selected disabled>Select an available sensor</option>${availableFarmerSensors.map(sensor => `<option value="${escapeHtml(sensor.sensorCode)}" ${sensor.connected ? '' : 'disabled'}>${escapeHtml(sensor.sensorCode)} · ${sensor.connected ? 'Connected' : 'Offline'}</option>`).join('')}`;
+          renderFarmerSensorChoices();
+          $('linkSensor').disabled = farmerCrops.length === 0 || !availableFarmerSensors.some(sensor => sensor.connected);
           renderFarmerCrops();
         } catch (error) { $('cropActionNotice').textContent = error.message; }
+      }
+      function renderFarmerSensorChoices() {
+        $('farmerCropSensors').innerHTML = availableFarmerSensors.length
+          ? availableFarmerSensors.map(sensor => `<label style="display:flex;align-items:center;gap:8px;padding:6px 2px"><input type="checkbox" name="sensorCodes" value="${escapeHtml(sensor.sensorCode)}" ${sensor.connected ? '' : 'disabled'}><span><strong>${escapeHtml(sensor.sensorCode)}</strong><small class="profile-meta" style="display:block">${sensor.connected ? 'Connected' : 'Offline'} · last seen ${escapeHtml(new Date(sensor.lastSeen).toLocaleString())}</small></span></label>`).join('')
+          : '<div class="profile-meta">No sensor has sent a reading to this backend yet. A sensor ID appears here after its first reading.</div>';
       }
       function renderFarmerCrops() {
         const query = $('sensorSearch').value.trim().toLowerCase();
@@ -613,13 +621,15 @@
           activateProfile(body);
         } catch (error) { $('accountActionNotice').textContent = error.message; }
       });
-      $('linkSensor').addEventListener('click', () => { $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
+      $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
       $('addFarmerCrop').addEventListener('click', () => { $('farmerCropError').textContent = ''; $('farmerCropDialog').showModal(); });
       $('sensorSearch').addEventListener('input', renderFarmerCrops);
       $('farmerCropForm').addEventListener('submit', async event => {
         event.preventDefault();
-        const payload = Object.fromEntries(new FormData(event.currentTarget));
-        try { await postJson('/api/farmer/crops', payload); $('farmerCropDialog').close(); event.currentTarget.reset(); await loadFarmerData(); }
+        const form = new FormData(event.currentTarget);
+        const payload = { commodity:form.get('commodity'), label:form.get('label'), sensorCodes:form.getAll('sensorCodes') };
+        if (!payload.sensorCodes.length) { $('farmerCropError').textContent = 'Select at least one connected sensor.'; return; }
+        try { await postJson('/api/farmer/crop-setup', payload); $('farmerCropDialog').close(); event.currentTarget.reset(); await loadFarmerData(); }
         catch (error) { $('farmerCropError').textContent = error.message; }
       });
       $('farmerSensorForm').addEventListener('submit', async event => {

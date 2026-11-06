@@ -101,7 +101,7 @@ The camera plugin is `mobile_scanner`; Android declares Internet and Camera perm
 - `backend/public/qrcode-generator.js`: vendored QR encoder used locally to render connection and sign-in QR SVGs. Its accompanying license is in `backend/public/qrcode-generator.LICENSE`; QR content is not sent to an external QR service.
 - `backend/simulate-sensor.js`: optional second process that reads `/api/status`, generates a safe sample and POSTs it to `/api/readings` every five seconds. It is a simulator, not firmware.
 - `backend/launcher.js`: top-level exception/rejection reporting for the packaged process, friendly port/data-directory errors, a temporary startup log and a pause-on-error for interactive Windows runs.
-- `backend/build-windows.ps1`: fetches temporary SQLite tools, runs the Node packager, smoke-starts the EXE on localhost port 3188, checks `/api/health`, `/` and database creation, and creates `Peo-Yame-Backend.zip` with a plain-language Read Me.
+- `backend/build-windows.ps1`: fetches temporary SQLite tools and the pinned Windows `rcedit` utility, runs the Node packager, embeds the branded multi-resolution `.ico` in the backend EXE, smoke-starts it on localhost port 3188, checks `/api/health`, `/` and database creation, and creates `Peo-Yame-Backend.zip` with a plain-language Read Me. The Flutter Windows runner separately uses the branded icon in `windows/runner/resources/app_icon.ico`.
 - `backend/DEPLOYMENT.md`: source and production deployment notes, SQLite/WAL handling and known demo constraints.
 
 The root `web/` directory is Flutter's web runner scaffold. The independent production-like browser dashboard used by the backend is `backend/public/` and is served by Express. Do not conflate the Flutter web target with that dashboard.
@@ -222,6 +222,8 @@ All routes use the configured Express host and port (`HOST`, default development
 | `POST /api/auth/logout` | Invalidates the current in-memory session. |
 | `GET /api/farmer/crops`, `POST /api/farmer/crops`, `DELETE /api/farmer/crops/:id` | Authenticated farmer-owned crop-location list, create and delete. Delete cascades sensor assignments. |
 | `GET /api/farmer/sensors`, `POST /api/farmer/sensors`, `DELETE /api/farmer/sensors/:id` | Authenticated farmer-owned sensor-assignment list, create and unlink. |
+| `GET /api/farmer/available-sensors` | Lists distinct valid sensor IDs inferred from `site` values on persisted readings with `data_source='sensor'`, excluding IDs already assigned to a farmer. `connected` means the last such reading arrived within five minutes. |
+| `POST /api/farmer/crop-setup` | Atomically creates a crop location and assigns one to 20 selected, currently connected backend sensor IDs. The sensor ID becomes both the registration code and display label. |
 
 ## 7. User and data flows
 
@@ -244,7 +246,8 @@ All routes use the configured Express host and port (`HOST`, default development
 ### Account and crop management
 
 - **Edit account:** mobile/web sends `PATCH /api/account` with bearer token and a farmer name. The server validates the name, updates SQLite and refreshes the session's in-memory farmer object.
-- **My Crops:** clients call authenticated `GET /api/farmer/crops`; the list includes crop, location label, threshold fields and sensor count. Mobile shows saved locations and supports deleting one. Web can add a location, link/unlink sensors and delete a location.
+- **My Crops:** clients call authenticated `GET /api/farmer/crops`; the list includes crop, location label, threshold fields and sensor count. The add flow reads crop choices from `/api/crops`, available sensor IDs from `/api/farmer/available-sensors`, then sends crop/location/one-or-more sensor IDs together to `/api/farmer/crop-setup`. Mobile shows assigned IDs and supports deletion; web supports the same combined setup plus unlink and delete actions.
+- **Sensor discovery boundary:** an ID is considered available after a `/api/readings` request with a valid `site` identifier persists a `data_source='sensor'` reading. It is marked connected for five minutes from its most recent reading. The backend does not authenticate the sender or prove a physical device identity; `site` is only the identifier claimed by the sender.
 - **Delete:** `DELETE /api/farmer/crops/:id` checks that the ID is valid and belongs to the current account. SQLite foreign-key cascade removes registrations in `farmer_sensors` when the parent location is deleted.
 - **Multiple sensors per account/location:** sensor assignment rows reference a farmer account and crop location; a farmer may add several unique sensor codes. This records intended assignment only and does not make readings sensor-specific.
 
@@ -256,7 +259,7 @@ The GitHub Actions workflow `.github/workflows/` runs on pushes, pull requests a
 
 ### Windows backend
 
-The separate `windows-backend` workflow job runs on Windows, installs Node 18, executes `npm ci`, runs `build-windows.ps1`, and uploads `peo-yame-backend-windows` for 30 days. The script temporarily downloads the SQLite tools ZIP, embeds `sqlite3.exe` as a `pkg` asset, creates `Peo-Yame-Backend.exe`, smoke-starts it on localhost, confirms health/static UI/database creation, writes a simple start guide and ZIPs the deliverable. The SQLite vendor copy is removed from the working tree if created by the build script.
+The separate `windows-backend` workflow job runs on Windows, installs Node 18, executes `npm ci`, runs `build-windows.ps1`, and uploads `peo-yame-backend-windows` for 30 days. The script temporarily downloads the SQLite tools ZIP and `rcedit`, embeds `sqlite3.exe` as a `pkg` asset, creates `Peo-Yame-Backend.exe`, sets the Peo Yame icon resource, smoke-starts it on localhost, confirms health/static UI/database creation, writes a simple start guide and ZIPs the deliverable. Temporary SQLite and resource-editor files are removed at the end.
 
 At runtime the backend stores SQLite under `%LOCALAPPDATA%/Peo Yame/data/storage-monitor.sqlite` by default, opens the web dashboard at `http://127.0.0.1:3000`, and can expose its LAN address in the mobile connection QR. The executable is not a Windows service: closing its console stops it. Source execution requires Node and SQLite on PATH; the packaged EXE is intended not to require those installations.
 

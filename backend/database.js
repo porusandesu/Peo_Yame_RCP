@@ -70,6 +70,13 @@ function findCrop(name) {
   return sql(`SELECT * FROM crops WHERE name=${quote(name)} COLLATE NOCASE LIMIT 1;`, true)[0];
 }
 
+function availableBackendSensors() {
+  return sql(`SELECT UPPER(TRIM(r.site)) AS sensorCode,MAX(r.recorded_at) AS lastSeen FROM readings r WHERE r.data_source='sensor' AND NOT EXISTS (SELECT 1 FROM farmer_sensors fs WHERE UPPER(fs.sensor_code)=UPPER(TRIM(r.site))) GROUP BY UPPER(TRIM(r.site)) ORDER BY sensorCode LIMIT 200;`, true)
+    .filter((sensor) => /^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(sensor.sensorCode));
+}
+
+const SENSOR_ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
 for (const crop of [
   { commodity: "Maize", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 70 },
   { commodity: "Tomato", minTemp: 10, maxTemp: 20, minHumidity: 85, maxHumidity: 95 },
@@ -159,6 +166,27 @@ module.exports = {
     if (!crop) return null;
     sql(`INSERT INTO farmer_crops(account_id,crop_id,label) VALUES(${Number(accountId)},${crop.id},${quote(label)});`);
     return sql(`SELECT id,label FROM farmer_crops WHERE account_id=${Number(accountId)} AND crop_id=${crop.id} AND label=${quote(label)};`, true)[0];
+  },
+  availableFarmerSensors: availableBackendSensors,
+  addFarmerCropWithSensors: (accountId, commodity, label, sensorCodes) => {
+    const crop = findCrop(commodity);
+    if (!crop) return null;
+    const selected = [...new Set(sensorCodes.map((code) => String(code).trim().toUpperCase()))];
+    if (!selected.length || selected.length > 20) throw new Error("Select between one and 20 backend sensors.");
+    if (selected.some((code) => !/^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(code))) throw new Error("A selected sensor ID is invalid.");
+    const available = new Set(availableBackendSensors()
+      .filter((sensor) => Date.now() - Date.parse(sensor.lastSeen) <= SENSOR_ONLINE_WINDOW_MS)
+      .map((sensor) => sensor.sensorCode));
+    const unavailable = selected.filter((code) => !available.has(code));
+    if (unavailable.length) throw new Error(`These sensors are no longer available: ${unavailable.join(", ")}. Refresh the list.`);
+    const statements = [
+      "BEGIN IMMEDIATE;",
+      `INSERT INTO farmer_crops(account_id,crop_id,label) VALUES(${Number(accountId)},${crop.id},${quote(label)});`,
+      ...selected.map((code) => `INSERT INTO farmer_sensors(account_id,farmer_crop_id,sensor_code,label) SELECT ${Number(accountId)},fc.id,${quote(code)},${quote(code)} FROM farmer_crops fc WHERE fc.account_id=${Number(accountId)} AND fc.crop_id=${crop.id} AND fc.label=${quote(label)};`),
+      "COMMIT;",
+      `SELECT id,label,${crop.id} AS cropId FROM farmer_crops WHERE account_id=${Number(accountId)} AND crop_id=${crop.id} AND label=${quote(label)};`,
+    ];
+    return sql(statements.join("\n"), true)[0] || null;
   },
   removeFarmerCrop: (accountId, cropId) => sql(`DELETE FROM farmer_crops WHERE account_id=${Number(accountId)} AND id=${Number(cropId)}; SELECT changes() AS removed;`, true)[0]?.removed > 0,
   farmerSensors: (accountId) => sql(`SELECT fs.id,fs.sensor_code AS sensorCode,fs.label,fc.id AS farmerCropId,fc.label AS cropLabel,c.name AS commodity,fs.created_at AS createdAt FROM farmer_sensors fs JOIN farmer_crops fc ON fc.id=fs.farmer_crop_id JOIN crops c ON c.id=fc.crop_id WHERE fs.account_id=${Number(accountId)} ORDER BY fs.id;`, true),

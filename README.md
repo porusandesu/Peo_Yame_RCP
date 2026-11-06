@@ -63,11 +63,14 @@ location (which also unlinks its sensors). The dashboard breach control remains
 a simulation of configured-limit alerts.
 Open `http://<PC-IP>:3000` on another device on the same Wi-Fi network.
 
-In **Accounts**, review or edit the farmer profile and see crop and sensor
-counts. In **My Crops**, add crop locations, assign multiple sensor IDs to each
-location, search the saved list, and unlink sensors. These are account-owned
-sensor registrations; they do not yet connect to physical devices or provide
-per-sensor live readings. SMS delivery also requires a provider integration.
+In **Accounts**, review or edit the farmer profile. In **My Crops**, use **Add
+crop and connect sensors** to select a crop, name its field or store, and choose
+one or more sensor IDs the backend has received readings from in the past five
+minutes. The ID is taken from the sensor reading's `site` field. The page shows
+the assigned IDs, and lets you search or delete a location. A location deletion
+also unlinks its sensors. The backend does not currently authenticate physical
+sensor devices, so this is backend discovery by submitted ID, not verified
+hardware identity. SMS delivery still requires a provider integration.
 
 Use the **Harvest** selector to switch between Maize and Tomato. Each selection
 loads that crop's illustrative temperature and humidity limits and immediately
