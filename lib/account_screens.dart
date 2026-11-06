@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 const _forest = Color(0xFF176B4A);
@@ -15,7 +17,7 @@ class AccountsScreen extends StatelessWidget {
   const AccountsScreen({
     required this.name,
     required this.phone,
-    required this.onEditName,
+    required this.onEditProfile,
     required this.onLoadFarmerCrops,
     required this.onLoadFarmerSensors,
     required this.onDeleteFarmerCrop,
@@ -29,7 +31,7 @@ class AccountsScreen extends StatelessWidget {
 
   final String name;
   final String phone;
-  final Future<void> Function(String name) onEditName;
+  final Future<void> Function(String name, String phone) onEditProfile;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
@@ -62,17 +64,31 @@ class AccountsScreen extends StatelessWidget {
   }
 
   Future<void> _editAccount(BuildContext context) async {
-    final controller = TextEditingController(text: name);
-    final updatedName = await showDialog<String>(
+    final nameController = TextEditingController(text: name);
+    final phoneController = TextEditingController(text: phone);
+    final updatedProfile = await showDialog<(String, String)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit account'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 80,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Farmer name'),
+        title: const Text('Edit profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              maxLength: 80,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Farmer name'),
+            ),
+            TextField(
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Phone number',
+                hintText: '+26771234567',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -80,17 +96,26 @@ class AccountsScreen extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, (
+              nameController.text.trim(),
+              phoneController.text.trim(),
+            )),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    controller.dispose();
-    if (updatedName == null || updatedName.isEmpty || !context.mounted) return;
+    nameController.dispose();
+    phoneController.dispose();
+    if (updatedProfile == null || !context.mounted) return;
+    if (updatedProfile.$1.isEmpty || updatedProfile.$2.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter both your name and phone number.')),
+      );
+      return;
+    }
     try {
-      await onEditName(updatedName);
+      await onEditProfile(updatedProfile.$1, updatedProfile.$2);
       if (context.mounted) Navigator.of(context).pop();
     } catch (error) {
       if (context.mounted)
@@ -108,7 +133,10 @@ class AccountsScreen extends StatelessWidget {
         onPressed: () => _editAccount(context),
         child: const Text('Edit'),
       ),
-      onBack: () => Navigator.of(context).maybePop(),
+      onBack: () {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        onDestinationSelected(0);
+      },
       selectedDestination: 3,
       onDestinationSelected: onDestinationSelected,
       children: [
@@ -239,14 +267,22 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
   List<Map<String, dynamic>>? _farmerCrops;
   List<Map<String, dynamic>> _farmerSensors = const [];
   String? _loadError;
+  Timer? _refreshTimer;
+  bool _loadingCrops = false;
 
   @override
   void initState() {
     super.initState();
     _loadFarmerCrops();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _loadFarmerCrops(),
+    );
   }
 
   Future<void> _loadFarmerCrops() async {
+    if (_loadingCrops) return;
+    _loadingCrops = true;
     try {
       final crops = await widget.onLoadFarmerCrops();
       final sensors = await widget.onLoadFarmerSensors();
@@ -262,11 +298,14 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
           _farmerCrops = [];
           _loadError = '$error';
         });
+    } finally {
+      _loadingCrops = false;
     }
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -277,8 +316,11 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
       return _DesignShell(
         title: 'My Crops',
         action: const SizedBox.shrink(),
-        onBack: () => Navigator.of(context).popUntil((route) => route.isFirst),
-        selectedDestination: 3,
+        onBack: () {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          widget.onDestinationSelected(0);
+        },
+        selectedDestination: 4,
         onDestinationSelected: widget.onDestinationSelected,
         children: const [
           Center(
@@ -309,8 +351,11 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
         icon: const Icon(Icons.refresh, size: 16),
         label: const Text('Refresh'),
       ),
-      onBack: () => Navigator.of(context).popUntil((route) => route.isFirst),
-      selectedDestination: 3,
+      onBack: () {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        widget.onDestinationSelected(0);
+      },
+      selectedDestination: 4,
       onDestinationSelected: widget.onDestinationSelected,
       children: [
         _AccountScopeBanner(name: widget.name),
@@ -682,7 +727,15 @@ class _DesignShell extends StatelessWidget {
           label: 'Alerts',
         ),
         NavigationDestination(
-          icon: Icon(Icons.menu_rounded),
+          icon: Icon(Icons.manage_accounts_outlined),
+          label: 'Accounts',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.spa_outlined),
+          label: 'My Crops',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.settings_outlined),
           label: 'Settings',
         ),
       ],
@@ -707,7 +760,14 @@ class _BrandHeader extends StatelessWidget {
             color: _paleGreen,
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.eco_rounded, size: 14, color: _forest),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/branding/peo-yame-128.png',
+              width: 22,
+              height: 22,
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
         const SizedBox(width: 8),
         const Text(
@@ -726,7 +786,7 @@ class _BrandHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
           ),
           child: const Text(
-            'Demo',
+            'Local',
             style: TextStyle(
               fontSize: 10,
               color: _forest,

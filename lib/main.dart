@@ -17,6 +17,24 @@ const _header = Color(0xFF10251F);
 const _canvas = Color(0xFFF3F7F3);
 const _ink = Color(0xFF172923);
 
+String _normalizePhone(Object? value) =>
+    value is String ? value.replaceAll(RegExp(r'[\s().-]'), '') : '';
+
+bool _isPrivateIpv4Address(String host) {
+  final parts = host.split('.').map(int.tryParse).toList();
+  if (parts.length != 4 ||
+      parts.any((part) => part == null || part < 0 || part > 255)) {
+    return false;
+  }
+  final a = parts[0]!;
+  final b = parts[1]!;
+  return a == 10 ||
+      (a == 172 && b >= 16 && b <= 31) ||
+      (a == 192 && b == 168) ||
+      (a == 169 && b == 254) ||
+      (a == 100 && b >= 64 && b <= 127);
+}
+
 void main() => runApp(const StorageMonitorApp());
 
 class StorageMonitorApp extends StatelessWidget {
@@ -80,6 +98,7 @@ class _AppGateState extends State<_AppGate> {
   final ApiService _authApi = ApiService();
   AccountInfo? _account;
   String? _pendingPhone;
+  String? _pendingDemoCode;
   bool _loadingSession = true;
 
   @override
@@ -99,7 +118,6 @@ class _AppGateState extends State<_AppGate> {
         final farmer = await _authApi.getAccount();
         _account = AccountInfo(
           name: farmer['name'] as String,
-          email: '',
           phone: farmer['phone'] as String,
         );
       }
@@ -109,13 +127,17 @@ class _AppGateState extends State<_AppGate> {
     if (mounted) setState(() => _loadingSession = false);
   }
 
-  void _requestCode(DemoSignInRequest request) {
+  void _requestCode(DemoSignInRequest request, String? demoCode) {
     setState(() {
       _pendingPhone = request.phone;
+      _pendingDemoCode = demoCode;
     });
   }
 
-  void _backToLogin() => setState(() => _pendingPhone = null);
+  void _backToLogin() => setState(() {
+    _pendingPhone = null;
+    _pendingDemoCode = null;
+  });
 
   Future<void> _continueDemo(String code) async {
     final phone = _pendingPhone ?? '';
@@ -126,10 +148,10 @@ class _AppGateState extends State<_AppGate> {
     setState(() {
       _account = AccountInfo(
         name: farmer['name'] as String,
-        email: '',
         phone: farmer['phone'] as String,
       );
       _pendingPhone = null;
+      _pendingDemoCode = null;
     });
   }
 
@@ -143,16 +165,16 @@ class _AppGateState extends State<_AppGate> {
       setState(() {
         _account = null;
         _pendingPhone = null;
+        _pendingDemoCode = null;
       });
   }
 
-  Future<void> _editName(String name) async {
-    final farmer = await _authApi.updateAccountName(name);
+  Future<void> _editProfile(String name, String phone) async {
+    final farmer = await _authApi.updateAccount(name: name, phone: phone);
     if (!mounted) return;
     setState(
       () => _account = AccountInfo(
         name: farmer['name'] as String,
-        email: '',
         phone: farmer['phone'] as String,
       ),
     );
@@ -167,7 +189,7 @@ class _AppGateState extends State<_AppGate> {
       return DashboardPage(
         account: account,
         onLogout: _logout,
-        onEditName: _editName,
+        onEditProfile: _editProfile,
         onLoadFarmerCrops: _authApi.getFarmerCrops,
         onLoadFarmerSensors: _authApi.getFarmerSensors,
         onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
@@ -180,8 +202,15 @@ class _AppGateState extends State<_AppGate> {
     if (pendingPhone != null) {
       return OtpVerificationPage(
         phone: pendingPhone,
+        demoCode: _pendingDemoCode,
         onBack: _backToLogin,
         onContinue: _continueDemo,
+        onResend: () async {
+          final result = await _authApi.requestOtp(phone: pendingPhone);
+          final code = result['demoCode'] as String?;
+          if (mounted) setState(() => _pendingDemoCode = code);
+          return code;
+        },
         onScanQr: () async {
           final raw = await Navigator.of(context).push<String>(
             MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
@@ -189,7 +218,7 @@ class _AppGateState extends State<_AppGate> {
           if (raw == null) return;
           final data = jsonDecode(raw) as Map<String, dynamic>;
           if (data['type'] != 'peo-yame-auth' ||
-              data['phone'] != pendingPhone ||
+              _normalizePhone(data['phone']) != _normalizePhone(pendingPhone) ||
               data['backend'] is! String ||
               data['code'] is! String)
             throw Exception(
@@ -256,6 +285,7 @@ class _AppGateState extends State<_AppGate> {
               name: request.name,
               phone: result['phone'] as String,
             ),
+            result['demoCode'] as String?,
           );
         } catch (error) {
           if (context.mounted)
@@ -276,14 +306,9 @@ class DemoSignInRequest {
 }
 
 class AccountInfo {
-  const AccountInfo({
-    required this.name,
-    required this.email,
-    required this.phone,
-  });
+  const AccountInfo({required this.name, required this.phone});
 
   final String name;
-  final String email;
   final String phone;
 }
 
@@ -560,7 +585,7 @@ class _LoginSplashState extends State<_LoginSplash> {
                 const SizedBox(height: 8),
                 const _AuthDemoNotice(
                   text:
-                      'Demo only. Authentication and SMS are not connected; no PIN will be sent.',
+                      'A temporary PIN from the local backend appears on the next screen. Text-message delivery is not configured.',
                 ),
                 const SizedBox(height: 10),
                 TextButton(
@@ -582,15 +607,19 @@ class _LoginSplashState extends State<_LoginSplash> {
 class OtpVerificationPage extends StatefulWidget {
   const OtpVerificationPage({
     required this.phone,
+    required this.demoCode,
     required this.onBack,
     required this.onContinue,
+    required this.onResend,
     required this.onScanQr,
     super.key,
   });
 
   final String phone;
+  final String? demoCode;
   final VoidCallback onBack;
   final Future<void> Function(String code) onContinue;
+  final Future<String?> Function() onResend;
   final Future<void> Function() onScanQr;
 
   @override
@@ -629,6 +658,33 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     final code = _controllers.map((controller) => controller.text).join();
     try {
       await widget.onContinue(code);
+    } catch (error) {
+      _showDemoMessage('$error');
+    }
+  }
+
+  void _fillDemoCode() {
+    final code = widget.demoCode;
+    if (code == null || code.length != 6) return;
+    for (var index = 0; index < _controllers.length; index++) {
+      _controllers[index].text = code[index];
+    }
+    setState(() {});
+  }
+
+  Future<void> _resendPin() async {
+    try {
+      final code = await widget.onResend();
+      for (final controller in _controllers) {
+        controller.clear();
+      }
+      if (!mounted) return;
+      setState(() {});
+      _showDemoMessage(
+        code == null
+            ? 'A new PIN was requested.'
+            : 'A new local demo PIN was issued above.',
+      );
     } catch (error) {
       _showDemoMessage('$error');
     }
@@ -691,6 +747,28 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     color: _ink,
                   ),
                 ),
+                if (widget.demoCode != null) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    color: const Color(0xFFEAF5EC),
+                    child: ListTile(
+                      leading: const Icon(Icons.pin_outlined, color: _forest),
+                      title: const Text('Your local demo PIN'),
+                      subtitle: Text(
+                        widget.demoCode!,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          letterSpacing: 4,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      trailing: TextButton(
+                        onPressed: _fillDemoCode,
+                        child: const Text('Fill'),
+                      ),
+                    ),
+                  ),
+                ],
                 TextButton(
                   onPressed: widget.onBack,
                   child: const Text(
@@ -813,9 +891,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   style: TextStyle(fontSize: 10, color: Color(0xFF65776F)),
                 ),
                 TextButton(
-                  onPressed: () => _showDemoMessage(
-                    'No PIN was sent. This is a local demo screen.',
-                  ),
+                  onPressed: _resendPin,
                   child: const Text(
                     'Resend PIN',
                     style: TextStyle(color: _forest, fontSize: 11),
@@ -824,7 +900,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 const SizedBox(height: 8),
                 const _AuthDemoNotice(
                   text:
-                      'Demo only. Use the sample PIN to illustrate this flow. No SMS is sent and no account is authenticated.',
+                      'The local backend displays a temporary demo PIN above. SMS delivery needs a connected messaging provider.',
                 ),
               ],
             ),
@@ -841,14 +917,13 @@ class _AuthBrandHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Container(
-        width: 22,
-        height: 22,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE2F1E6),
-          shape: BoxShape.circle,
+      ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Image.asset(
+          'assets/branding/peo-yame-128.png',
+          width: 32,
+          height: 32,
         ),
-        child: const Icon(Icons.eco_rounded, size: 14, color: _forest),
       ),
       const SizedBox(width: 8),
       const Text(
@@ -867,7 +942,7 @@ class _AuthBrandHeader extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
         ),
         child: const Text(
-          'Demo',
+          'Local',
           style: TextStyle(fontSize: 10, color: _forest),
         ),
       ),
@@ -915,7 +990,7 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
     required this.onLogout,
-    required this.onEditName,
+    required this.onEditProfile,
     required this.onLoadFarmerCrops,
     required this.onLoadFarmerSensors,
     required this.onDeleteFarmerCrop,
@@ -927,7 +1002,7 @@ class DashboardPage extends StatefulWidget {
 
   final AccountInfo account;
   final VoidCallback onLogout;
-  final Future<void> Function(String name) onEditName;
+  final Future<void> Function(String name, String phone) onEditProfile;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
@@ -1106,7 +1181,7 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (_) => AccountsScreen(
           name: widget.account.name,
           phone: widget.account.phone,
-          onEditName: widget.onEditName,
+          onEditProfile: widget.onEditProfile,
           onLoadFarmerCrops: widget.onLoadFarmerCrops,
           onLoadFarmerSensors: widget.onLoadFarmerSensors,
           onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
@@ -1117,12 +1192,45 @@ class _DashboardPageState extends State<DashboardPage> {
             Navigator.of(context).popUntil((route) => route.isFirst);
             widget.onLogout();
           },
-          onDestinationSelected: (index) {
-            if (mounted) setState(() => _selectedTab = index);
-          },
+          onDestinationSelected: _selectSection,
         ),
       ),
     );
+    if (mounted && (_selectedTab == 3 || _selectedTab == 4)) {
+      setState(() => _selectedTab = 0);
+    }
+  }
+
+  Future<void> _openMyCrops() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => MyCropsScreen(
+          name: widget.account.name,
+          onLoadFarmerCrops: widget.onLoadFarmerCrops,
+          onLoadFarmerSensors: widget.onLoadFarmerSensors,
+          onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
+          onLoadCropOptions: widget.onLoadCropOptions,
+          onLoadAvailableSensors: widget.onLoadAvailableSensors,
+          onCreateCropSetup: widget.onCreateCropSetup,
+          onDestinationSelected: _selectSection,
+        ),
+      ),
+    );
+    if (mounted && (_selectedTab == 3 || _selectedTab == 4)) {
+      setState(() => _selectedTab = 0);
+    }
+  }
+
+  void _selectSection(int index) {
+    if (index == 3) {
+      setState(() => _selectedTab = 3);
+      _openAccounts();
+    } else if (index == 4) {
+      setState(() => _selectedTab = 4);
+      _openMyCrops();
+    } else {
+      setState(() => _selectedTab = index);
+    }
   }
 
   Future<void> _refreshSensors() async {
@@ -1321,8 +1429,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedTab,
-            onDestinationSelected: (index) =>
-                setState(() => _selectedTab = index),
+            onDestinationSelected: _selectSection,
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
@@ -1337,6 +1444,16 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icon(Icons.notifications_none_rounded),
                 selectedIcon: Icon(Icons.notifications_rounded),
                 label: 'Alerts',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.manage_accounts_outlined),
+                selectedIcon: Icon(Icons.manage_accounts_rounded),
+                label: 'Accounts',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.spa_outlined),
+                selectedIcon: Icon(Icons.spa_rounded),
+                label: 'My Crops',
               ),
               NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
@@ -1559,34 +1676,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       const SizedBox(height: 16),
-      if (_controller.demoMode) ...[
-        Card(
-          child: ListTile(
-            leading: const Icon(
-              Icons.notifications_active_outlined,
-              color: _forest,
-            ),
-            title: const Text(
-              'Trigger demo breach',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: const Text(
-              'Cycle through crop quality impact levels',
-              style: TextStyle(fontSize: 12),
-            ),
-            trailing: _controller.isTriggering
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.chevron_right),
-            onTap: _controller.isTriggering
-                ? null
-                : _controller.triggerDemoBreach,
-          ),
-        ),
-      ],
+      const SizedBox(height: 8),
     ];
   }
 
@@ -1620,17 +1710,18 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const Divider(height: 1),
             _AccountDetailRow(
-              icon: Icons.mail_outline_rounded,
-              label: widget.account.email == 'Demo profile'
-                  ? 'Profile'
-                  : 'Email',
-              value: widget.account.email,
-            ),
-            const Divider(height: 1),
-            _AccountDetailRow(
               icon: Icons.phone_outlined,
               label: 'Number',
               value: widget.account.phone,
+            ),
+            const Divider(height: 1),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _openAccounts,
+                icon: const Icon(Icons.edit_outlined, size: 17),
+                label: const Text('Edit full profile'),
+              ),
             ),
           ],
         ),
@@ -1765,20 +1856,6 @@ class _DashboardPageState extends State<DashboardPage> {
     const SizedBox(height: 8),
     const _SimulationBanner(),
     const SizedBox(height: 8),
-    Card(
-      child: SwitchListTile(
-        secondary: const Icon(Icons.science_outlined, color: _forest),
-        title: const Text('Demo mode'),
-        subtitle: Text(
-          _controller.demoMode
-              ? 'Demo alert controls are available on the Alerts screen.'
-              : 'Enable the demo alert control for testing.',
-        ),
-        value: _controller.demoMode,
-        onChanged: (enabled) => _controller.setDemoMode(enabled),
-      ),
-    ),
-    const SizedBox(height: 8),
     const Card(
       child: ListTile(
         leading: Icon(Icons.eco_outlined, color: _forest),
@@ -1787,6 +1864,16 @@ class _DashboardPageState extends State<DashboardPage> {
           'Storage Monitor · simulated readings',
           style: TextStyle(fontSize: 12),
         ),
+      ),
+    ),
+    const SizedBox(height: 14),
+    Card(
+      child: ListTile(
+        leading: const Icon(Icons.logout_rounded, color: _forest),
+        title: const Text('Log out'),
+        subtitle: const Text('Sign out of this farmer account'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: widget.onLogout,
       ),
     ),
   ];
@@ -2217,55 +2304,15 @@ class _BrandMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: _forest,
-      borderRadius: BorderRadius.circular(size * .32),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(size * .22),
+    child: Image.asset(
+      'assets/branding/peo-yame-128.png',
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
     ),
-    child: CustomPaint(painter: _BrandMarkPainter()),
   );
-}
-
-class _BrandMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 40;
-    canvas.save();
-    canvas.scale(scale);
-    final gold = Paint()..color = const Color(0xFFF2C66D);
-    final cream = Paint()..color = const Color(0xFFF8F6E9);
-    final line = Paint()
-      ..color = const Color(0xFFF8F6E9)
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(8, 19, 24, 13),
-        const Radius.circular(3),
-      ),
-      Paint()..color = const Color(0xFF2F694F),
-    );
-    canvas.drawLine(const Offset(20, 28), const Offset(20, 9), line);
-    for (var i = 0; i < 3; i++) {
-      final y = 13.0 + i * 5;
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(16, y), width: 7, height: 3.4),
-        gold,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(24, y - 2), width: 7, height: 3.4),
-        cream,
-      );
-    }
-    canvas.drawLine(const Offset(12, 24), const Offset(28, 24), line);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _SimulationBanner extends StatelessWidget {
@@ -3377,15 +3424,15 @@ class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
       try {
         final data = jsonDecode(raw) as Map<String, dynamic>;
         final uri = Uri.parse(data['backend'] as String);
-        final parts = uri.host.split('.').map(int.tryParse).toList();
         final local =
-            parts.length == 4 &&
-            parts.every((part) => part != null) &&
-            (parts[0] == 10 ||
-                (parts[0] == 172 && parts[1]! >= 16 && parts[1]! <= 31) ||
-                (parts[0] == 192 && parts[1] == 168));
+            _isPrivateIpv4Address(uri.host) || uri.host == 'localhost';
         if (data['type'] == 'peo-yame-auth' &&
+            (uri.scheme == 'http' || uri.scheme == 'https') &&
             uri.hasAuthority &&
+            uri.userInfo.isEmpty &&
+            (uri.path.isEmpty || uri.path == '/') &&
+            !uri.hasQuery &&
+            !uri.hasFragment &&
             local &&
             RegExp(r'^\d{6}$').hasMatch('${data['code']}')) {
           _finished = true;
@@ -3493,18 +3540,7 @@ class _BackendQrScannerPageState extends State<_BackendQrScannerPage> {
   }
 
   bool _isPrivateIpv4(String host) {
-    final parts = host.split('.').map(int.tryParse).toList();
-    if (parts.length != 4 ||
-        parts.any((part) => part == null || part < 0 || part > 255)) {
-      return false;
-    }
-    final a = parts[0]!;
-    final b = parts[1]!;
-    return a == 10 ||
-        (a == 172 && b >= 16 && b <= 31) ||
-        (a == 192 && b == 168) ||
-        (a == 169 && b == 254) ||
-        (a == 100 && b >= 64 && b <= 127);
+    return _isPrivateIpv4Address(host);
   }
 
   @override

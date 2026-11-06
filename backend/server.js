@@ -101,13 +101,20 @@ app.post("/api/auth/logout", requireFarmer, (req, res) => {
 });
 app.patch("/api/account", requireFarmer, (req, res) => {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const phone = normalizePhone(req.body?.phone ?? req.farmer.phone);
   if (!name || name.length > 80) return res.status(400).json({ error: "Enter a name up to 80 characters." });
-  cropDatabase.updateFarmerName(req.farmer.id, name);
-  const farmer = { ...req.farmer, name };
-  const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const session = farmerSessions.get(token);
-  if (session) session.farmer = farmer;
-  res.json(farmer);
+  if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
+  try {
+    const farmer = cropDatabase.updateFarmerAccount(req.farmer.id, name, phone);
+    if (!farmer) return res.status(404).json({ error: "Farmer account was not found." });
+    const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const session = farmerSessions.get(token);
+    if (session) session.farmer = farmer;
+    return res.json(farmer);
+  } catch (error) {
+    if (`${error.message || error} ${error.stderr?.toString() || ""}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That phone number is already linked to another farmer account." });
+    throw error;
+  }
 });
 app.get("/api/farmer/crops", requireFarmer, (req, res) => res.json(cropDatabase.farmerCrops(req.farmer.id)));
 app.get("/api/farmer/available-sensors", requireFarmer, (req, res) => {
@@ -128,6 +135,7 @@ app.post("/api/farmer/crop-setup", requireFarmer, (req, res) => {
   try {
     const crop = cropDatabase.addFarmerCropWithSensors(req.farmer.id, commodity, label, sensorCodes);
     if (!crop) return res.status(404).json({ error: "Choose a crop from the backend crop list." });
+    broadcastUpdate("farmer-crops");
     return res.status(201).json({ id: crop.id, commodity, label: crop.label, sensors: sensorCodes.map((sensorCode) => sensorCode.trim().toUpperCase()) });
   } catch (error) {
     const message = String(error.message || error);
@@ -143,6 +151,7 @@ app.post("/api/farmer/crops", requireFarmer, (req, res) => {
   try {
     const crop = cropDatabase.addFarmerCrop(req.farmer.id, commodity, label);
     if (!crop) return res.status(404).json({ error: "Choose a crop from the saved crop list." });
+    broadcastUpdate("farmer-crops");
     res.status(201).json(crop);
   } catch (error) {
     if (`${error.message || error}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That crop and storage name are already on your account." });
@@ -153,6 +162,7 @@ app.delete("/api/farmer/crops/:id", requireFarmer, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Choose a valid crop location." });
   if (!cropDatabase.removeFarmerCrop(req.farmer.id, id)) return res.status(404).json({ error: "That crop location is not on your account." });
+  broadcastUpdate("farmer-crops");
   res.json({ removed: true });
 });
 app.get("/api/farmer/sensors", requireFarmer, (req, res) => res.json(cropDatabase.farmerSensors(req.farmer.id)));
@@ -166,6 +176,7 @@ app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
   try {
     const sensor = cropDatabase.addFarmerSensor(req.farmer.id, cropId, sensorCode, label);
     if (!sensor) return res.status(404).json({ error: "That crop does not belong to your account." });
+    broadcastUpdate("farmer-sensors");
     res.status(201).json(sensor);
   } catch (error) {
     if (`${error.message || error}`.includes("UNIQUE constraint failed")) return res.status(409).json({ error: "That sensor ID is already linked to your account." });
@@ -176,6 +187,7 @@ app.delete("/api/farmer/sensors/:id", requireFarmer, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Choose a valid sensor." });
   if (!cropDatabase.removeFarmerSensor(req.farmer.id, id)) return res.status(404).json({ error: "That sensor is not linked to your account." });
+  broadcastUpdate("farmer-sensors");
   res.json({ removed: true });
 });
 

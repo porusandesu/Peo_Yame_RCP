@@ -199,8 +199,8 @@
       </section>
     </main>
     <section class="view" id="accountsView" hidden>
-      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Accounts</h2><button type="button" id="editProfile">Edit</button></div>
-      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Accounts</h2><button type="button" data-edit-profile>Edit</button></div>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div><button type="button" data-edit-profile>Edit profile</button></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
       <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View your crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
     </section>
     <section class="view" id="cropsView" hidden>
@@ -210,6 +210,7 @@
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
     <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
+    <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
     <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
     <dialog id="connectionDialog"><h2>Connect your mobile app</h2><p>Make sure your phone and this computer are on the same Wi-Fi network. In the mobile app, open Settings and tap Scan QR code.</p><label class="profile-meta" for="connectionAddress">This computer’s network address</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="QR code to connect the Peo Yame mobile app" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
     <script src="/qrcode-generator.js"></script>
@@ -611,15 +612,22 @@
         $('profileError').textContent = '';
         requestOtp(values.phone.trim(), pendingProfile.name).catch(error => { $('profileError').textContent = error.message; });
       });
-      $('editProfile').addEventListener('click', async () => {
-        const name = window.prompt('Farmer name', demoProfile?.name || '');
-        if (!name?.trim()) return;
+      document.querySelectorAll('[data-edit-profile]').forEach(button => button.addEventListener('click', () => {
+        $('editProfileError').textContent = '';
+        $('editProfileName').value = demoProfile?.name || '';
+        $('editProfilePhone').value = demoProfile?.phone || '';
+        $('editProfileDialog').showModal();
+      }));
+      $('editProfileForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
         try {
-          const response = await fetch('/api/account', { method:'PATCH', headers:{'Content-Type':'application/json',...authHeaders()}, body:JSON.stringify({name:name.trim()}) });
+          const response = await fetch('/api/account', { method:'PATCH', headers:{'Content-Type':'application/json',...authHeaders()}, body:JSON.stringify(values) });
           const body = await response.json();
           if (!response.ok) throw new Error(body.error || 'Could not update account');
+          $('editProfileDialog').close();
           activateProfile(body);
-        } catch (error) { $('accountActionNotice').textContent = error.message; }
+        } catch (error) { $('editProfileError').textContent = error.message; }
       });
       $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
       $('addFarmerCrop').addEventListener('click', () => { $('farmerCropError').textContent = ''; $('farmerCropDialog').showModal(); });

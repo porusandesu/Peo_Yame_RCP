@@ -49,12 +49,15 @@ class ApiService {
     return result['farmer'] as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> updateAccountName(String name) async {
+  Future<Map<String, dynamic>> updateAccount({
+    required String name,
+    required String phone,
+  }) async {
     final response = await _client
         .patch(
           _uri('/api/account'),
           headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'name': name}),
+          body: jsonEncode({'name': name, 'phone': phone}),
         )
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);

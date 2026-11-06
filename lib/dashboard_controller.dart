@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'api_service.dart';
 import 'config.dart';
 import 'models.dart';
@@ -34,9 +32,7 @@ class DashboardController extends ChangeNotifier {
   String trendRange = '24h';
   String? trendError;
   bool isLoading = true;
-  bool isTriggering = false;
   bool isChangingHarvest = false;
-  bool demoMode = false;
   List<Threshold> crops = const [];
   String? errorMessage;
   bool isBackendConnected = false;
@@ -52,29 +48,10 @@ class DashboardController extends ChangeNotifier {
 
   void startPolling() {
     _timer?.cancel();
-    _loadDemoMode();
+    unawaited(loadCrops());
     _refresh();
     _connectEvents();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
-  }
-
-  Future<void> _loadDemoMode() async {
-    try {
-      demoMode =
-          (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
-    } catch (_) {}
-    if (!_disposed) notifyListeners();
-  }
-
-  Future<void> setDemoMode(bool enabled) async {
-    demoMode = enabled;
-    try {
-      await (await SharedPreferences.getInstance()).setBool(
-        'demo_mode',
-        enabled,
-      );
-    } catch (_) {}
-    if (!_disposed) notifyListeners();
   }
 
   Future<void> _connectEvents() async {
@@ -259,26 +236,6 @@ class DashboardController extends ChangeNotifier {
         notifyListeners();
       }
       if (shouldRefreshAgain) unawaited(_refresh());
-    }
-  }
-
-  Future<void> triggerDemoBreach() async {
-    if (isTriggering) return;
-    isTriggering = true;
-    notifyListeners();
-    try {
-      await _api.triggerDemoBreach();
-      await _refresh();
-    } catch (_) {
-      if (_disposed) return;
-      errorMessage =
-          'The demo alert could not be sent. Check your Wi-Fi and try again.';
-      isLoading = false;
-    } finally {
-      if (!_disposed) {
-        isTriggering = false;
-        notifyListeners();
-      }
     }
   }
 

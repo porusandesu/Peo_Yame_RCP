@@ -159,7 +159,10 @@ module.exports = {
     sql(`INSERT INTO farmer_accounts(phone,name) VALUES(${quote(phone)},${quote(name)});`);
     return sql(`SELECT id,name,phone FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0];
   },
-  updateFarmerName: (id, name) => sql(`UPDATE farmer_accounts SET name=${quote(name)} WHERE id=${Number(id)};`),
+  updateFarmerAccount: (id, name, phone) => {
+    sql(`UPDATE farmer_accounts SET name=${quote(name)},phone=${quote(phone)} WHERE id=${Number(id)};`);
+    return sql(`SELECT id,name,phone FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null;
+  },
   farmerCrops: (accountId) => sql(`SELECT fc.id,fc.label,c.name AS commodity,c.min_temp AS minTemp,c.max_temp AS maxTemp,c.min_humidity AS minHumidity,c.max_humidity AS maxHumidity,(SELECT COUNT(*) FROM farmer_sensors fs WHERE fs.farmer_crop_id=fc.id) AS sensorCount FROM farmer_crops fc JOIN crops c ON c.id=fc.crop_id WHERE fc.account_id=${Number(accountId)} ORDER BY fc.id;`, true),
   addFarmerCrop: (accountId, commodity, label) => {
     const crop = findCrop(commodity);
