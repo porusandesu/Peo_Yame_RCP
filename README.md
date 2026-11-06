@@ -13,7 +13,7 @@ After these changes are pushed, download the **peo-yame-backend-windows** artifa
 from its GitHub Actions run, extract the ZIP to a writable folder, and double-click
 `Peo-Yame-Backend.exe`. The dashboard opens automatically in your browser. Keep
 the server window open while using it; close the window to stop the backend.
-The app stores its database and activity log in a `data` folder beside the EXE.
+The app stores its database and activity log in your Windows Local AppData folder.
 No Node.js, npm, or SQLite installation is required.
 
 ## Start the backend from source

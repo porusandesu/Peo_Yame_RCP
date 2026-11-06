@@ -7,7 +7,7 @@
     "start": "node server.js",
     "demo": "node server.js",
     "simulate:sensor": "node simulate-sensor.js",
-    "build:windows": "powershell -ExecutionPolicy Bypass -File ./build-windows.ps1"
+    "build:windows": "pwsh -ExecutionPolicy Bypass -File ./build-windows.ps1"
   },
   "dependencies": {
     "express": "^4.19.2",

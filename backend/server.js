@@ -18,6 +18,7 @@ const cors = require("cors");
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
+const { dataDirectory } = require("./runtime_paths");
 const cropDatabase = require("./database");
 
 const app = express();
@@ -28,9 +29,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
-const APP_DIRECTORY = process.pkg ? path.dirname(process.execPath) : __dirname;
-const DATA_DIRECTORY = process.env.APP_DATA_DIR || path.join(APP_DIRECTORY, "data");
-const ACTION_LOG_PATH = path.join(DATA_DIRECTORY, "actions.jsonl");
+const ACTION_LOG_PATH = path.join(dataDirectory, "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
@@ -613,7 +612,7 @@ app.post("/api/sim/breach", (req, res) => {
 app.listen(PORT, HOST, () => {
   logAction("Backend started", { source: "system", details: { port: PORT } });
   console.log(`Storage monitor API running on http://${HOST}:${PORT} (${process.env.NODE_ENV || "development"})`);
-  if (process.pkg && process.platform === "win32") {
+  if (process.pkg && process.platform === "win32" && process.env.NO_BROWSER !== "1") {
     execFile("cmd.exe", ["/c", "start", "", `http://127.0.0.1:${PORT}`], (error) => {
       if (error) console.warn(`Open http://127.0.0.1:${PORT} in your browser.`);
     });

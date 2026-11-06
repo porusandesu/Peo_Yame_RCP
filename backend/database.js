@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { dataDirectory } = require("./runtime_paths");
 
 // Packaged Windows builds embed sqlite3.exe and extract it to the OS temp
 // directory on first use. Source runs continue to use sqlite3 from PATH.
@@ -13,10 +14,8 @@ if (process.pkg) {
   }
 }
 
-// Keep portable-build data beside the EXE. Source runs keep their data in
-// backend/data; DATABASE_PATH can override either location.
-const appDirectory = process.pkg ? path.dirname(process.execPath) : __dirname;
-const dataDirectory = process.env.APP_DATA_DIR || path.join(appDirectory, "data");
+// Windows packages store user data under Local AppData so the EXE can also be
+// launched from read-only folders. DATABASE_PATH can override this location.
 const file = process.env.DATABASE_PATH || path.join(dataDirectory, "storage-monitor.sqlite");
 fs.mkdirSync(path.dirname(file), { recursive: true });
 function quote(value) { return `'${String(value).replaceAll("'", "''")}'`; }
