@@ -31,6 +31,11 @@ void main() {
 
     await tester.tap(find.text('Alerts'));
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Trigger demo breach'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Trigger demo breach'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
