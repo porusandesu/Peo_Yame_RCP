@@ -18,6 +18,7 @@ void main() {
 
     await tester.tap(find.text('Demo mode'));
     await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Mr Lesego Lefoko'), findsOneWidget);
     expect(find.textContaining('Shared Demo profile'), findsOneWidget);
