@@ -2,7 +2,7 @@
 
 **Working branch:** `pauls-branch`
 **Starting commit:** `65d308c` (`Prepare and document Android release build`)
-**Status:** first rebuilding increment pushed; GitHub checks found an Android packaging heap limit and a CI fix is in progress.
+**Status:** rebuilding increment pushed and all GitHub Actions jobs pass.
 
 ## Changes in this increment
 
@@ -23,7 +23,7 @@
 
 ## Verification
 
-Local builds/tests were not run because the user asked to use GitHub Actions for testing. GitHub run [42380409390](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380409390) passed backend syntax/tests, Flutter widget tests, and Dart analysis. Android APK packaging failed because the 1 GiB Gradle heap ran out of memory while Jetifier transformed Flutter engine jars. Increase the Gradle heap and rerun; no APK artifact was produced in that run.
+Local builds/tests were not run because the user asked to use GitHub Actions for testing. The first run [42380409390](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380409390) passed backend syntax/tests, Flutter widget tests, and Dart analysis, but Android packaging exhausted the 1 GiB Gradle heap during Jetifier transforms. The heap was raised to 3 GiB. Follow-up run [42380844326](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380844326) passed backend checks, widget tests, analysis, APK build and upload. Download the `storage-monitor-android-debug` artifact from the run page; it expires 2026-11-21. This verifies compilation and configured tests, not phone authentication, QR SSO, physical sensors or production security.
 
 ## Next implementation steps
 
