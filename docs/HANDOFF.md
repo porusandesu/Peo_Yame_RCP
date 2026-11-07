@@ -3,7 +3,7 @@
 **Updated:** 2026-11-07 (Africa/Gaborone)
 **Repository:** `/home/porusandesu/Documents/storage_monitor_flutter`
 **Active branch:** `pauls-branch`
-**HEAD:** `ac91aee` (`Fix mobile crop management compilation`)
+**HEAD before current work:** `ac91aee` (`Fix mobile crop management compilation`)
 **Remote:** `origin/pauls-branch` is at the same commit.
 **Reference inventory:** `exe-work` at `c8926b7`; merge base with this branch is `65d308c`.
 **Current state:** Demo parity, brand restoration, backend auth, web flows, and Windows package changes are committed and pushed. The latest GitHub Actions run passed. Remaining parity gaps and limits are listed below; physical-device and live-sensor end-to-end behavior are not verified.
@@ -70,7 +70,7 @@ Do these in order, updating this handoff as tasks finish:
 - Five destinations now appear in this order: **Overview, Trends, My Crops, Alerts, Settings**, with **My Crops in the center**. Demo catalog and crop selection use shared APIs; the Flutter widget test and APK build pass in run `42388143703`.
 - Mobile farmer-owned site creation/deletion and real-sensor discovery/assignment/unlink are implemented in the current unverified increment. They remain separate from Demo's shared catalog; do not expose fabricated sensors.
 - Existing scanner exchanges phone QR while signed out and approves browser QR only from authenticated phone. Verify backend URL/token preservation and scanner/client disposal. Add reverse mobile QR flow if needed by UX.
-- Hook profile edit/settings to backend (or remove nonfunctional buttons). Sign-out should revoke session and clear saved token even if server unreachable.
+- Mobile Accounts and Settings now edit the farmer name through the authenticated profile endpoint; the profile name refreshes on screen after the server confirms. The new endpoint assertion and current UI are pending the latest CI run. Sign-out should revoke session and clear saved token even if server unreachable.
 - Check phone UI for Botswana formatting, errors, password validation, loading, keyboard behavior, saved backend address, app lifecycle, camera permission/denial and QR expiry. Demo must work even if backend check times out.
 - Inspect `DashboardController` SSE and polling fallback. Add bounded retry/backoff/failure status and offline freshness/last-seen. Never present stale data as current. Avoid unrelated complexity.
 - Add mobile profile edit and authenticator disable controls if required; check account destination callback indexes after navigation changes.
@@ -128,3 +128,7 @@ The user asked that web/mobile reflect the same backend data at the same time an
 ## 2026-11-07 mobile crop and sensor management
 
 The mobile My Crops view now loads farmer-owned storage locations, adds a crop/location from the shared catalog, and deletes a location with confirmation. It lists linked sensor IDs and their last reading timestamps, links only IDs detected from actual backend sensor readings to an owned location, and supports unlinking. The Accounts page routes My Crops and Manage linked sensors to this panel. Mobile reloads owner data on `account` SSE updates; polling remains the dashboard fallback. Backend tests cover owned deletion, unlink, and sensor rediscovery after unlink; Flutter coverage exercises Accounts navigation. CI run [42393553982](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42393553982) passed on `ac91aee`: backend Linux/Windows, Flutter tests/analysis, Android APK and Windows package all passed. Artifacts: Android expires 2026-11-21 and Windows expires 2026-12-07. Physical sensor connectivity and device-level visuals remain unverified.
+
+## 2026-11-07 mobile profile edit
+
+Authenticated farmers can edit their name from Accounts or Settings. The app saves through `PATCH /api/account`, retains the backend's account email/phone and updates the displayed profile name only after a successful response. Demo remains read-only. The Flutter navigation test and backend profile-update assertion are pending the current Actions run; no local tests/builds were run.

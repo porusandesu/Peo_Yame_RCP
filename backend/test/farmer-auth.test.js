@@ -114,6 +114,14 @@ test("phone account registration, password login, session restore, logout, and d
   assert.equal(created.farmer.email, "");
   assert.ok(created.token);
 
+  const profileUpdate = await fetch(`${base}/api/account`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${created.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Updated Demo Farmer" }),
+  });
+  assert.equal(profileUpdate.status, 200);
+  assert.equal((await profileUpdate.json()).name, "Updated Demo Farmer");
+
   const demoPage = await (await fetch(base)).text();
   assert.match(demoPage, /id="enterDemoMode"/);
   const missingSession = await fetch(`${base}/api/auth/session`);
