@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart' hide Threshold;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'account_screens.dart';
+import 'api_service.dart';
 import 'config.dart';
 import 'dashboard_controller.dart';
 import 'models.dart';
@@ -79,17 +82,129 @@ class _AppGateState extends State<_AppGate> {
     email: 'LLefoko@email.co.bw',
     phone: '',
   );
+  final ApiService _authApi = ApiService();
   AccountInfo? _account;
+  String? _authToken;
+  bool _authEnabled = false;
+  bool _checkingBackend = true;
+  bool _demoSelected = false;
 
-  void _enterDemo() => setState(() => _account = _demoAccount);
-  void _logout() => setState(() => _account = null);
+  @override
+  void initState() {
+    super.initState();
+    _restoreSavedSession();
+  }
+
+  Future<void> _restoreSavedSession() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      _authApi.baseUrl = normalizeApiBaseUrl(
+        preferences.getString(apiBaseUrlPreferenceKey) ?? defaultApiBaseUrl,
+      );
+      final token = preferences.getString('farmer_session_token');
+      final health = await _authApi.checkConnection();
+      if (_demoSelected) return;
+      _authEnabled = health['authEnabled'] == true;
+      if (token != null && _authEnabled) {
+        try {
+          final session = await _authApi.restoreSession(token);
+          if (_demoSelected) return;
+          _setAccount(session['farmer'] as Map<String, dynamic>, token);
+        } catch (_) {
+          await preferences.remove('farmer_session_token');
+        }
+      }
+    } catch (_) {
+      // Demo entry remains available when the backend cannot be reached.
+    } finally {
+      if (mounted) setState(() => _checkingBackend = false);
+    }
+  }
+
+  void _setAccount(Map<String, dynamic> farmer, String token) {
+    _authToken = token;
+    _authApi.authToken = token;
+    _account = AccountInfo(
+      name: farmer['name'] as String? ?? 'Farmer',
+      email: farmer['email'] as String? ?? '',
+      phone: farmer['phone'] as String? ?? '',
+    );
+  }
+
+  void _enterDemo() {
+    _demoSelected = true;
+    final previousToken = _authApi.authToken;
+    _authApi.authToken = null;
+    setState(() {
+      _authToken = null;
+      _account = _demoAccount;
+    });
+    unawaited(() async {
+      try {
+        await (await SharedPreferences.getInstance()).remove('farmer_session_token');
+      } catch (_) {}
+      if (previousToken != null) {
+        final api = ApiService(baseUrl: _authApi.baseUrl, authToken: previousToken);
+        try { await api.signOut(); } catch (_) {} finally { api.dispose(); }
+      }
+    }());
+  }
+
+  Future<void> _openAuth({required bool register}) async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => _FarmerAccessPage(
+          baseUrl: _authApi.baseUrl,
+          createAccountFirst: register,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _authApi.baseUrl = normalizeApiBaseUrl(result['baseUrl'] as String? ?? _authApi.baseUrl);
+    final farmer = result['farmer'] as Map<String, dynamic>;
+    final token = result['token'] as String;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
+    await preferences.setString('farmer_session_token', token);
+    _demoSelected = false;
+    setState(() => _setAccount(farmer, token));
+  }
+
+  Future<void> _logout() async {
+    final token = _authToken;
+    if (token != null) {
+      try {
+        await ApiService(baseUrl: _authApi.baseUrl, authToken: token).signOut();
+      } catch (_) {}
+      try {
+        await (await SharedPreferences.getInstance()).remove('farmer_session_token');
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _authToken = null;
+      _authApi.authToken = null;
+      _account = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final account = _account;
     return account == null
-        ? _DemoSplash(onEnterDemo: _enterDemo)
-        : DashboardPage(account: account, onLogout: _logout);
+        ? _DemoSplash(
+            onEnterDemo: _enterDemo,
+            onSignIn: () => _openAuth(register: false),
+            onCreateAccount: () => _openAuth(register: true),
+            authEnabled: _authEnabled,
+            checkingBackend: _checkingBackend,
+          )
+        : DashboardPage(
+            account: account,
+            token: _authToken,
+            baseUrl: _authApi.baseUrl,
+            onLogout: _logout,
+          );
   }
 }
 
@@ -102,9 +217,19 @@ class AccountInfo {
 }
 
 class _DemoSplash extends StatelessWidget {
-  const _DemoSplash({required this.onEnterDemo});
+  const _DemoSplash({
+    required this.onEnterDemo,
+    required this.onSignIn,
+    required this.onCreateAccount,
+    required this.authEnabled,
+    required this.checkingBackend,
+  });
 
   final VoidCallback onEnterDemo;
+  final VoidCallback onSignIn;
+  final VoidCallback onCreateAccount;
+  final bool authEnabled;
+  final bool checkingBackend;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -118,7 +243,7 @@ class _DemoSplash extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.spa_outlined, size: 44, color: _forest),
+                Image.asset('assets/branding/peo-yame-128.png', width: 88, height: 88),
                 const SizedBox(height: 16),
                 const Text('Peo Yame', textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _ink)),
@@ -129,7 +254,7 @@ class _DemoSplash extends StatelessWidget {
                 Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Demo account', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const Text('Shared demo profile', style: TextStyle(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     const Text('Mr Lesego Lefoko'),
                     const Text('LLefoko@email.co.bw', style: TextStyle(color: Color(0xFF65776F))),
@@ -141,6 +266,23 @@ class _DemoSplash extends StatelessWidget {
                       style: FilledButton.styleFrom(backgroundColor: _forest,
                         foregroundColor: Colors.white, minimumSize: const Size.fromHeight(48)),
                     ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onSignIn,
+                      icon: const Icon(Icons.phone_android_rounded),
+                      label: const Text('Sign in with phone number'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    ),
+                    TextButton(
+                      onPressed: onCreateAccount,
+                      child: const Text('Create farmer account'),
+                    ),
+                    if (!authEnabled && !checkingBackend)
+                      const Text(
+                        'Phone sign-in is unavailable on this demo backend. You can still open Demo mode.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
+                      ),
                   ],
                 ))),
                 const SizedBox(height: 12),
@@ -155,14 +297,199 @@ class _DemoSplash extends StatelessWidget {
   );
 }
 
+class _FarmerAccessPage extends StatefulWidget {
+  const _FarmerAccessPage({required this.baseUrl, required this.createAccountFirst});
+
+  final String baseUrl;
+  final bool createAccountFirst;
+
+  @override
+  State<_FarmerAccessPage> createState() => _FarmerAccessPageState();
+}
+
+class _FarmerAccessPageState extends State<_FarmerAccessPage> {
+  final _formKey = GlobalKey<FormState>();
+  late final ApiService _api;
+  late final TextEditingController _baseUrl;
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  final _authenticatorCode = TextEditingController();
+  late bool _createAccount;
+  bool _authEnabled = false;
+  bool _checking = true;
+  bool _submitting = false;
+  bool _showPassword = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _createAccount = widget.createAccountFirst;
+    _baseUrl = TextEditingController(text: widget.baseUrl);
+    _api = ApiService(baseUrl: widget.baseUrl);
+    _checkBackend();
+  }
+
+  Future<void> _checkBackend() async {
+    try {
+      _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+      final health = await _api.checkConnection();
+      if (!mounted) return;
+      setState(() => _authEnabled = health['authEnabled'] == true);
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Enter the PC backend address and check that it is running.');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate() || _submitting) return;
+    setState(() { _submitting = true; _error = null; });
+    try {
+      _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+      final health = await _api.checkConnection();
+      if (health['authEnabled'] != true) {
+        throw Exception('Sign-in is disabled on this backend. Demo mode is still available.');
+      }
+      final result = _createAccount
+          ? await _api.registerFarmer(name: _name.text.trim(), phone: _phone.text.trim(), password: _password.text)
+          : await _api.signIn(phone: _phone.text.trim(), password: _password.text, authenticatorCode: _authenticatorCode.text.trim());
+      if (!mounted) return;
+      Navigator.of(context).pop({...result, 'baseUrl': _api.baseUrl});
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _scanSignInQr() async {
+    _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _QrScannerPage(api: _api)),
+    );
+    if (result == null || !mounted) return;
+    Navigator.of(context).pop({...result, 'baseUrl': _api.baseUrl});
+  }
+
+  @override
+  void dispose() {
+    _baseUrl.dispose();
+    _name.dispose();
+    _phone.dispose();
+    _password.dispose();
+    _authenticatorCode.dispose();
+    _api.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(_createAccount ? 'Create farmer account' : 'Farmer sign in')),
+    body: SafeArea(child: ListView(padding: const EdgeInsets.all(20), children: [
+      const Text('Use your phone number and password.', style: TextStyle(color: Color(0xFF65776F))),
+      const SizedBox(height: 16),
+      TextField(
+        controller: _baseUrl,
+        keyboardType: TextInputType.url,
+        decoration: const InputDecoration(labelText: 'Backend address', hintText: '192.168.1.42:3000', helperText: 'Enter the address shown on the PC running Peo Yame.'),
+        onEditingComplete: _checkBackend,
+      ),
+      const SizedBox(height: 12),
+      if (_checking) const LinearProgressIndicator(),
+      if (!_authEnabled && !_checking)
+        const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('Account sign-in is not enabled on this backend. Demo mode remains available without verification.', style: TextStyle(color: Color(0xFF765D24)))),
+      Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (_createAccount) ...[
+          TextFormField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Your name'), validator: (value) => (value ?? '').trim().length < 2 ? 'Enter your name.' : null),
+          const SizedBox(height: 12),
+        ],
+        TextFormField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Botswana phone number', hintText: '+267 71 234 567', prefixIcon: Icon(Icons.phone_android_rounded)), validator: (value) => (value ?? '').replaceAll(RegExp(r'\D'), '').length < 8 ? 'Enter your 8-digit phone number.' : null),
+        const SizedBox(height: 12),
+        TextFormField(controller: _password, obscureText: !_showPassword, decoration: InputDecoration(labelText: 'Password', suffixIcon: IconButton(onPressed: () => setState(() => _showPassword = !_showPassword), icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility))), validator: (value) => (value ?? '').length < (_createAccount ? 10 : 1) ? (_createAccount ? 'Use at least 10 characters.' : 'Enter your password.') : null),
+        if (!_createAccount) ...[
+          const SizedBox(height: 12),
+          TextField(controller: _authenticatorCode, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'Authenticator code (if enabled)', counterText: ''),),
+        ],
+      ])),
+      if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: _red))),
+      const SizedBox(height: 16),
+      FilledButton(onPressed: _submitting ? null : _submit, style: FilledButton.styleFrom(backgroundColor: _forest, minimumSize: const Size.fromHeight(50)), child: _submitting ? const CircularProgressIndicator() : Text(_createAccount ? 'Create account' : 'Sign in')),
+      if (!_createAccount) ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: _submitting ? null : _scanSignInQr, icon: const Icon(Icons.qr_code_scanner_rounded), label: const Text('Scan sign-in QR code'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48))),
+      ],
+      TextButton(onPressed: () => setState(() { _createAccount = !_createAccount; _error = null; }), child: Text(_createAccount ? 'Already have an account? Sign in' : 'New farmer? Create an account')),
+    ])),
+  );
+}
+
+class _QrScannerPage extends StatefulWidget {
+  const _QrScannerPage({required this.api});
+  final ApiService api;
+
+  @override
+  State<_QrScannerPage> createState() => _QrScannerPageState();
+}
+
+class _QrScannerPageState extends State<_QrScannerPage> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _handleCapture(BarcodeCapture capture) async {
+    if (_busy || capture.barcodes.isEmpty) return;
+    final value = capture.barcodes.first.rawValue;
+    final uri = value == null ? null : Uri.tryParse(value);
+    if (uri == null || uri.scheme != 'peoyame' || uri.pathSegments.isEmpty) {
+      setState(() => _error = 'This QR code is not a Peo Yame sign-in code.');
+      return;
+    }
+    setState(() { _busy = true; _error = null; });
+    try {
+      final challenge = uri.pathSegments.last;
+      if (uri.host == 'mobile-login') {
+        final result = await widget.api.exchangeMobileLoginQr(challenge);
+        if (mounted) Navigator.of(context).pop(result);
+      } else if (uri.host == 'web-login') {
+        if (widget.api.authToken == null) throw Exception('Sign in on this phone first, then scan the browser code.');
+        await widget.api.approveWebLoginQr(challenge);
+        if (mounted) Navigator.of(context).pop({'approved': true});
+      } else {
+        throw Exception('This QR code is not a Peo Yame sign-in code.');
+      }
+    } catch (error) {
+      if (mounted) setState(() { _busy = false; _error = error.toString().replaceFirst('Exception: ', ''); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Scan sign-in QR code')),
+    body: Stack(children: [
+      MobileScanner(onDetect: _handleCapture),
+      Align(alignment: Alignment.bottomCenter, child: Container(width: double.infinity, padding: const EdgeInsets.all(18), color: Colors.black.withValues(alpha: .72), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Hold the QR code inside the frame', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        if (_busy) const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()),
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.white))),
+      ]))),
+    ]),
+  );
+}
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
+    required this.token,
+    required this.baseUrl,
     required this.onLogout,
     super.key,
   });
 
   final AccountInfo account;
+  final String? token;
+  final String baseUrl;
   final VoidCallback onLogout;
 
   @override
@@ -225,7 +552,10 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _controller = DashboardController();
+    _baseUrl = widget.baseUrl;
+    _controller = DashboardController(
+      api: ApiService(baseUrl: widget.baseUrl, authToken: widget.token),
+    );
     _controller.loadCrops();
     _loadSavedAddress();
   }
@@ -241,7 +571,55 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     _baseUrl = normalizeApiBaseUrl(address);
     _controller.setBaseUrl(_baseUrl);
-    _controller.startPolling();
+    _controller.startPolling(demoModeOverride: widget.token == null);
+  }
+
+  Future<void> _scanBrowserLoginQr() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _QrScannerPage(api: api)),
+    );
+    api.dispose();
+    if (result != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Web sign-in approved. Return to the browser.')),
+      );
+    }
+  }
+
+  Future<void> _setupAuthenticator() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final setup = await api.setupAuthenticator();
+      if (!mounted) return;
+      final code = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          final codeController = TextEditingController();
+          return AlertDialog(
+            title: const Text('Set up authenticator'),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Add this key in Google Authenticator or another TOTP app, then enter its current six-digit code.'),
+              const SizedBox(height: 12),
+              SelectableText(setup['secret'] as String, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+              const SizedBox(height: 12),
+              TextField(controller: codeController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit code', counterText: '')),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, codeController.text.trim()), child: const Text('Enable')),
+            ],
+          );
+        },
+      );
+      if (code == null || code.isEmpty) return;
+      await api.enableAuthenticator(code);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is enabled.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      api.dispose();
+    }
   }
 
   Future<void> _editServerAddress() async {
@@ -315,7 +693,9 @@ class _DashboardPageState extends State<DashboardPage> {
       MaterialPageRoute<void>(
         builder: (_) => AccountsScreen(
           name: widget.account.name,
+          email: widget.account.email,
           phone: widget.account.phone,
+          isDemo: widget.token == null,
           onLogout: () {
             Navigator.of(context).popUntil((route) => route.isFirst);
             widget.onLogout();
@@ -458,6 +838,7 @@ class _DashboardPageState extends State<DashboardPage> {
           minHumidity: double.parse(fields[3].text),
           maxHumidity: double.parse(fields[4].text),
         );
+        await _controller.setHarvest(fields[0].text.trim());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -511,6 +892,12 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             actions: [
               _ConnectionPill(connected: connected),
+              if (widget.token != null)
+                IconButton(
+                  onPressed: _scanBrowserLoginQr,
+                  tooltip: 'Connect a web browser',
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                ),
               IconButton(
                 onPressed: _controller.refresh,
                 tooltip: 'Refresh',
@@ -538,6 +925,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 label: 'Trends',
               ),
               NavigationDestination(
+                icon: Icon(Icons.eco_outlined),
+                selectedIcon: Icon(Icons.eco_rounded),
+                label: 'My Crops',
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.notifications_none_rounded),
                 selectedIcon: Icon(Icons.notifications_rounded),
                 label: 'Alerts',
@@ -558,7 +950,8 @@ class _DashboardPageState extends State<DashboardPage> {
     final children = switch (_selectedTab) {
       0 => _homeContent(status),
       1 => _trendsContent(),
-      2 => _alertsContent(status),
+      2 => _myCropsContent(status),
+      3 => _alertsContent(status),
       _ => _settingsContent(status),
     };
     return ListView(
@@ -582,6 +975,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
       userName: widget.account.name,
+      isDemo: widget.token == null,
       onAccountTap: _openAccounts,
       onLogout: widget.onLogout,
     ),
@@ -711,6 +1105,72 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
   ];
 
+  List<Widget> _myCropsContent(StatusResponse? status) => [
+    const _SectionTitle(title: 'My Crops'),
+    const SizedBox(height: 4),
+    Text(
+      widget.token == null
+          ? 'Shared demo crop catalog · locations and sensor links are not saved to an account.'
+          : 'Crop monitoring guides and your saved storage locations.',
+      style: const TextStyle(color: Color(0xFF65776F), fontSize: 13),
+    ),
+    const SizedBox(height: 12),
+    if (widget.token == null)
+      const _SimulationBanner(),
+    if (widget.token == null) ...[
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('Crop monitoring limits are shared with the dashboard. Add a crop to the catalog or choose one to monitor.'),
+              ),
+              IconButton(onPressed: _addCrop, tooltip: 'Add crop', icon: const Icon(Icons.add_circle_outline)),
+            ],
+          ),
+        ),
+      ),
+    ],
+    const SizedBox(height: 8),
+    if (_controller.crops.isEmpty)
+      const _EmptyCard(icon: Icons.eco_outlined, text: 'Crop guides are unavailable while the backend is offline.')
+    else
+      ..._controller.crops.map((crop) => Card(
+        child: ExpansionTile(
+          leading: const Icon(Icons.eco_outlined, color: _forest),
+          title: Text(crop.commodity, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('${crop.minTemp}–${crop.maxTemp} °C · ${crop.minHumidity}–${crop.maxHumidity}% RH'),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${crop.cropGroup}\nRoom target band: ${crop.minTemp}–${crop.maxTemp} °C and ${crop.minHumidity}–${crop.maxHumidity}% RH.${crop.safeMoisturePct == null ? '' : '\nGrain moisture guide: at or below ${crop.safeMoisturePct}%; measure separately with a moisture meter.'}\n${crop.storageNote}',
+                style: const TextStyle(fontSize: 13, height: 1.45),
+              ),
+            ),
+            if (status != null && status.threshold.commodity != crop.commodity)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _controller.setHarvest(crop.commodity),
+                  icon: const Icon(Icons.monitor_heart_outlined),
+                  label: const Text('Monitor this crop'),
+                ),
+              )
+            else if (status?.threshold.commodity == crop.commodity)
+              const Align(alignment: Alignment.centerRight, child: Chip(label: Text('Currently monitored'))),
+          ],
+        ),
+      )),
+    if (widget.token == null) ...[
+      const SizedBox(height: 10),
+      const _EmptyCard(icon: Icons.warehouse_outlined, text: 'No crop locations or linked physical sensors are saved in shared Demo mode.'),
+    ],
+  ];
+
   List<Widget> _alertsContent(StatusResponse? status) {
     Alert? attentionAlert;
     for (final alert in _controller.alerts) {
@@ -759,7 +1219,12 @@ class _DashboardPageState extends State<DashboardPage> {
         ..._controller.alerts.map(
           (alert) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _AlertTile(alert: alert),
+            child: _AlertTile(
+              alert: alert,
+              onAcknowledge: alert.acknowledged
+                  ? null
+                  : () => _controller.acknowledgeAlert(alert.id),
+            ),
           ),
         ),
       const SizedBox(height: 16),
@@ -775,7 +1240,7 @@ class _DashboardPageState extends State<DashboardPage> {
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: const Text(
-              'Cycle through crop quality impact levels',
+              'Preview different readings outside the configured range',
               style: TextStyle(fontSize: 12),
             ),
             trailing: _controller.isTriggering
@@ -810,7 +1275,7 @@ class _DashboardPageState extends State<DashboardPage> {
       style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
-    const _SectionTitle(title: 'Account information'),
+    _SectionTitle(title: widget.token == null ? 'Shared demo profile' : 'Account information'),
     const SizedBox(height: 8),
     Card(
       child: Padding(
@@ -830,16 +1295,28 @@ class _DashboardPageState extends State<DashboardPage> {
                   : 'Email',
               value: widget.account.email,
             ),
-            const Divider(height: 1),
-            _AccountDetailRow(
-              icon: Icons.phone_outlined,
-              label: 'Number',
-              value: widget.account.phone,
-            ),
+            if (widget.token != null) ...[
+              const Divider(height: 1),
+              _AccountDetailRow(
+                icon: Icons.phone_outlined,
+                label: 'Number',
+                value: widget.account.phone,
+              ),
+            ],
           ],
         ),
       ),
     ),
+    if (widget.token != null) ...[
+      const SizedBox(height: 10),
+      OutlinedButton.icon(
+        onPressed: _setupAuthenticator,
+        icon: const Icon(Icons.security_rounded),
+        label: const Text('Set up authenticator sign-in'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+      ),
+      const SizedBox(height: 16),
+    ],
     const SizedBox(height: 16),
     const _SectionTitle(title: 'Hardware package'),
     const SizedBox(height: 8),
@@ -1120,12 +1597,6 @@ class _AlertBreakdownCard extends StatelessWidget {
     final commodity = alert.commodity ?? threshold?.commodity ?? 'crop';
     final sentAt = DateTime.tryParse(alert.sentAt);
     final age = sentAt == null ? null : DateTime.now().difference(sentAt);
-    final risk = _estimateDegradationRisk(reading, threshold, age);
-    final riskColor = risk == 'High'
-        ? const Color(0xFF9E332B)
-        : risk == 'Moderate'
-        ? const Color(0xFF8A6C27)
-        : _forest;
 
     return Card(
       child: Padding(
@@ -1198,30 +1669,12 @@ class _AlertBreakdownCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: riskColor.withValues(alpha: .08),
+                color: const Color(0xFFFFF7E5),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Estimated degradation risk: $risk',
-                    style: TextStyle(
-                      color: riskColor,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Rough warning from the alert time and how far readings passed the safe range. Assumes moderately clean produce and that conditions continued. It is not a measured percentage of crop damage.',
-                    style: TextStyle(
-                      color: Color(0xFF53645B),
-                      fontSize: 11,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'This alert shows a reading outside the configured room target band. It does not predict crop quality or storage life.',
+                style: TextStyle(color: Color(0xFF624D1C), fontSize: 11, height: 1.35),
               ),
             ),
           ],
@@ -1260,51 +1713,11 @@ class _AlertReadingRow extends StatelessWidget {
         ),
       ),
       Text(
-        'Safe: $safeRange',
+        'Target: $safeRange',
         style: const TextStyle(color: Color(0xFF65776F), fontSize: 10),
       ),
     ],
   );
-}
-
-String _estimateDegradationRisk(
-  Reading? reading,
-  Threshold? threshold,
-  Duration? timeSinceAlert,
-) {
-  if (reading == null || threshold == null) return 'Unknown';
-
-  double relativeExcursion(double value, double minimum, double maximum) {
-    final difference = value < minimum
-        ? minimum - value
-        : value > maximum
-        ? value - maximum
-        : 0.0;
-    final width = (maximum - minimum).abs();
-    return width == 0 ? (difference == 0 ? 0 : 1) : difference / width;
-  }
-
-  final temperatureExcursion = relativeExcursion(
-    reading.temperature,
-    threshold.minTemp,
-    threshold.maxTemp,
-  );
-  final humidityExcursion = relativeExcursion(
-    reading.humidity,
-    threshold.minHumidity,
-    threshold.maxHumidity,
-  );
-  final largestExcursion = temperatureExcursion > humidityExcursion
-      ? temperatureExcursion
-      : humidityExcursion;
-  final duration = timeSinceAlert ?? Duration.zero;
-  if (duration >= const Duration(hours: 6) || largestExcursion >= .5) {
-    return 'High';
-  }
-  if (duration >= const Duration(hours: 1) || largestExcursion >= .15) {
-    return 'Moderate';
-  }
-  return 'Low';
 }
 
 String _alertReason(String commodity, Reading reading, Threshold threshold) {
@@ -1360,55 +1773,16 @@ class _BrandMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: _forest,
-      borderRadius: BorderRadius.circular(size * .32),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(size * .22),
+    child: Image.asset(
+      'assets/branding/peo-yame-128.png',
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      semanticLabel: 'Peo Yame logo',
     ),
-    child: CustomPaint(painter: _BrandMarkPainter()),
   );
-}
-
-class _BrandMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 40;
-    canvas.save();
-    canvas.scale(scale);
-    final gold = Paint()..color = const Color(0xFFF2C66D);
-    final cream = Paint()..color = const Color(0xFFF8F6E9);
-    final line = Paint()
-      ..color = const Color(0xFFF8F6E9)
-      ..strokeWidth = 1.7
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(8, 19, 24, 13),
-        const Radius.circular(3),
-      ),
-      Paint()..color = const Color(0xFF2F694F),
-    );
-    canvas.drawLine(const Offset(20, 28), const Offset(20, 9), line);
-    for (var i = 0; i < 3; i++) {
-      final y = 13.0 + i * 5;
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(16, y), width: 7, height: 3.4),
-        gold,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(24, y - 2), width: 7, height: 3.4),
-        cream,
-      );
-    }
-    canvas.drawLine(const Offset(12, 24), const Offset(28, 24), line);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _SimulationBanner extends StatelessWidget {
@@ -1442,11 +1816,13 @@ class _SimulationBanner extends StatelessWidget {
 class _FarmerGreeting extends StatelessWidget {
   const _FarmerGreeting({
     required this.userName,
+    required this.isDemo,
     required this.onAccountTap,
     required this.onLogout,
   });
 
   final String userName;
+  final bool isDemo;
   final VoidCallback onAccountTap;
   final VoidCallback onLogout;
 
@@ -1463,26 +1839,26 @@ class _FarmerGreeting extends StatelessWidget {
           itemBuilder: (context) => [
             PopupMenuItem<String>(
               enabled: false,
-              child: Text(userName, style: const TextStyle(color: _forest)),
+              child: Text('$userName${isDemo ? ' · Shared demo profile' : ''}', style: const TextStyle(color: _forest)),
             ),
             const PopupMenuDivider(),
-            const PopupMenuItem<String>(
+            PopupMenuItem<String>(
               value: 'accounts',
               child: Row(
                 children: [
-                  Icon(Icons.manage_accounts_outlined, size: 18),
-                  SizedBox(width: 10),
-                  Text('Accounts & crops'),
+                  const Icon(Icons.manage_accounts_outlined, size: 18),
+                  const SizedBox(width: 10),
+                  Text(isDemo ? 'Profile & crops' : 'Accounts & crops'),
                 ],
               ),
             ),
-            const PopupMenuItem<String>(
+            PopupMenuItem<String>(
               value: 'logout',
               child: Row(
                 children: [
-                  Icon(Icons.logout_rounded, size: 18),
-                  SizedBox(width: 10),
-                  Text('Log out'),
+                  const Icon(Icons.logout_rounded, size: 18),
+                  const SizedBox(width: 10),
+                  Text(isDemo ? 'Exit Demo mode' : 'Log out'),
                 ],
               ),
             ),
@@ -1509,7 +1885,7 @@ class _FarmerGreeting extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                'Your harvest at a glance',
+                isDemo ? 'Shared Demo profile · simulated readings' : 'Your harvest at a glance',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: const Color(0xFF65776F)),
@@ -2268,9 +2644,10 @@ class _CountPill extends StatelessWidget {
 }
 
 class _AlertTile extends StatelessWidget {
-  const _AlertTile({required this.alert});
+  const _AlertTile({required this.alert, required this.onAcknowledge});
 
   final Alert alert;
+  final VoidCallback? onAcknowledge;
 
   @override
   Widget build(BuildContext context) {
@@ -2297,9 +2674,16 @@ class _AlertTile extends StatelessWidget {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
         subtitle: Text(
-          _formatDate(alert.sentAt),
+          '${_formatDate(alert.sentAt)} · ${alert.acknowledged ? 'Reviewed' : 'Needs attention'}',
           style: const TextStyle(fontSize: 10),
         ),
+        trailing: onAcknowledge == null
+            ? null
+            : IconButton(
+                tooltip: 'Mark reviewed',
+                onPressed: onAcknowledge,
+                icon: const Icon(Icons.check_circle_outline),
+              ),
       ),
     );
   }

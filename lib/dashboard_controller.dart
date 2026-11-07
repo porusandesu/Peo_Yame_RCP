@@ -49,19 +49,23 @@ class DashboardController extends ChangeNotifier {
   bool _refreshInFlight = false;
   bool _refreshQueued = false;
 
-  void startPolling() {
+  void startPolling({bool? demoModeOverride}) {
     _timer?.cancel();
-    _loadDemoMode();
+    _loadDemoMode(override: demoModeOverride);
     _refresh();
     _connectEvents();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
   }
 
-  Future<void> _loadDemoMode() async {
-    try {
-      demoMode =
-          (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
-    } catch (_) {}
+  Future<void> _loadDemoMode({bool? override}) async {
+    if (override != null) {
+      demoMode = override;
+    } else {
+      try {
+        demoMode =
+            (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
+      } catch (_) {}
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -271,6 +275,17 @@ class DashboardController extends ChangeNotifier {
         isTriggering = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<void> acknowledgeAlert(int id) async {
+    try {
+      await _api.acknowledgeAlert(id);
+      await _refresh();
+    } catch (_) {
+      if (_disposed) return;
+      errorMessage = 'Could not update this alert. Check the connection and try again.';
+      notifyListeners();
     }
   }
 

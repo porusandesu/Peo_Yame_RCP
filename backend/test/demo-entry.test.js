@@ -11,7 +11,12 @@ test('web demo entry has no pretend phone verification gate', () => {
   assert.match(html, /Demo mode/);
   assert.match(html, /Mr Lesego Lefoko/);
   assert.match(html, /LLefoko@email\.co\.bw/);
-  assert.doesNotMatch(html, /id="otpPanel"|id="loginForm"|id="profileForm"|Continue with OTP/);
+  assert.match(html, /id="webName"/);
+  assert.match(html, /id="webPhone"/);
+  assert.match(html, /id="webPassword"/);
+  assert.doesNotMatch(html, /id="otpPanel"|Continue with OTP/);
+  assert.match(html, /Shared demo profile/);
+  assert.match(html, /peo-yame-128\.png/);
 });
 
 test('web dashboard JavaScript parses', () => {

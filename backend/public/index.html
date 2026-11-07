@@ -12,7 +12,7 @@
       header { padding:21px max(22px,calc((100vw - 1120px)/2)); background:#10251f; color:white; display:flex; justify-content:space-between; align-items:center; gap:20px; box-shadow:0 8px 26px #10251f2b; }
       h1 { margin:0; font-size:clamp(25px,4vw,34px); letter-spacing:-.03em; }
       .brand { display:flex; align-items:center; gap:10px; }
-      .brand-plant { font-size:29px; filter:drop-shadow(0 3px 4px #0005); }
+      .brand-plant { width:42px; height:42px; border-radius:10px; filter:drop-shadow(0 3px 4px #0005); }
       .header-actions { display:flex; align-items:center; gap:8px; }
       .status-chip { padding:8px 11px; border:1px solid #ffffff30; border-radius:11px; background:#ffffff12; font-size:12px; white-space:nowrap; }
       .status-chip small { display:block; margin-left:15px; color:#c4d7cd; font-size:10px; }
@@ -94,10 +94,18 @@
       .auth-shell[hidden], .view[hidden], main[hidden], header[hidden] { display:none; }
       .auth-card { width:min(440px,100%); padding:26px; background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:0 12px 34px #18332612; }
       .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
+      .auth-brand img { width:36px; height:36px; border-radius:9px; }
       .auth-card h2 { margin:30px 0 5px; font-size:25px; }
       .auth-card p { color:var(--muted); font-size:13px; }
       .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
       .auth-card input { width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:9px; font:inherit; color:var(--ink); }
+      .auth-card [hidden] { display:none; }
+      .auth-card .primary { width:100%; }
+      .auth-links { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:10px; }
+      .auth-links button { min-width:0; border:0; background:transparent; color:var(--green); text-decoration:underline; }
+      .auth-error { min-height:18px; margin-top:9px; color:var(--red); font-size:12px; }
+      .qr-box { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:12px; text-align:center; }
+      .qr-box img { width:220px; height:220px; max-width:100%; }
       .primary { width:100%; margin-top:12px; padding:11px; color:#fff; border-color:var(--green); background:var(--green); }
       .auth-notice,.demo-note { padding:10px 12px; border:1px solid #ead9a8; border-radius:10px; background:#fff8e6; color:#624d1c; font-size:12px; }
       .auth-link { display:block; margin:14px auto 0; border:0; background:none; color:var(--green); }
@@ -131,15 +139,29 @@
   <body>
     <section class="auth-shell" id="authShell" aria-live="polite">
       <div class="auth-card" id="demoPanel">
-        <div class="auth-brand"><span aria-hidden="true">🌱</span> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt=""> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <h2>Welcome to Peo Yame</h2><p>Open the storage dashboard directly using the shared demo profile.</p>
-        <div class="auth-notice"><strong>Mr Lesego Lefoko</strong><br>LLefoko@email.co.bw</div>
+        <div class="auth-notice"><strong>Shared demo profile · Mr Lesego Lefoko</strong><br>LLefoko@email.co.bw</div>
         <button class="primary" id="enterDemoMode" type="button">Demo mode →</button>
+        <button class="auth-link" id="openWebSignIn" type="button">Sign in or create farmer account</button>
         <p>Demo access does not ask for a phone number, send a PIN, or create an authenticated account.</p>
+      </div>
+      <div class="auth-card" id="webAuthPanel" hidden>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt=""> Peo Yame</div>
+        <h2 id="webAuthTitle">Sign in</h2><p>Use your Botswana phone number and password.</p>
+        <label id="webNameLabel" hidden>Farmer name<input id="webName" autocomplete="name" maxlength="80"></label>
+        <label>Phone number<input id="webPhone" type="tel" autocomplete="tel" placeholder="+267 71 234 567"></label>
+        <label>Password<input id="webPassword" type="password" autocomplete="current-password"></label>
+        <label id="webTotpLabel" hidden>Authenticator code (if enabled)<input id="webTotp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+        <div id="webAuthError" class="auth-error" role="alert"></div>
+        <button class="primary" id="webAuthSubmit" type="button">Sign in</button>
+        <div class="auth-links"><button id="toggleWebAuth" type="button">Create account</button><button id="webQrSignIn" type="button">Use phone QR sign-in</button></div>
+        <div class="qr-box" id="webQrBox" hidden><img id="webQrImage" alt="One-time Peo Yame sign-in QR code"><p id="webQrStatus">Scan this code with a signed-in Peo Yame phone.</p><button id="cancelWebQr" type="button">Cancel</button></div>
+        <button class="auth-link" id="backToDemo" type="button">Back to Demo mode</button>
       </div>
     </section>
     <header id="appHeader" hidden>
-      <div class="brand"><span class="brand-plant" aria-hidden="true">🌱</span><h1>Peo Yame</h1></div>
+      <div class="brand"><img class="brand-plant" src="/icons/peo-yame-128.png" alt=""><h1>Peo Yame</h1></div>
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Backend</strong> · Connecting<small>Waiting for demo service</small></div>
         <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" id="accountInitial">O</span><span><strong class="account-name" id="accountName">Olerato</strong><small class="account-email" id="accountPhone">Demo profile</small></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name" id="menuName">Demo farmer account</div><button id="openAccounts" type="button">Accounts &amp; crops</button><button id="logout" type="button">Sign out</button></div></div>
@@ -179,18 +201,21 @@
       </section>
     </main>
     <section class="view" id="accountsView" hidden>
-      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Accounts</h2><button type="button" id="editProfile">Edit</button></div>
-      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">O</div><div><strong id="profileName">Olerato</strong><div class="profile-meta" id="profilePhone">+267 71 234 567</div><div class="profile-meta">Farmer account · Demo profile</div></div></div><div class="count-row"><div><strong>2</strong><span class="profile-meta">Crops in storage</span></div><div><strong>4</strong><span class="profile-meta">Linked sensors</span></div></div></article>
-      <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small>Maize · Sorghum · 4 sensors</small></button><button type="button" data-open-view="crops">◉ &nbsp; Manage linked sensors <small>3 online · 1 offline · assign to crops</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Add by sensor ID or QR code</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
-      <div class="demo-note" style="margin-top:14px">Demo profile and sensor links. No live connections. Account editing and sensor linking are visual previews.</div>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2 id="accountViewTitle">Accounts</h2><button type="button" id="editProfile">Edit</button></div>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">O</div><div><strong id="profileName">Olerato</strong><div class="profile-meta" id="profilePhone">+267 71 234 567</div><div class="profile-meta" id="profileEmail"></div></div></div><div class="count-row"><div><strong id="ownedCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="ownedSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="cropSummary">Your saved storage locations</small></button><button type="button" data-open-view="crops">◉ &nbsp; Manage linked sensors <small>Assign only sensors the backend has received data from</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor</button><button type="button" id="connectPhone">▦ &nbsp; Sign in on a phone with QR</button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
+      <div class="qr-box" id="mobileQrBox" hidden><img id="mobileQrImage" alt="One-time Peo Yame phone sign-in code"><p id="mobileQrStatus">Scan this code with the Peo Yame phone app.</p><button id="cancelMobileQr" type="button">Close</button></div>
     </section>
     <section class="view" id="cropsView" hidden>
-      <div class="view-heading"><button type="button" data-back-accounts>←</button><h2>My Crops</h2><button type="button" id="addDemoSensor">＋ Add</button></div>
-      <div class="demo-note">Demo readings. Sensors are not connected. Offline readings are last known values, not current measurements.</div>
-      <div class="profile-card"><strong id="cropAccountLabel">Olerato’s account · 2 crops · 4 sensors</strong><div class="profile-meta">3 online · 1 offline · 1 needs attention</div></div>
-      <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, store or sensor ID" aria-label="Search crop, store or sensor ID"><button class="filter-button" data-sensor-filter="all" aria-pressed="true">All sensors (4)</button><button class="filter-button" data-sensor-filter="attention" aria-pressed="false">Attention (1)</button><button class="filter-button" data-sensor-filter="offline" aria-pressed="false">Offline (1)</button></div>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>My Crops</h2><button type="button" id="addDemoSensor">＋ Add</button></div>
+      <div class="demo-note" id="cropDemoNote">Saved crop locations and linked sensor IDs belong to the signed-in account. Last-seen time is shown where readings exist.</div>
+      <div class="profile-card"><strong id="cropAccountLabel">Your storage locations</strong><div class="profile-meta" id="ownedCropSummary"></div></div>
+      <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, location or sensor ID" aria-label="Search crop, location or sensor ID"><button class="filter-button" data-sensor-filter="all" aria-pressed="true">All sensors</button></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
+    <dialog id="siteDialog"><form id="siteForm"><h2>Add a crop location</h2><div class="form-grid"><label>Crop<select name="commodity" id="siteCommodity" required></select></label><label>Storage or field name<input name="label" required maxlength="80" placeholder="For example: North store"></label></div><div id="siteError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="siteDialog">Cancel</button><button type="submit">Save location</button></div></form></dialog>
+    <dialog id="sensorDialog"><form id="sensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Crop location<select name="siteId" id="sensorSiteId" required></select></label><label>Discovered sensor<select name="sensorId" id="sensorId" required></select></label></div><div id="sensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="sensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
+    <dialog id="profileDialog"><form id="profileForm"><h2>Edit profile</h2><label>Name<input name="name" id="profileNameInput" required minlength="2" maxlength="80"></label><label>Email address (optional)<input name="email" id="profileEmailInput" type="email" maxlength="254"></label><div class="profile-meta">Your phone number is the sign-in identity and cannot be changed here.</div><div id="profileEditError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="profileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
       const $ = (id) => document.getElementById(id);
@@ -203,14 +228,13 @@
       let lastSyncAt = null;
       let demoMode = true;
       let demoProfile = null;
+      let authToken = sessionStorage.getItem('peoYameSession');
+      let registeredMode = false;
+      let webQrPoll = null;
+      let mobileQrPoll = null;
+      let ownedSites = [];
+      let ownedSensors = [];
       let currentView = 'dashboard';
-      const demoSensors = [
-        {crop:'Maize',id:'PY-001',store:'Store A',temperature:'24.8°C',humidity:'66% RH',state:'Safe',freshness:'Online · 2 min ago',online:true,attention:false},
-        {crop:'Maize',id:'PY-002',store:'Store B',temperature:'25.6°C',humidity:'82% RH',state:'High humidity',freshness:'Online · 5 min ago',online:true,attention:true},
-        {crop:'Sorghum',id:'PY-003',store:'Store C',temperature:'23.2°C',humidity:'58% RH',state:'Safe',freshness:'Online · 2 min ago',online:true,attention:false},
-        {crop:'Sorghum',id:'PY-004',store:'Store D',temperature:'22.7°C',humidity:'61% RH',state:'Offline',freshness:'Last seen 3 hr ago',online:false,attention:false}
-      ];
-      let sensorFilter = 'all';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
         $('harvest').innerHTML = available.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
@@ -220,12 +244,34 @@
         $('trigger').hidden = !demoMode || !demoProfile;
       }
       function showDemoGate() {
+        if (webQrPoll) clearInterval(webQrPoll);
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        webQrPoll = null;
+        mobileQrPoll = null;
+        demoProfile = null;
         $('demoPanel').hidden = false;
+        $('webAuthPanel').hidden = true;
         $('authShell').hidden = false;
         $('appHeader').hidden = true;
         $('dashboard').hidden = true;
         $('accountsView').hidden = true;
         $('cropsView').hidden = true;
+      }
+      function showWebAuth(createAccount = false) {
+        registeredMode = createAccount;
+        $('demoPanel').hidden = true;
+        $('webAuthPanel').hidden = false;
+        $('authShell').hidden = false;
+        $('appHeader').hidden = true;
+        $('dashboard').hidden = true;
+        $('webNameLabel').hidden = !registeredMode;
+        $('webTotpLabel').hidden = registeredMode;
+        $('webAuthTitle').textContent = registeredMode ? 'Create farmer account' : 'Farmer sign in';
+        $('webAuthSubmit').textContent = registeredMode ? 'Create account' : 'Sign in';
+        $('toggleWebAuth').textContent = registeredMode ? 'Sign in instead' : 'Create account';
+        $('webPassword').autocomplete = registeredMode ? 'new-password' : 'current-password';
+        $('webQrBox').hidden = true;
+        $('webAuthError').textContent = '';
       }
       function showView(name) {
         currentView = name;
@@ -238,42 +284,197 @@
         $('accountButton').setAttribute('aria-expanded','false');
         if (name === 'crops') renderSensors();
       }
-      function activateProfile(profile) {
-        demoProfile = { name:profile.name || 'Mr Lesego Lefoko', phone:profile.phone || '', email:profile.email || 'LLefoko@email.co.bw' };
+      function activateProfile(profile, token = null) {
+        demoMode = token == null;
+        authToken = token;
+        if (token) sessionStorage.setItem('peoYameSession', token);
+        else sessionStorage.removeItem('peoYameSession');
+        demoProfile = {
+          name:profile.name || (token == null ? 'Mr Lesego Lefoko' : 'Farmer'),
+          phone:profile.phone || '',
+          email:profile.email || (token == null ? 'LLefoko@email.co.bw' : '')
+        };
         $('accountName').textContent = demoProfile.name;
-        $('accountPhone').textContent = demoProfile.email;
-        $('menuName').textContent = `${demoProfile.name} · Demo profile`;
+        $('accountPhone').textContent = demoMode ? 'Shared demo profile' : (demoProfile.phone || demoProfile.email || 'Farmer account');
+        $('menuName').textContent = `${demoProfile.name}${demoMode ? ' · Demo profile' : ''}`;
+        $('accountViewTitle').textContent = demoMode ? 'Shared demo profile' : 'Accounts';
+        $('openAccounts').textContent = demoMode ? 'Profile & crops' : 'Accounts & crops';
+        $('logout').textContent = demoMode ? 'Exit Demo mode' : 'Sign out';
         $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileName').textContent = demoProfile.name;
         $('profilePhone').textContent = demoProfile.phone || 'Demo profile';
-        $('cropAccountLabel').textContent = `${demoProfile.name}’s account · 2 crops · 4 sensors`;
+        $('profileEmail').textContent = demoProfile.email || '';
+        $('cropAccountLabel').textContent = `${demoProfile.name}’s storage locations`;
+        $('editProfile').hidden = demoMode;
+        $('linkSensor').hidden = demoMode;
+        $('connectPhone').hidden = demoMode;
+        $('addDemoSensor').hidden = !demoMode;
+        $('addDemoSensor').textContent = demoMode ? '＋ Add crop' : '＋ Add location';
+        $('cropDemoNote').textContent = demoMode
+          ? 'This is a shared demo. Account data, crop locations and sensor links are not saved.'
+          : 'Saved crop locations and linked sensor IDs belong to your account. Last-seen time is based on received readings.';
         updateDemoControls();
         showView('dashboard');
+        if (!demoMode) void loadOwnedData();
         refresh();
       }
       function renderSensors() {
         const query = $('sensorSearch').value.trim().toLowerCase();
-        const filtered = demoSensors.filter((sensor) => {
-          const matchesQuery = `${sensor.crop} ${sensor.store} ${sensor.id}`.toLowerCase().includes(query);
-          const matchesFilter = sensorFilter === 'all' || (sensorFilter === 'attention' && sensor.attention) || (sensorFilter === 'offline' && !sensor.online);
-          return matchesQuery && matchesFilter;
-        });
-        $('sensorList').innerHTML = filtered.map((sensor) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(sensor.crop.slice(0,1))}</span><strong>${escapeHtml(sensor.crop)}</strong><span class="profile-meta">${escapeHtml(sensor.id)} · ${escapeHtml(sensor.store)}</span></div><div class="sensor-reading"><span>${escapeHtml(sensor.temperature)}</span><span>${escapeHtml(sensor.humidity)}</span></div><div class="sensor-title" style="margin-top:6px"><span class="sensor-status ${sensor.attention ? 'attention' : ''}">${escapeHtml(sensor.state)}</span><span class="profile-meta">${escapeHtml(sensor.freshness)} · Demo reading</span></div></article>`).join('') || '<div class="empty">No sensors match this search.</div>';
+        if (demoMode) {
+          const crops = cropCatalog.filter((crop) => `${crop.commodity} ${crop.cropGroup || ''} ${crop.storageNote || ''}`.toLowerCase().includes(query));
+          $('sensorList').innerHTML = `${crops.map((crop) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)}</strong><span class="profile-meta">${escapeHtml(crop.cropGroup || 'Crop guide')}</span><button type="button" data-monitor-crop="${escapeHtml(crop.commodity)}">Monitor</button></div><div class="profile-meta">Room target ${Number(crop.minTemp)}–${Number(crop.maxTemp)} °C · ${Number(crop.minHumidity)}–${Number(crop.maxHumidity)}% RH</div><div class="profile-meta">${escapeHtml(crop.storageNote || 'Indicative reference band; confirm advice for the crop and its condition.')}</div>${crop.safeMoisturePct == null ? '' : `<div class="profile-meta">Grain moisture guide: at or below ${Number(crop.safeMoisturePct)}%; measure separately with a moisture meter.</div>`}</article>`).join('') || '<div class="empty">No crop guides match your search.</div>'}<div class="empty">Shared demo only: crop locations and physical sensor links are not saved here.</div>`;
+          $('sensorList').querySelectorAll('[data-monitor-crop]').forEach((button) => button.addEventListener('click', async () => {
+            try {
+              const selected = await postJson('/api/commodity', {name:button.dataset.monitorCrop, source:'web'});
+              applyHarvestSelection(selected);
+              showView('dashboard');
+              await refresh();
+            } catch (error) { $('cropActionNotice').textContent = error.message; }
+          }));
+          return;
+        }
+        const filtered = ownedSites.filter((site) => `${site.commodity} ${site.label} ${(site.sensors || []).join(' ')}`.toLowerCase().includes(query));
+        $('sensorList').innerHTML = filtered.map((site) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(site.commodity.slice(0,1))}</span><strong>${escapeHtml(site.commodity)}</strong><span class="profile-meta">${escapeHtml(site.label)}</span><button type="button" data-remove-site="${Number(site.id)}" aria-label="Remove ${escapeHtml(site.label)}">Remove</button></div><div class="profile-meta">Room target ${site.minTemp}–${site.maxTemp} °C · ${site.minHumidity}–${site.maxHumidity}% RH</div>${ownedSensors.filter((sensor) => Number(sensor.siteId) === Number(site.id)).map((sensor) => `<div class="sensor-title"><span class="profile-meta">Sensor ${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div>`).join('') || '<div class="profile-meta">No linked sensors</div>'}</article>`).join('') || '<div class="empty">No crop locations yet. Add a crop and storage location to get started.</div>';
+        $('sensorList').querySelectorAll('[data-remove-site]').forEach((button) => button.addEventListener('click', async () => {
+          try { await requestJson(`/api/farmer/crops/${button.dataset.removeSite}`, { method:'DELETE' }); await loadOwnedData(); }
+          catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+        $('sensorList').querySelectorAll('[data-unlink-sensor]').forEach((button) => button.addEventListener('click', async () => {
+          try { await requestJson(`/api/farmer/sensors/${encodeURIComponent(button.dataset.unlinkSensor)}`, { method:'DELETE' }); await loadOwnedData(); }
+          catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+      }
+      async function requestJson(url, options = {}) {
+        const headers = { Accept:'application/json', ...(options.body ? {'Content-Type':'application/json'} : {}), ...(authToken ? {Authorization:`Bearer ${authToken}`} : {}), ...(options.headers || {}) };
+        const response = await fetch(url, {...options, headers});
+        const payload = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
+        if (!response.ok) throw new Error(payload?.error || `Server returned ${response.status}`);
+        return payload;
+      }
+      async function loadOwnedData() {
+        if (demoMode || !authToken) return;
+        try {
+          [ownedSites, ownedSensors] = await Promise.all([requestJson('/api/farmer/crops'), requestJson('/api/farmer/sensors')]);
+          $('ownedCropCount').textContent = ownedSites.length;
+          $('ownedSensorCount').textContent = ownedSensors.length;
+          $('cropSummary').textContent = `${ownedSites.length} location${ownedSites.length === 1 ? '' : 's'} · ${ownedSensors.length} linked sensor${ownedSensors.length === 1 ? '' : 's'}`;
+          $('ownedCropSummary').textContent = `${ownedSites.length} locations · ${ownedSensors.length} linked sensors`;
+          renderSensors();
+        } catch (error) { $('accountActionNotice').textContent = error.message; }
+      }
+      async function openSiteDialog() {
+        $('siteError').textContent = '';
+        try {
+          if (!cropCatalog.length) cropCatalog = await getJson('/api/crops');
+          $('siteCommodity').innerHTML = cropCatalog.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
+          $('siteDialog').showModal();
+        } catch (error) { $('cropActionNotice').textContent = `Crop catalog unavailable: ${error.message}`; }
+      }
+      async function openSensorDialog() {
+        $('sensorError').textContent = '';
+        try {
+          await loadOwnedData();
+          const available = await getJson('/api/farmer/available-sensors');
+          if (!ownedSites.length) throw new Error('Add a crop location before linking a sensor.');
+          if (!available.length) throw new Error('No unassigned physical sensor readings have reached this backend yet.');
+          $('sensorSiteId').innerHTML = ownedSites.map((site) => `<option value="${Number(site.id)}">${escapeHtml(site.commodity)} · ${escapeHtml(site.label)}</option>`).join('');
+          $('sensorId').innerHTML = available.map((sensor) => `<option value="${escapeHtml(sensor.sensorId)}">${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</option>`).join('');
+          $('sensorDialog').showModal();
+        } catch (error) { $('accountActionNotice').textContent = error.message; }
       }
       async function getJson(url) {
-        const response = await fetch(url, { headers: { Accept: 'application/json' } });
-        if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
-        return response.json();
+        return requestJson(url);
       }
       async function postJson(url, payload) {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error(`Server returned ${response.status} for ${url}`);
-        return response.json();
+        return requestJson(url, {method:'POST', body:JSON.stringify(payload)});
+      }
+      async function submitWebAuth() {
+        const payload = {
+          phone:$('webPhone').value.trim(),
+          password:$('webPassword').value,
+          ... (registeredMode ? {name:$('webName').value.trim()} : {authenticatorCode:$('webTotp').value.trim()})
+        };
+        $('webAuthSubmit').disabled = true;
+        $('webAuthError').textContent = '';
+        try {
+          const result = await postJson(registeredMode ? '/api/auth/register' : '/api/auth/login', payload);
+          if (!result?.token || !result?.farmer) throw new Error('The server returned an incomplete farmer session.');
+          activateProfile(result.farmer, result.token);
+        } catch (error) {
+          $('webAuthError').textContent = error.message;
+        } finally {
+          $('webAuthSubmit').disabled = false;
+        }
+      }
+      async function startWebQrSignIn() {
+        if (webQrPoll) clearInterval(webQrPoll);
+        $('webQrStatus').textContent = 'Creating a short-lived sign-in code…';
+        $('webQrBox').hidden = false;
+        try {
+          const result = await postJson('/api/auth/qr/web-challenge', {});
+          $('webQrImage').src = result.qrCode;
+          $('webQrStatus').textContent = `Scan with a signed-in phone before ${fmtTime(result.expiresAt)}.`;
+          let checking = false;
+          webQrPoll = setInterval(async () => {
+            if (checking) return;
+            if (Date.now() >= Date.parse(result.expiresAt)) {
+              clearInterval(webQrPoll);
+              webQrPoll = null;
+              $('webQrStatus').textContent = 'This code has expired. Create a new one to sign in.';
+              $('webQrImage').removeAttribute('src');
+              return;
+            }
+            checking = true;
+            try {
+              const session = await getJson(`/api/auth/qr/web-challenge/${encodeURIComponent(result.challenge)}`);
+              if (session.status === 'approved') {
+                clearInterval(webQrPoll);
+                webQrPoll = null;
+                activateProfile(session.farmer, session.token);
+              }
+            } catch (error) {
+              if (/expired|already used|invalid sign-in/i.test(error.message)) {
+                clearInterval(webQrPoll);
+                webQrPoll = null;
+                $('webQrImage').removeAttribute('src');
+                $('webQrStatus').textContent = error.message;
+              } else {
+                $('webQrStatus').textContent = 'Connection interrupted. Retrying while this code is valid…';
+              }
+            } finally { checking = false; }
+          }, 1800);
+        } catch (error) {
+          $('webQrStatus').textContent = error.message;
+        }
+      }
+      async function startMobileQr() {
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        $('mobileQrBox').hidden = false;
+        $('mobileQrStatus').textContent = 'Creating a short-lived sign-in code…';
+        try {
+          const result = await postJson('/api/auth/qr/mobile-challenge', {});
+          $('mobileQrImage').src = result.qrCode;
+          $('mobileQrStatus').textContent = `Scan with Peo Yame on the phone before ${fmtTime(result.expiresAt)}.`;
+          mobileQrPoll = setTimeout(() => {
+            $('mobileQrStatus').textContent = 'This code has expired. Create a new one to connect another phone.';
+            $('mobileQrImage').removeAttribute('src');
+            mobileQrPoll = null;
+          }, Math.max(0, Date.parse(result.expiresAt) - Date.now()));
+        } catch (error) {
+          $('mobileQrStatus').textContent = error.message;
+        }
+      }
+      async function restoreWebSession() {
+        if (!authToken) return;
+        try {
+          const session = await getJson('/api/auth/session');
+          activateProfile(session.farmer, authToken);
+        } catch (_) {
+          authToken = null;
+          sessionStorage.removeItem('peoYameSession');
+          showDemoGate();
+        }
       }
       function positionRisk(id, value, min, max) {
         const midpoint = (min + max) / 2;
@@ -361,6 +562,7 @@
           $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
           $('qualityEstimate').textContent = 'Status compares room readings with the selected crop’s configured target band.';
           cropCatalog = crops;
+          if (currentView === 'crops') renderSensors();
           $('qualityNote').textContent = describeCropGuide(t);
           $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
           $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
@@ -466,17 +668,91 @@
       document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
       document.querySelectorAll('[data-back-dashboard]').forEach((button) => button.addEventListener('click', () => showView('dashboard')));
       document.querySelectorAll('[data-back-accounts]').forEach((button) => button.addEventListener('click', () => showView('accounts')));
-      $('enterDemoMode').addEventListener('click', () => activateProfile({name:'Mr Lesego Lefoko',email:'LLefoko@email.co.bw'}));
-      $('editProfile').addEventListener('click', () => { $('accountActionNotice').textContent = 'Profile editing is a design preview; no account service is connected.'; });
-      $('linkSensor').addEventListener('click', () => { $('accountActionNotice').textContent = 'Sensor linking is a design preview; no sensor registry is connected.'; });
-      $('addDemoSensor').addEventListener('click', () => { $('cropActionNotice').textContent = 'Adding a sensor is a design preview; no sensor registry is connected.'; });
+      $('enterDemoMode').addEventListener('click', () => {
+        const previousToken = authToken;
+        activateProfile({name:'Mr Lesego Lefoko',email:'LLefoko@email.co.bw'});
+        if (previousToken) void fetch('/api/auth/logout', {method:'POST', headers:{Authorization:`Bearer ${previousToken}`,'Content-Type':'application/json'}, body:'{}'}).catch(() => {});
+      });
+      $('openWebSignIn').addEventListener('click', () => showWebAuth(false));
+      $('backToDemo').addEventListener('click', showDemoGate);
+      $('toggleWebAuth').addEventListener('click', () => showWebAuth(!registeredMode));
+      $('webAuthSubmit').addEventListener('click', submitWebAuth);
+      $('webPassword').addEventListener('keydown', (event) => { if (event.key === 'Enter') void submitWebAuth(); });
+      $('webQrSignIn').addEventListener('click', startWebQrSignIn);
+      $('cancelWebQr').addEventListener('click', () => {
+        if (webQrPoll) clearInterval(webQrPoll);
+        webQrPoll = null;
+        $('webQrImage').removeAttribute('src');
+        $('webQrBox').hidden = true;
+      });
+      $('connectPhone').addEventListener('click', startMobileQr);
+      $('cancelMobileQr').addEventListener('click', () => {
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        mobileQrPoll = null;
+        $('mobileQrImage').removeAttribute('src');
+        $('mobileQrBox').hidden = true;
+      });
+      $('editProfile').addEventListener('click', () => {
+        $('profileEditError').textContent = '';
+        $('profileNameInput').value = demoProfile?.name || '';
+        $('profileEmailInput').value = demoProfile?.email || '';
+        $('profileDialog').showModal();
+      });
+      $('linkSensor').addEventListener('click', openSensorDialog);
+      $('addDemoSensor').addEventListener('click', () => {
+        if (demoMode) {
+          $('cropError').textContent = '';
+          $('cropDialog').showModal();
+        } else {
+          void openSiteDialog();
+        }
+      });
       $('sensorSearch').addEventListener('input', renderSensors);
+      document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => $(button.dataset.close).close()));
+      $('siteForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+        try {
+          await postJson('/api/farmer/crops', values);
+          $('siteDialog').close();
+          event.currentTarget.reset();
+          await loadOwnedData();
+        } catch (error) { $('siteError').textContent = error.message; }
+      });
+      $('sensorForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+        values.siteId = Number(values.siteId);
+        try {
+          await postJson('/api/farmer/sensors', values);
+          $('sensorDialog').close();
+          event.currentTarget.reset();
+          await loadOwnedData();
+        } catch (error) { $('sensorError').textContent = error.message; }
+      });
+      $('profileForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const payload = {name:$('profileNameInput').value.trim(), email:$('profileEmailInput').value.trim()};
+        try {
+          const updated = await requestJson('/api/account', {method:'PATCH', body:JSON.stringify(payload)});
+          $('profileDialog').close();
+          activateProfile(updated, authToken);
+          showView('accounts');
+          $('accountActionNotice').textContent = 'Profile saved.';
+        } catch (error) { $('profileEditError').textContent = error.message; }
+      });
       document.querySelectorAll('[data-sensor-filter]').forEach((button) => button.addEventListener('click', () => {
-        sensorFilter = button.dataset.sensorFilter;
         document.querySelectorAll('[data-sensor-filter]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
         renderSensors();
       }));
-      $('logout').addEventListener('click', () => {
+      $('logout').addEventListener('click', async () => {
+        const previousToken = authToken;
+        if (previousToken) {
+          try { await fetch('/api/auth/logout', {method:'POST', headers:{Authorization:`Bearer ${previousToken}`,'Content-Type':'application/json'}, body:'{}'}); }
+          catch (_) {}
+        }
+        authToken = null;
+        sessionStorage.removeItem('peoYameSession');
         demoProfile = null;
         updateDemoControls();
         $('accountMenu').hidden = true;
@@ -484,6 +760,11 @@
         showDemoGate();
       });
       showDemoGate();
+      void restoreWebSession();
+      window.addEventListener('pagehide', () => {
+        if (webQrPoll) clearInterval(webQrPoll);
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+      });
       const updates = new EventSource('/api/events');
       updates.onmessage = () => refresh();
       updates.onerror = () => {

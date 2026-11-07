@@ -38,22 +38,41 @@ open the run and download the `storage-monitor-android-debug` artifact. Extract
 it and install `app-debug.apk` on an Android device. This is a debug build for
 testing, not a Play Store release.
 
-On either app, tap **Demo mode** to open the home page immediately. The shared
-profile is Mr Lesego Lefoko (`LLefoko@email.co.bw`). The dashboard and its
-breach control are demonstrations; they do not authenticate a user, connect a
-physical sensor, or send SMS. Open `http://<PC-IP>:3000` on another device on
-the same Wi-Fi network to use the web demo.
+## Package the Windows backend with its system tray app
 
-In the web app, use the header account menu or the Accounts/My Crops shortcuts.
-In the mobile app, open **Accounts & crops** from the Overview user menu. The
-crop groups, sensor IDs, readings and online/offline states on these screens are
-fixed demo fixtures. Search and filters work locally; sensor linking, account
-editing and live sensor status are not connected to backend records or physical
-devices.
+The same GitHub Actions workflow builds a portable Windows package on every
+push. Open the successful run and download the `peo-yame-backend-windows`
+artifact. Extract the ZIP and double-click `Peo-Yame-Backend.exe`; the backend
+runs in the background, opens the dashboard, and places its icon in the
+notification area. Right-click the tray icon to reopen the dashboard, restart
+or stop the backend, or exit Peo Yame. The package includes its own runtime and SQLite helper, so Windows
+does not need Node.js or SQLite installed. Farmer data stays in the Windows
+user's Local AppData folder. Keep the launcher and `runtime` folder together.
 
-Use the **Harvest** selector to switch between Maize and Tomato. Each selection
-loads that crop's illustrative temperature and humidity limits and immediately
-adds an in-range simulated reading for the selected crop.
+The Windows CI job starts the packaged executable and checks health, the
+dashboard, crop profiles, and database creation before uploading it.
+
+On either app, tap **Demo mode** to open the dashboard immediately using the
+shared demo profile, Mr Lesego Lefoko (`LLefoko@email.co.bw`). Demo is session
+free. Its readings and alerts are simulated; no physical sensors or SMS
+provider are connected. My Crops shows the shared crop catalog and indicative
+guidance, while saved farmer locations remain empty in Demo. Selecting a crop
+changes the shared dashboard's monitored crop. Demo changes are not isolated
+per farmer.
+
+For farmer accounts, set `AUTH_ENABLED=true` when running the development
+backend. Create an account with a name, Botswana phone number, and password;
+there is no phone OTP because no delivery provider is configured. Sessions can
+be restored and revoked. A signed-in browser can issue a QR code for the phone,
+and a signed-in phone can approve browser sign-in. QR codes expire after two
+minutes and are single-use. Accounts can manage their profile, crop locations,
+and sensor links; only sensor IDs already observed by the backend can be linked.
+The simulated demo readings are shared and are not presented as farmer-owned
+telemetry.
+
+Use the **Harvest** selector to switch among the catalog's crops. Their room
+temperature and relative-humidity bands are indicative references, not validated
+spoilage limits or predictions about crop quality or storage time.
 
 The backend also exposes `/api/health` and sensor-gateway endpoints. To run an
 optional simulated sensor that follows the selected harvest, start the backend
@@ -106,5 +125,6 @@ configured target band. It does not estimate crop quality or remaining storage
 time.
 
 Use the project only as a controlled local-network demonstration. The backend
-uses plain HTTP and demo mode has no authentication. Do not expose it to the
-public internet.
+uses plain HTTP, login throttling is process-local, and data is not encrypted at
+rest by the app. See [backend deployment notes](backend/DEPLOYMENT.md) before
+using real farmer data. Do not expose it to the public internet.

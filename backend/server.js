@@ -18,6 +18,11 @@ const cors = require("cors");
 const fs = require("node:fs");
 const path = require("node:path");
 const cropDatabase = require("./database");
+const { dataDirectory } = require("./runtime_paths");
+const { createFarmerAuth } = require("./farmer_auth");
+const { encodeBase32, verifyAuthenticatorCode } = require("./authenticator");
+const crypto = require("node:crypto");
+const QRCode = require("qrcode");
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
@@ -27,7 +32,11 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
-const ACTION_LOG_PATH = process.env.ACTION_LOG_PATH || path.join(__dirname, "data", "actions.jsonl");
+const AUTH_ENABLED = process.env.AUTH_ENABLED === "true" || process.env.NODE_ENV === "production";
+const farmerAuth = createFarmerAuth(cropDatabase);
+cropDatabase.cleanupExpiredSessions();
+cropDatabase.cleanupAuthChallenges();
+const ACTION_LOG_PATH = process.env.ACTION_LOG_PATH || path.join(dataDirectory, "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
@@ -130,6 +139,7 @@ function recordReading(temperature, humidity, site = "default", dataSource = "si
     site,
     commodity: threshold.commodity,
     dataSource,
+    sensorId: dataSource === "sensor" ? site : null,
     temperature: Math.round(temperature * 10) / 10,
     humidity: Math.round(humidity * 10) / 10,
     recordedAt: new Date().toISOString(),
@@ -268,7 +278,222 @@ app.get("/api/status", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString(), demoMode: process.env.NODE_ENV !== "production" });
+  res.json({ status: "ok", time: new Date().toISOString(), demoMode: process.env.NODE_ENV !== "production", authEnabled: AUTH_ENABLED });
+});
+
+function authFailure(res, error) {
+  const detail = String(error.stderr || error.message || "");
+  const constraintFailure = /UNIQUE constraint failed|SQLITE_CONSTRAINT/i.test(detail);
+  const status = Number(error.status) || (constraintFailure ? 409 : error instanceof TypeError ? 400 : 500);
+  const message = status === 409 ? "That account, location, or sensor is already linked." : status === 500 ? "The request could not be completed." : error.message;
+  res.status(status).json({ error: message });
+}
+
+function authUnavailable(res) {
+  res.status(404).json({ error: "Farmer sign-in is disabled for this demo backend." });
+}
+
+function bearerToken(req) {
+  const header = req.get("authorization") || "";
+  const match = header.match(/^Bearer\s+([A-Za-z0-9_-]{32,128})$/i);
+  return match ? match[1] : null;
+}
+
+function requireFarmer(req, res, next) {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  const token = bearerToken(req);
+  const farmer = farmerAuth.farmerForToken(token);
+  if (!farmer) return res.status(401).json({ error: "Sign in to continue." });
+  req.farmer = farmer;
+  req.authToken = token;
+  next();
+}
+
+function optionalFarmer(req, _res, next) {
+  const token = bearerToken(req);
+  if (token) {
+    req.farmer = farmerAuth.farmerForToken(token);
+    req.authToken = token;
+  }
+  next();
+}
+
+app.post("/api/auth/register", (req, res) => {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  try {
+    const session = farmerAuth.register(req.body || {});
+    return res.status(201).json(session);
+  } catch (error) { return authFailure(res, error); }
+});
+
+app.post("/api/auth/login", (req, res) => {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  try {
+    const session = farmerAuth.login({ ...(req.body || {}), clientKey: req.ip });
+    return res.json(session);
+  } catch (error) { return authFailure(res, error); }
+});
+
+app.get("/api/auth/session", requireFarmer, (req, res) => res.json({ farmer: req.farmer }));
+
+app.post("/api/auth/logout", requireFarmer, (req, res) => {
+  farmerAuth.logout(req.authToken);
+  res.json({ ok: true });
+});
+
+async function createQrChallenge(purpose, farmerId = null) {
+  const challenge = crypto.randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+  cropDatabase.createAuthChallenge(farmerAuth.tokenHash(challenge), purpose, farmerId, expiresAt);
+  const direction = purpose === "web_login" ? "web-login" : "mobile-login";
+  const qrPayload = `peoyame://${direction}/${challenge}`;
+  const qrCode = await QRCode.toDataURL(qrPayload, { errorCorrectionLevel: "M", margin: 2, width: 240 });
+  return { challenge, expiresAt, qrPayload, qrCode };
+}
+
+function validChallenge(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{40,50}$/.test(value);
+}
+
+app.post("/api/auth/qr/web-challenge", async (_req, res) => {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  try { return res.status(201).json(await createQrChallenge("web_login")); }
+  catch (error) { return authFailure(res, error); }
+});
+
+app.post("/api/auth/qr/web-challenge/:challenge/approve", requireFarmer, (req, res) => {
+  if (!validChallenge(req.params.challenge)) return res.status(400).json({ error: "Invalid sign-in QR code." });
+  const challengeHash = farmerAuth.tokenHash(req.params.challenge);
+  const challenge = cropDatabase.authChallenge(challengeHash);
+  if (!challenge || challenge.purpose !== "web_login" || challenge.usedAt || Date.parse(challenge.expiresAt) <= Date.now()) {
+    return res.status(410).json({ error: "This sign-in QR code has expired. Refresh it and try again." });
+  }
+  if (!cropDatabase.approveAuthChallenge(challengeHash, req.farmer.id)) return res.status(409).json({ error: "This sign-in request has already been approved." });
+  res.status(202).json({ approved: true });
+});
+
+app.get("/api/auth/qr/web-challenge/:challenge", (req, res) => {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  if (!validChallenge(req.params.challenge)) return res.status(400).json({ error: "Invalid sign-in QR code." });
+  const challengeHash = farmerAuth.tokenHash(req.params.challenge);
+  const challenge = cropDatabase.authChallenge(challengeHash);
+  if (!challenge || challenge.purpose !== "web_login" || Date.parse(challenge.expiresAt) <= Date.now() || challenge.usedAt) {
+    return res.status(410).json({ error: "This sign-in QR code has expired or was already used." });
+  }
+  if (!challenge.approvedAt || !challenge.farmerId) return res.json({ status: "pending" });
+  if (!cropDatabase.consumeAuthChallenge(challengeHash, "web_login")) return res.status(410).json({ error: "This sign-in QR code has expired or was already used." });
+  const session = farmerAuth.issueSessionForFarmer(challenge.farmerId);
+  if (!session) return res.status(404).json({ error: "The farmer account no longer exists." });
+  res.json({ status: "approved", ...session });
+});
+
+app.post("/api/auth/qr/mobile-challenge", requireFarmer, async (req, res) => {
+  try { return res.status(201).json(await createQrChallenge("mobile_login", req.farmer.id)); }
+  catch (error) { return authFailure(res, error); }
+});
+
+app.post("/api/auth/qr/mobile-exchange", (req, res) => {
+  if (!AUTH_ENABLED) return authUnavailable(res);
+  const challengeValue = req.body?.challenge;
+  if (!validChallenge(challengeValue)) return res.status(400).json({ error: "Invalid sign-in QR code." });
+  const challengeHash = farmerAuth.tokenHash(challengeValue);
+  const challenge = cropDatabase.authChallenge(challengeHash);
+  if (!challenge || challenge.purpose !== "mobile_login" || Date.parse(challenge.expiresAt) <= Date.now() || challenge.usedAt) {
+    return res.status(410).json({ error: "This sign-in QR code has expired or was already used." });
+  }
+  if (!cropDatabase.consumeAuthChallenge(challengeHash, "mobile_login")) return res.status(410).json({ error: "This sign-in QR code has expired or was already used." });
+  const session = farmerAuth.issueSessionForFarmer(challenge.farmerId);
+  if (!session) return res.status(404).json({ error: "The farmer account no longer exists." });
+  res.json(session);
+});
+
+app.get("/api/account/authenticator", requireFarmer, (req, res) => {
+  res.json({ enabled: Boolean(cropDatabase.authenticatorForFarmer(req.farmer.id)) });
+});
+
+app.post("/api/account/authenticator/setup", requireFarmer, (req, res) => {
+  const secret = encodeBase32(crypto.randomBytes(20));
+  cropDatabase.setAuthenticatorSecret(req.farmer.id, secret);
+  const label = encodeURIComponent(`Peo Yame:${req.farmer.phone}`);
+  const issuer = encodeURIComponent("Peo Yame");
+  res.json({ secret, otpauthUrl: `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30` });
+});
+
+app.post("/api/account/authenticator/enable", requireFarmer, (req, res) => {
+  const secret = cropDatabase.authenticatorForFarmer(req.farmer.id, true);
+  if (!secret) return res.status(409).json({ error: "Start authenticator setup first." });
+  if (!verifyAuthenticatorCode(secret, req.body?.code)) return res.status(400).json({ error: "That code is incorrect or has expired. Try the current code." });
+  cropDatabase.enableAuthenticator(req.farmer.id);
+  res.json({ enabled: true });
+});
+
+app.post("/api/account/authenticator/disable", requireFarmer, (req, res) => {
+  const secret = cropDatabase.authenticatorForFarmer(req.farmer.id);
+  if (!secret) return res.status(409).json({ error: "Authenticator sign-in is not enabled." });
+  if (!verifyAuthenticatorCode(secret, req.body?.code)) return res.status(400).json({ error: "That code is incorrect or has expired." });
+  cropDatabase.disableAuthenticator(req.farmer.id);
+  res.json({ enabled: false });
+});
+
+app.get("/api/account", optionalFarmer, (req, res) => {
+  if (req.farmer) return res.json(req.farmer);
+  if (process.env.NODE_ENV !== "production") {
+    return res.json({ id: "demo", name: "Mr Lesego Lefoko", email: "LLefoko@email.co.bw", phone: "" });
+  }
+  return res.status(401).json({ error: "Sign in to view this account." });
+});
+
+app.patch("/api/account", requireFarmer, (req, res) => {
+  const name = String(req.body?.name || "").trim().replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 80) return res.status(400).json({ error: "Enter your name (2 to 80 characters)." });
+  try {
+    const email = req.body?.email == null ? req.farmer.email : String(req.body.email).trim();
+    const updated = cropDatabase.updateFarmer(req.farmer.id, { name, email });
+    return res.json(updated);
+  } catch (error) { return authFailure(res, error); }
+});
+
+app.get("/api/farmer/crops", requireFarmer, (req, res) => res.json(cropDatabase.farmerSites(req.farmer.id)));
+
+app.post("/api/farmer/crops", requireFarmer, (req, res) => {
+  const commodity = typeof req.body?.commodity === "string" ? req.body.commodity.trim() : "";
+  const label = typeof req.body?.label === "string" ? req.body.label.trim().replace(/\s+/g, " ") : "";
+  if (!commodity || label.length < 2 || label.length > 80) return res.status(400).json({ error: "Choose a crop and enter a location name (2 to 80 characters)." });
+  try {
+    const site = cropDatabase.addFarmerSite(req.farmer.id, commodity, label);
+    if (!site) return res.status(400).json({ error: "Choose a crop from the catalog." });
+    return res.status(201).json(site);
+  } catch (error) { return authFailure(res, error); }
+});
+
+app.delete("/api/farmer/crops/:id", requireFarmer, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid crop location." });
+  if (!cropDatabase.deleteFarmerSite(req.farmer.id, id)) return res.status(404).json({ error: "Crop location not found." });
+  res.json({ ok: true });
+});
+
+app.get("/api/farmer/available-sensors", requireFarmer, (_req, res) => res.json(cropDatabase.availableFarmerSensors()));
+app.get("/api/farmer/sensors", requireFarmer, (req, res) => res.json(cropDatabase.farmerSensors(req.farmer.id)));
+
+app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
+  const sensorId = typeof req.body?.sensorId === "string" ? req.body.sensorId.trim() : "";
+  const siteId = req.body?.siteId == null || req.body.siteId === "" ? null : Number(req.body.siteId);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/.test(sensorId) || (siteId != null && (!Number.isSafeInteger(siteId) || siteId < 1))) {
+    return res.status(400).json({ error: "Enter a valid sensor ID and storage location." });
+  }
+  try {
+    const linked = cropDatabase.linkFarmerSensor(req.farmer.id, sensorId, siteId);
+    if (linked === null) return res.status(404).json({ error: "Crop location not found." });
+    if (!linked) return res.status(404).json({ error: "No readings have been received from that sensor ID." });
+    return res.status(201).json({ ok: true });
+  } catch (error) { return authFailure(res, error); }
+});
+
+app.delete("/api/farmer/sensors/:sensorId", requireFarmer, (req, res) => {
+  const sensorId = String(req.params.sensorId || "");
+  if (!cropDatabase.unlinkFarmerSensor(req.farmer.id, sensorId)) return res.status(404).json({ error: "Linked sensor not found." });
+  res.json({ ok: true });
 });
 
 app.get("/api/events", (req, res) => {
