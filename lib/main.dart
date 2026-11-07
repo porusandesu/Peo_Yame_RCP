@@ -555,7 +555,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _loadingAuthenticator = false;
   int _observedAccountRevision = 0;
   String _cropGuideSearch = '';
-  DateTime _sensorStartedAt = DateTime.now();
 
   List<Threshold> get _visibleCropGuides {
     final query = _cropGuideSearch.trim().toLowerCase();
@@ -679,7 +678,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     _baseUrl = normalizeApiBaseUrl(address);
     _controller.setBaseUrl(_baseUrl);
-    _controller.startPolling(demoModeOverride: widget.token == null);
+    _controller.startPolling(demoMode: widget.token == null);
   }
 
   Future<void> _scanBrowserLoginQr() async {
@@ -892,10 +891,6 @@ class _DashboardPageState extends State<DashboardPage> {
     await _controller.refresh();
   }
 
-  void _openSettings() {
-    if (mounted) setState(() => _selectedTab = 4);
-  }
-
   Future<void> _showSignInQr() async {
     final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
     try {
@@ -935,34 +930,6 @@ class _DashboardPageState extends State<DashboardPage> {
     } finally {
       api.dispose();
     }
-  }
-
-  Future<void> _refreshSensors() async {
-    await _controller.refresh();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _controller.errorMessage == null
-              ? 'Demo sensor readings refreshed.'
-              : 'No readings yet. Check Wi-Fi and the monitor address.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _restartSensors() async {
-    setState(() => _sensorStartedAt = DateTime.now());
-    _controller.recordAction('Restarted demo sensor session');
-    await _controller.refresh();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Demo sensor session restarted. No physical sensor was restarted.',
-        ),
-      ),
-    );
   }
 
   Future<void> _addCrop() async {
@@ -1130,10 +1097,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(width: 8),
             ],
           ),
-          body: RefreshIndicator(
-            onRefresh: _controller.refresh,
-            child: _tabBody(status),
-          ),
+          body: _tabBody(status),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedTab,
             onDestinationSelected: (index) =>
@@ -1200,7 +1164,6 @@ class _DashboardPageState extends State<DashboardPage> {
     _FarmerGreeting(
       userName: _accountName,
       isDemo: widget.token == null,
-      onSettingsTap: _openSettings,
       onLogout: widget.onLogout,
     ),
     const SizedBox(height: 16),
@@ -1585,7 +1548,9 @@ class _DashboardPageState extends State<DashboardPage> {
           label: const Text('Edit full profile'),
         ),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 16),
+      const _SectionTitle(title: 'Security'),
+      const SizedBox(height: 8),
       OutlinedButton.icon(
         onPressed: _loadingAuthenticator ? null : _setupAuthenticator,
         icon: const Icon(Icons.security_rounded),
@@ -1598,20 +1563,9 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       const SizedBox(height: 16),
     ],
-    const _SectionTitle(title: 'Accounts'),
-    const SizedBox(height: 8),
-    Card(
-      child: ListTile(
-        leading: const Icon(Icons.eco_outlined, color: _forest),
-        title: const Text('My Crops'),
-        subtitle: Text(widget.token == null
-            ? 'Browse the shared crop catalog.'
-            : 'Manage crop locations and linked sensors.'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => setState(() => _selectedTab = 2),
-      ),
-    ),
     if (widget.token != null) ...[
+      const _SectionTitle(title: 'Accounts'),
+      const SizedBox(height: 8),
       Card(
         child: ListTile(
           leading: const Icon(Icons.qr_code_2_rounded, color: _forest),
@@ -1632,7 +1586,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     ],
     const SizedBox(height: 16),
-    const _SectionTitle(title: 'Hardware package'),
+    const _SectionTitle(title: 'Connection'),
     const SizedBox(height: 8),
     Card(
       child: Padding(
@@ -1649,7 +1603,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Demo sensor package',
+                        'Shared monitor service',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       Text(
@@ -1675,12 +1629,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Demo uptime  ${_formatUptime(DateTime.now().difference(_sensorStartedAt))}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'These are practice readings. No physical sensors are connected yet.',
+              'Dashboard readings are simulated. No physical sensor is connected.',
               style: TextStyle(color: Color(0xFF65776F), fontSize: 12),
             ),
             const SizedBox(height: 12),
@@ -1703,22 +1652,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               onTap: _editServerAddress,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _refreshSensors,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Refresh sensor'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _restartSensors,
-                  icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('Restart sensors'),
-                ),
-              ],
             ),
           ],
         ),
@@ -1752,21 +1685,6 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _exportActionLog(buttonContext),
-        ),
-      ),
-    ),
-    const SizedBox(height: 16),
-    const _SectionTitle(title: 'About'),
-    const SizedBox(height: 8),
-    const _SimulationBanner(),
-    const SizedBox(height: 8),
-    const Card(
-      child: ListTile(
-        leading: Icon(Icons.eco_outlined, color: _forest),
-        title: Text('Peo Yame'),
-        subtitle: Text(
-          'Storage Monitor · simulated readings',
-          style: TextStyle(fontSize: 12),
         ),
       ),
     ),
@@ -2052,15 +1970,6 @@ String _elapsedLabel(Duration duration) {
   return 'less than a minute';
 }
 
-String _formatUptime(Duration duration) {
-  final hours = duration.inHours;
-  final days = hours ~/ 24;
-  final remainingHours = hours % 24;
-  final minutes = duration.inMinutes % 60;
-  if (days > 0) return '${days}d ${remainingHours}h ${minutes}m';
-  return '${remainingHours}h ${minutes}m';
-}
-
 Rect? _sharePositionOrigin(BuildContext context) {
   final renderBox = context.findRenderObject() as RenderBox?;
   if (renderBox == null) return null;
@@ -2117,13 +2026,11 @@ class _FarmerGreeting extends StatelessWidget {
   const _FarmerGreeting({
     required this.userName,
     required this.isDemo,
-    required this.onSettingsTap,
     required this.onLogout,
   });
 
   final String userName;
   final bool isDemo;
-  final VoidCallback onSettingsTap;
   final VoidCallback onLogout;
 
   @override
@@ -2133,7 +2040,6 @@ class _FarmerGreeting extends StatelessWidget {
         PopupMenuButton<String>(
           tooltip: 'User menu',
           onSelected: (value) {
-            if (value == 'settings') onSettingsTap();
             if (value == 'logout') onLogout();
           },
           itemBuilder: (context) => [
@@ -2142,16 +2048,6 @@ class _FarmerGreeting extends StatelessWidget {
               child: Text('$userName${isDemo ? ' · Shared demo profile' : ''}', style: const TextStyle(color: _forest)),
             ),
             const PopupMenuDivider(),
-            PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  const Icon(Icons.settings_outlined, size: 18),
-                  const SizedBox(width: 10),
-                  const Text('Settings'),
-                ],
-              ),
-            ),
             PopupMenuItem<String>(
               value: 'logout',
               child: Row(

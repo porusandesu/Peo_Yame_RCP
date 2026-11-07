@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'api_service.dart';
 import 'config.dart';
 import 'models.dart';
@@ -51,35 +49,12 @@ class DashboardController extends ChangeNotifier {
   bool _refreshInFlight = false;
   bool _refreshQueued = false;
 
-  void startPolling({bool? demoModeOverride}) {
+  void startPolling({required bool demoMode}) {
     _timer?.cancel();
-    _loadDemoMode(override: demoModeOverride);
+    this.demoMode = demoMode;
     _refresh();
     _connectEvents();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
-  }
-
-  Future<void> _loadDemoMode({bool? override}) async {
-    if (override != null) {
-      demoMode = override;
-    } else {
-      try {
-        demoMode =
-            (await SharedPreferences.getInstance()).getBool('demo_mode') ?? false;
-      } catch (_) {}
-    }
-    if (!_disposed) notifyListeners();
-  }
-
-  Future<void> setDemoMode(bool enabled) async {
-    demoMode = enabled;
-    try {
-      await (await SharedPreferences.getInstance()).setBool(
-        'demo_mode',
-        enabled,
-      );
-    } catch (_) {}
-    if (!_disposed) notifyListeners();
   }
 
   Future<void> _connectEvents() async {
