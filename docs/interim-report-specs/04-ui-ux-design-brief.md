@@ -1,11 +1,13 @@
 # UI/UX Design Brief
 
+> **Revision status (2026-11-07):** Current clients expose direct session-free Demo mode. Phone/OTP screen specifications below are Figma design context and are not present in the current build. Phone login and backend QR SSO remain planned. See [current handoff](../HANDOFF.md).
+
 **Product:** Peo Yame storage monitoring web and Flutter mobile prototype
 **Audience:** Small agricultural aggregator staff, project demonstrators and evaluators
 **Purpose:** Document current visual language and screen behavior for Interim Report 2
 **Status:** Existing style tokens/components are inferred from `lib/main.dart` and `backend/public/index.html`; suggested specifications below should be validated against rendered screenshots and intended users. They are not evidence of a usability study.
 
-**Implementation update:** The web artifact now includes a local demo phone/OTP gate and Accounts/My Crops views alongside the existing responsive monitoring dashboard. It uses browser-local profile state and static sample sensor fixtures; no web authentication or account-linked device data is implemented. The web dashboard's quality and storage-duration estimates were removed; storage status is explicitly tied to configured crop limits. The Flutter prototype still contains illustrative estimate UI, so do not present those values as validated findings.
+**Implementation update:** The web artifact offers direct session-free Demo mode and Accounts/My Crops views alongside the responsive monitoring dashboard. It uses static sample sensor fixtures; no web authentication or account-linked device data is implemented. The web and Flutter dashboards show readings against configured crop target bands and no longer estimate crop quality or remaining storage duration. Do not present target bands as validated spoilage thresholds.
 
 ## 1. Design intent
 
@@ -222,7 +224,7 @@ The screenshot’s note says the original screens are unchanged and the new fram
 | `04 · Settings` / node `3:219` | 390×844 mobile frame; connection card/edit action; harvest selector and temperature/RH ranges; illustrative-threshold note; activity and CSV exports; SMS limitation notice | Closely maps to existing Settings, crop selection and exports. Verify connection freshness is measured rather than static text |
 | `My Crops` / node `32:1743` | 390×844 frame; account scope; demo notice; search for linked sensors; filters; crop groups with assigned sensor rows, status/readings/freshness; bottom navigation | Broader sensor-to-crop collection model than the current backend’s one global active crop. Treat multi-sensor grouping/search as design intent unless implemented |
 | `Accounts` / node `32:1664` | 390×844 frame; farmer profile; linked crop/sensor totals; farm-management actions; sign-out action; demo disclosure | Current Flutter has a local login gate/account menu, but profile counts and account management are not proof of server-side identity or authorization |
-| `OTP verification` / node `32:1610` | 390×844 frame; six PIN slots, sample PIN text, Change number, Resend PIN and Verify & continue | OTP flow is a visual design only. Screenshot explicitly says sample PIN is not real verification and no SMS/account is connected |
+| `OTP verification` / node `32:1610` | 390×844 frame; six PIN slots, sample PIN text, Change number, Resend PIN and Verify & continue | Historical visual design only; removed from current clients. No SMS/account is connected |
 
 The Figma file uses a 390×844 mobile canvas for the identified frames. The metadata also shows repeated brand/status bars and bottom navigation. Confirm exact production device dimensions, safe-area behavior and typography in Figma; do not copy the measurement as a universal device requirement.
 
@@ -236,7 +238,7 @@ The four new frames follow the existing Peo Yame visual language: white/light ne
 - **Visible hierarchy:** Peo Yame brand and Demo badge; “Welcome back” heading; short harvest/sensor supporting line; login card; country code `+267` and phone number input; “Continue with OTP” primary button; “New farmer? Create an account” secondary entry; amber demo disclosure; support link.
 - **Interaction intent:** Enter/confirm a phone number, then continue to OTP verification. New account action opens account creation (the screenshot does not show that form, so its fields and approval path remain unspecified).
 - **Disclosure:** Demo only; authentication and SMS are not connected, so no PIN is actually sent.
-- **Current implementation:** The Flutter app now has this phone-number entry and transitions to the OTP demo screen. It validates phone length locally only and does not call an authentication service. Account creation opens a small local demo-profile dialog because Figma did not provide a registration screen.
+- **Current implementation:** This design is not in the current clients. They enter session-free Demo mode directly. Phone-number authentication remains planned; do not present local UI validation as authentication.
 
 #### OTP verification
 
@@ -244,7 +246,7 @@ The four new frames follow the existing Peo Yame visual language: white/light ne
 - **Visible hierarchy:** Back to login; “Verify your number”; masked `+267` number; Change number link; six one-time PIN input cells; explicit sample-PIN notice; Verify & continue primary action; Resend PIN; amber demo disclaimer.
 - **Interaction intent:** Enter six digits, verify, request a resend, or return to change the number. Define expiry, attempt limits, resend cooldown, error states and accessibility behavior before any real OTP service is implemented.
 - **Disclosure:** The displayed sample PIN is illustrative, not a real verification; no SMS is sent and no account is authenticated.
-- **Current implementation:** Six PIN cells are prefilled with sample digits and editable. Any six filled cells continue locally; Resend PIN displays a “no PIN was sent” notice. No OTP API, real PIN generation/verification, SMS provider or account-authentication service is connected.
+- **Current implementation:** Removed from the current clients. Do not implement the sample PIN transition as if it verified an identity. No OTP API, SMS provider or account-authentication service is connected.
 
 #### Accounts
 
@@ -264,7 +266,7 @@ The four new frames follow the existing Peo Yame visual language: white/light ne
 
 ### Design-to-code gaps to track
 
-1. **Account and OTP:** The Flutter UI now implements the phone and PIN screens, but only as a local demo transition. There is no server auth endpoint or real verification. Keep the disclosure and implement the approved authentication journey only if in scope.
+1. **Account and sign-in:** Current clients open session-free Demo mode directly. Phone login and QR SSO need a tested backend session service before sign-in screens are added.
 2. **Crop and sensor hierarchy:** The Flutter UI now displays grouped sample sensors; backend still applies one global active crop and a simulator. No authenticated multi-sensor inventory exists. Keep fixture labels visible until data model/API are expanded and tested.
 3. **Alert lifecycle:** Figma distinguishes open and earlier/resolved alerts and provides an acknowledgement action. Current backend has an acknowledgement route, but alerts and acknowledgment state are in memory. A restart test or persistent alert schema is required before describing this as durable history.
 4. **Connection freshness:** Figma names connection/freshness indicators. Current implementation must display an actual last-seen/last-refresh value before claiming freshness; a fixed label is not sufficient.

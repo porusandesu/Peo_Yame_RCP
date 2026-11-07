@@ -1,5 +1,11 @@
 # Verification record
 
+## Current build status on `pauls-branch`
+
+The historical baseline below describes an older source state and is not evidence for the current changes. This increment adds a web demo-entry static test, a backend SQLite crop-package integration test, a Flutter demo-entry widget test, and GitHub Actions jobs for Flutter tests/analysis/APK build and Node checks/tests. Local tests and builds were intentionally not run; GitHub Actions results are pending. Update this section with the run URL and job conclusions after pushing.
+
+Current scope: demo entry is direct and session-free. Phone login, account creation, and QR SSO remain unimplemented. The crop package is a starter reference; it is not locally validated postharvest advice. See [HANDOFF.md](HANDOFF.md) and [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md).
+
 **Date:** 15 October 2026  
 **Target:** top-level `backend/` and Flutter app in branch `v.0.0.0.0.01`.  
 **Environment:** local Node/Express demo on port 3000; Flutter SDK at `/home/porusandesu/flutter`.  

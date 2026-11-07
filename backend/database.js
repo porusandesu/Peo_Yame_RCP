@@ -23,6 +23,9 @@ sql(`CREATE TABLE IF NOT EXISTS crops (
   max_temp REAL NOT NULL CHECK(max_temp BETWEEN -50 AND 100),
   min_humidity REAL NOT NULL CHECK(min_humidity BETWEEN 0 AND 100),
   max_humidity REAL NOT NULL CHECK(max_humidity BETWEEN 0 AND 100),
+  crop_group TEXT NOT NULL DEFAULT 'Other',
+  safe_moisture_pct REAL CHECK(safe_moisture_pct BETWEEN 0 AND 100),
+  storage_note TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   CHECK(min_temp < max_temp), CHECK(min_humidity < max_humidity)
 );
@@ -34,18 +37,58 @@ CREATE TABLE IF NOT EXISTS readings (
 );
 CREATE INDEX IF NOT EXISTS readings_recorded_at_idx ON readings(recorded_at);`);
 
+const cropColumns = new Set(sql('PRAGMA table_info(crops);', true).map((column) => column.name));
+if (!cropColumns.has('crop_group')) sql("ALTER TABLE crops ADD COLUMN crop_group TEXT NOT NULL DEFAULT 'Other';");
+if (!cropColumns.has('safe_moisture_pct')) sql('ALTER TABLE crops ADD COLUMN safe_moisture_pct REAL CHECK(safe_moisture_pct BETWEEN 0 AND 100);');
+if (!cropColumns.has('storage_note')) sql("ALTER TABLE crops ADD COLUMN storage_note TEXT NOT NULL DEFAULT '';");
+
 function toCrop(row) {
-  return row && { id: row.id, commodity: row.name, minTemp: row.min_temp, maxTemp: row.max_temp, minHumidity: row.min_humidity, maxHumidity: row.max_humidity };
+  return row && {
+    id: row.id,
+    commodity: row.name,
+    cropGroup: row.crop_group || 'Other',
+    minTemp: row.min_temp,
+    maxTemp: row.max_temp,
+    minHumidity: row.min_humidity,
+    maxHumidity: row.max_humidity,
+    safeMoisturePct: row.safe_moisture_pct ?? null,
+    storageNote: row.storage_note || '',
+  };
 }
 function findCrop(name) {
   return sql(`SELECT * FROM crops WHERE name=${quote(name)} COLLATE NOCASE LIMIT 1;`, true)[0];
 }
 
+const grainNote = 'Indicative room-monitoring limits only. Grain moisture is a separate measurement: measure it with a grain moisture meter. Dry fully, protect from pests, and inspect stores regularly.';
+const freshNote = 'Indicative cold-store target for intact produce. Variety, maturity, curing, airflow, and intended use change the suitable setting. Avoid condensation and separate produce with incompatible temperature or ripening needs.';
 for (const crop of [
-  { commodity: "Maize", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 70 },
-  { commodity: "Tomato", minTemp: 10, maxTemp: 20, minHumidity: 85, maxHumidity: 95 },
+  { commodity: 'Maize', group: 'Grain', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 13.5, note: grainNote },
+  { commodity: 'Sorghum', group: 'Grain', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 13.5, note: grainNote },
+  { commodity: 'Pearl millet', group: 'Grain', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 16, note: grainNote },
+  { commodity: 'Cowpea', group: 'Pulse', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 14, note: grainNote },
+  { commodity: 'Common beans', group: 'Pulse', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 15, note: grainNote },
+  { commodity: 'Pigeon pea', group: 'Pulse', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 14, note: grainNote },
+  { commodity: 'Groundnuts (shelled)', group: 'Oilseed', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 7, note: grainNote },
+  { commodity: 'Sunflower seed', group: 'Oilseed', minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, moisture: 9, note: grainNote },
+  { commodity: 'Tomato', group: 'Vegetable', minTemp: 10, maxTemp: 12, minHumidity: 85, maxHumidity: 95, note: `${freshNote} Ripe and green tomatoes need different handling; avoid chilling green fruit.` },
+  { commodity: 'Potato', group: 'Vegetable', minTemp: 7, maxTemp: 10, minHumidity: 90, maxHumidity: 95, note: `${freshNote} Keep dark and ventilated. Processing potatoes may need warmer storage.` },
+  { commodity: 'Cabbage', group: 'Vegetable', minTemp: 0, maxTemp: 2, minHumidity: 95, maxHumidity: 100, note: freshNote },
+  { commodity: 'Dry onion', group: 'Vegetable', minTemp: 0, maxTemp: 2, minHumidity: 65, maxHumidity: 70, note: `${freshNote} Cure and dry outer skins; use good ventilation.` },
+  { commodity: 'Carrot', group: 'Vegetable', minTemp: 0, maxTemp: 2, minHumidity: 95, maxHumidity: 100, note: freshNote },
+  { commodity: 'Leafy greens', group: 'Vegetable', minTemp: 0, maxTemp: 2, minHumidity: 95, maxHumidity: 100, note: `${freshNote} Cool promptly and avoid wilting.` },
+  { commodity: 'Green pepper', group: 'Vegetable', minTemp: 7, maxTemp: 10, minHumidity: 90, maxHumidity: 95, note: `${freshNote} Chilling sensitivity depends on variety and storage duration.` },
+  { commodity: 'Sweet potato', group: 'Vegetable', minTemp: 13, maxTemp: 15, minHumidity: 85, maxHumidity: 90, note: `${freshNote} Cure harvested roots before longer storage; avoid chilling.` },
+  { commodity: 'Orange', group: 'Fruit', minTemp: 4, maxTemp: 8, minHumidity: 90, maxHumidity: 95, note: freshNote },
+  { commodity: 'Lemon', group: 'Fruit', minTemp: 10, maxTemp: 13, minHumidity: 85, maxHumidity: 90, note: freshNote },
+  { commodity: 'Mango', group: 'Fruit', minTemp: 10, maxTemp: 13, minHumidity: 85, maxHumidity: 90, note: `${freshNote} Ripeness and variety affect chilling sensitivity.` },
+  { commodity: 'Avocado', group: 'Fruit', minTemp: 10, maxTemp: 13, minHumidity: 90, maxHumidity: 95, note: `${freshNote} Target varies with cultivar and maturity.` },
+  { commodity: 'Green banana', group: 'Fruit', minTemp: 13, maxTemp: 15, minHumidity: 85, maxHumidity: 90, note: `${freshNote} For green fruit; ripe fruit needs different conditions.` },
+  { commodity: 'Watermelon', group: 'Fruit', minTemp: 10, maxTemp: 15, minHumidity: 85, maxHumidity: 90, note: `${freshNote} Avoid colder settings that may cause chilling injury.` },
+  { commodity: 'Mandarin', group: 'Fruit', minTemp: 4, maxTemp: 8, minHumidity: 90, maxHumidity: 95, note: freshNote },
+  { commodity: 'Grapefruit', group: 'Fruit', minTemp: 10, maxTemp: 15, minHumidity: 85, maxHumidity: 90, note: freshNote },
 ]) {
-  sql(`INSERT OR IGNORE INTO crops(name,min_temp,max_temp,min_humidity,max_humidity) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity});`);
+  const safeMoisture = crop.moisture == null ? 'NULL' : crop.moisture;
+  sql(`INSERT INTO crops(name,min_temp,max_temp,min_humidity,max_humidity,crop_group,safe_moisture_pct,storage_note) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity},${quote(crop.group)},${safeMoisture},${quote(crop.note)}) ON CONFLICT(name) DO UPDATE SET min_temp=excluded.min_temp,max_temp=excluded.max_temp,min_humidity=excluded.min_humidity,max_humidity=excluded.max_humidity,crop_group=excluded.crop_group,safe_moisture_pct=excluded.safe_moisture_pct,storage_note=excluded.storage_note;`);
 }
 sql("INSERT OR IGNORE INTO app_settings(key,value) VALUES('active_crop','Maize');");
 
@@ -107,7 +150,7 @@ module.exports = {
   listCrops: () => sql("SELECT * FROM crops ORDER BY name COLLATE NOCASE;", true).map(toCrop),
   getCrop: (name) => toCrop(findCrop(name)),
   addCrop: (crop) => {
-    sql(`INSERT INTO crops(name,min_temp,max_temp,min_humidity,max_humidity) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity});`);
+    sql(`INSERT INTO crops(name,min_temp,max_temp,min_humidity,max_humidity,crop_group) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity},'Other');`);
     return toCrop(findCrop(crop.commodity));
   },
   activeCropName: () => sql("SELECT value FROM app_settings WHERE key='active_crop';", true)[0]?.value || "Maize",

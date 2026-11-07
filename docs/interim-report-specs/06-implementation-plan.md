@@ -1,5 +1,7 @@
 # Implementation Plan — Front End and Back End
 
+> **Revision status (2026-11-07):** Demo mode is the current no-auth entry. Phone login and backend-backed QR SSO are explicitly requested and remain future implementation work. Historical OTP UI references below do not describe current code. See [current handoff](../HANDOFF.md).
+
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Turn requirements into a staged, demonstrable plan for Interim Report 2.
 **Status:** Working plan aligned to the current top-level Flutter/Express checkout. Dates and owners must be agreed by Group 3 and reconciled with the official schedule. A task is not complete merely because code exists; collect run evidence.
@@ -77,7 +79,7 @@ Use short, reviewable increments. Confirm proposal scope and API/data decisions 
 **Future provider acceptance:** queued/submitted/delivered/failed distinct, retry bound and duplicate prevention.
 **Evidence:** current dispatch entry and UI capture; never call this delivery evidence.
 
-### BE-7 — Phone authentication and OTP (only if approved and resourced)
+### BE-7 — Phone authentication and QR single sign-on (requested; pending implementation)
 
 **Activities:** specify account registration/approval, phone ownership, OTP provider, consent, expiry, attempts, resend cooldown, recovery, session mechanism and deletion. Implement request/verify/logout endpoints and server-side authorization; store no raw PIN. If no SMS service or time is available, retain the Figma flow as a clearly labeled concept and do not simulate a successful verified identity in the assessed application.
 **Acceptance:** invalid, expired, replayed and over-attempted PINs fail; successful challenge creates a server-authenticated session; logout revokes it; credentials and PINs never appear in logs or exports.
@@ -139,10 +141,10 @@ Check phone and desktop widths, font scaling, contrast, touch targets, semantic 
 **Acceptance:** critical paths work at agreed viewports; issues are fixed or disclosed.
 **Evidence:** viewport screenshots/checklist; human testing only with approvals.
 
-### FE-8 — Figma phone login and OTP screens (local demo UI implemented)
+### FE-8 — Figma phone login and OTP screens (historical; removed from current build)
 
-**Current increment:** Flutter and web now include Botswana phone-number entry, a local six-digit PIN screen, demo-profile creation and explicit disclosures. Web additionally gates the dashboard behind a browser-local demo profile and provides Accounts/My Crops views with static grouped sensor fixtures, search and filters. Sample digits continue locally; no OTP backend or SMS is called. The monitor API still has no authenticated session.
-**Remaining work:** decide whether to implement BE-7; then add real loading/invalid/expired/rate-limit states and accessible one-time-code paste/autofill behavior if approved. Never present the sample PIN as verification.
+**Current increment:** Flutter and web offer direct session-free Demo mode. Accounts/My Crops use static grouped sensor fixtures, search and filters. No OTP backend/SMS or authenticated session exists.
+**Remaining work:** implement backend sessions, phone account login, and short-lived one-time QR SSO challenges for web-to-phone and phone-to-web. Add invalid/expired/replayed challenge and session expiry/revocation tests before exposing the flows.
 **Evidence:** code in `lib/main.dart`, analyzer result, and a screenshot/walkthrough on the target device still needed. Do not report real authentication.
 
 ### FE-9 — Accounts and My Crops screens (demo UI implemented)

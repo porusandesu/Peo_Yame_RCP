@@ -1,5 +1,10 @@
 # Baseline audit and research traceability
 
+> Historical audit for the October 2026 prototype on the former `v.0.0.0.0.01`
+> branch. The app and backend have since changed. For the current build state,
+> see [HANDOFF.md](HANDOFF.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
+> [TEST_REPORT.md](TEST_REPORT.md).
+
 **Review date:** 15 October 2026  
 **Scope:** the top-level app and backend in this repository, on branch `v.0.0.0.0.01`. The nested `flutter_application_1/` copies and the untracked `from sasa/` folder are not the runtime selected by the top-level README.  
 **Review method:** source and configuration inspection, repository inventory, API probes against the local demo server, and one attempted Flutter widget test. No physical hardware, external SMS service, database, or deployment was available.

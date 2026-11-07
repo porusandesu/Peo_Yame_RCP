@@ -1,5 +1,7 @@
 # Technical Requirements Document (TRD)
 
+> **Revision status (2026-11-07):** Current phone/web entry is direct session-free Demo mode. Phone login and bidirectional backend QR SSO are requested future work. OTP descriptions are historical design context, not current code. See [current handoff](../HANDOFF.md).
+
 **System:** Peo Yame low-cost storage-monitoring prototype
 **Document purpose:** Technical baseline, interface contracts and report traceability
 **Status:** Working specification based on the top-level checkout inspected 24 October 2026. The code is authoritative for current behavior; older architecture/audit notes may describe a previous revision.
@@ -34,7 +36,7 @@ flowchart LR
 
 Clients should treat the backend as the source of truth for current state and alert determination. The mobile client currently uses server-sent events plus periodic refresh; the web dashboard uses API polling/updates as implemented in its HTML/JS. Confirm exact interval behavior from current source before claiming quantitative latency.
 
-**Figma-driven frontend increment:** the supplied design adds phone-number login, six-digit OTP verification, farmer Accounts and a My Crops collection with multiple assigned sensors, search and status filters. These screens now exist in Flutter with local demo state and fixed sensor fixtures. No authentication provider, OTP verification, SMS transport, farmer-account ownership or live sensor registry is established by current backend code. Treat the endpoints and model below as future requirements, not current routes.
+**Figma-driven design context:** the supplied design includes phone-number login, six-digit OTP verification, farmer Accounts and My Crops. Current client code instead enters the dashboard directly in session-free Demo mode; Accounts/My Crops use fixed sample fixtures. No authentication provider, OTP verification, SMS transport, farmer-account ownership or live sensor registry exists. Treat the endpoints and model below as future requirements, not current routes.
 
 ## 3. Current technology baseline
 
@@ -45,7 +47,7 @@ Clients should treat the backend as the source of truth for current state and al
 | Cross-origin | `cors` package, configurable origins; default permissive in development | `server.js` | Do not expose on untrusted network; tighten before deployment |
 | Database | SQLite accessed through native `sqlite3` command-line invocation from Node | `database.js` | Operational database availability/locking/backup behavior needs verification; JSON values are quoted manually, not parameter bindings |
 | Web frontend | Static HTML/CSS/JavaScript served by Express | `backend/public/index.html` | Same-origin when served by Express; remote cross-origin config depends on CORS |
-| Mobile frontend | Flutter/Dart top-level `lib/` | `lib/main.dart`, `lib/account_screens.dart`, `api_service.dart`, `dashboard_controller.dart` | Includes local phone/OTP demo flow and Accounts/My Crops sample screens; no backend auth/device data; API is plain HTTP in current demo config |
+| Mobile frontend | Flutter/Dart top-level `lib/` | `lib/main.dart`, `lib/account_screens.dart`, `api_service.dart`, `dashboard_controller.dart` | Includes direct session-free Demo entry and Accounts/My Crops sample screens; no backend auth/device data; API is plain HTTP in current demo config |
 | Reading generator | In-process timer (development/demo) and optional `simulate-sensor.js` | `server.js`, simulator script | Synthetic data only; no sensor fidelity/calibration evidence |
 | Event channel | Server-Sent Events `/api/events`, with client refresh fallback | server and Flutter API/controller | Reconnect/offline behavior needs measured tests |
 | Exports | CSV readings and Markdown action log | Express routes and clients | Review privacy, injection/escaping and record scope |

@@ -1,5 +1,10 @@
 # Build the Phone App in VS Code and Connect It to the PC (Demo Guide)
 
+> **Historical build tutorial.** This file contains an older hand-built Flutter
+> example and setup steps. The current app in this repository is already in
+> `lib/`; use the root [README](README.md) to run it. The current demo opens
+> directly with **Demo mode** and has no phone/PIN verification step.
+
 Goal: a Flutter app on an Android phone that shows live (simulated) storage
 readings and alerts from the backend running on a PC, over the same Wi-Fi.
 Everything is done in VS Code. No Android Studio window is needed, only its SDK.

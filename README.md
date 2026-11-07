@@ -4,8 +4,9 @@ Peo Yame is a Flutter and responsive web prototype for monitoring produce
 storage conditions. Both clients display simulated temperature/humidity data,
 configured-limit status, trends, and alerts through a Node.js backend. SQLite
 persists crop settings and readings; no physical sensor or SMS provider is
-connected. Phone/OTP, account, and multi-sensor screens are local demo UI, not
-authentication or account-linked live device data.
+connected. Demo mode opens directly as Mr Lesego Lefoko
+(`LLefoko@email.co.bw`). It does not request phone verification or create an
+authenticated account.
 
 ## Start the backend on the PC
 
@@ -37,18 +38,11 @@ open the run and download the `storage-monitor-android-debug` artifact. Extract
 it and install `app-debug.apk` on an Android device. This is a debug build for
 testing, not a Play Store release.
 
-On the web app, sign in with a phone number and use the prefilled six-digit
-sample PIN. The sign-in, account summary and My Crops views are browser-local
-demo UI; they do not authenticate a user or connect sensor records to an
-account. The mobile app has the same demo sign-in and account/crop views. The
-dashboard breach control remains a simulation of configured-limit alerts.
-Open `http://<PC-IP>:3000` on another device on the same Wi-Fi network.
-
-The mobile sign-in screens now follow the Peo Yame Figma direction: enter a
-Botswana phone number, then continue through a six-digit OTP demo screen. The
-sample PIN is prefilled and any six digits continue locally; no account is
-authenticated and no PIN is sent by SMS. This is a presentation flow only, not
-a security boundary.
+On either app, tap **Demo mode** to open the home page immediately. The shared
+profile is Mr Lesego Lefoko (`LLefoko@email.co.bw`). The dashboard and its
+breach control are demonstrations; they do not authenticate a user, connect a
+physical sensor, or send SMS. Open `http://<PC-IP>:3000` on another device on
+the same Wi-Fi network to use the web demo.
 
 In the web app, use the header account menu or the Accounts/My Crops shortcuts.
 In the mobile app, open **Accounts & crops** from the Overview user menu. The
@@ -99,16 +93,18 @@ For a build-time address override, use
 - [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
 - [Baseline audit, traceability, and research-claim status](docs/BASELINE_AUDIT.md)
 - [Implemented architecture](docs/ARCHITECTURE.md)
+- [Botswana starter crop package and sources](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md)
+- [Current handoff and next build steps](docs/HANDOFF.md)
 - [Prioritised risk register](docs/RISK_REGISTER.md)
 - [Verification record](docs/TEST_REPORT.md)
 
 The audit documents the implementation present in this branch, including
 known gaps between the presentation prototype and the research proposal. Crop
-limits in the demo are illustrative software settings; they are not validated
-spoilage thresholds. The web dashboard reports configured-limit status and
-does not estimate crop quality or remaining storage time. Treat any such
-heuristics shown in the mobile prototype as illustrative only, never as a
-validated prediction.
+limits in the demo are indicative software settings; they are not validated
+spoilage thresholds. The dashboard reports whether readings are within the
+configured target band. It does not estimate crop quality or remaining storage
+time.
 
 Use the project only as a controlled local-network demonstration. The backend
-uses plain HTTP and the account menu is a demo UI, not authentication.
+uses plain HTTP and demo mode has no authentication. Do not expose it to the
+public internet.

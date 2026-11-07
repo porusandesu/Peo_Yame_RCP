@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "demo": "node server.js",
-    "simulate:sensor": "node simulate-sensor.js"
+    "simulate:sensor": "node simulate-sensor.js",
+    "check": "node --check server.js && node --check database.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.19.2",

@@ -1,34 +1,40 @@
-# Implemented architecture (baseline)
+# Current implementation architecture
 
-This describes the top-level checkout as inspected on 15 October 2026. It is intentionally separate from the target architecture in `PROJECT_CONTEXT.md` and the build guide.
+**Revision under development:** `pauls-branch`, based on `65d308c`.
+
+## Runtime pieces
+
+- `backend/server.js` provides the Express API and serves the web dashboard from `backend/public/index.html`.
+- `backend/database.js` stores crop definitions, selected crop, and readings in SQLite through the system `sqlite3` command-line tool. The database path can be set with `DATABASE_PATH`.
+- `lib/` contains the Flutter Android client. Both clients call the same backend for readings, trends, crop selection, alerts, and exports.
+- `.github/workflows/android-build.yml` runs Flutter widget tests and analysis, builds a debug APK, and runs backend checks and tests on GitHub-hosted runners.
+
+## Demo entry and data
+
+Both clients show a **Demo mode** button and open the home page directly with the shared display profile Mr Lesego Lefoko (`LLefoko@email.co.bw`). The profile is presentation data. Demo mode does not verify a phone, create an account, or issue a session token.
+
+The backend simulates readings outside production mode. Sensor readings, synthetic history, alerts, and alert logs must be distinguished from real hardware and delivered messages. No physical sensor or SMS provider is connected. The activity log is a separate JSONL file. The one selected crop and all monitoring readings are global to the backend, not separated by authenticated farmer or storage site.
+
+The crop starter package has 24 grain, pulse, oilseed, vegetable, and fruit profiles. It includes room temperature/relative-humidity target bands, short handling notes, and grain moisture guidance where available. These are indicative starter references; they do not model variety, maturity, storage duration, ventilation, packaging, or actual produce moisture.
+
+## Known boundaries
+
+- There is no production login, phone verification, account provisioning, QR single sign-on, or API authorization in this revision. These must be designed and tested before adding an auth UI. No SMS capability is assumed.
+- The API uses plain HTTP by default. Keep the demo on a controlled local network; do not expose it publicly.
+- Crop choice is process-global. Multiple stores or crop lots cannot yet have independent thresholds or histories.
+- A reading inside a configured target band means only that the room reading was within that band at that time. It does not prove crop safety, quality, remaining shelf life, or absence of spoilage.
+- Alert, incident, and SMS-log behavior remains a simulation; no text message is sent.
+- Custom crop limits are user-entered values. The built-in catalog notes source caveats, but does not claim locally validated spoilage thresholds.
+
+## Intended data flow
 
 ```mermaid
 flowchart LR
-  sim[Node simulated reading timer] --> api[Express API :3000]
-  optional[simulate-sensor.js] -->|HTTP POST /api/readings| api
-  api --> mem[(In-memory readings, alerts, incidents, trends, SMS log)]
-  api --> actionlog[(backend/data/actions.jsonl)]
-  api --> web[Static web dashboard]
-  api --> flutter[Flutter app polling every 5 seconds]
+  sim[Demo reading generator or sensor POST] --> api[Express API]
+  api --> db[(SQLite crop and reading data)]
+  api --> web[Web dashboard]
+  api --> app[Flutter Android app]
+  api --> logs[Local action log]
 ```
 
-## Components and boundaries
-
-- `backend/server.js` serves `backend/public/`, binds to `0.0.0.0:3000`, enables unrestricted CORS, parses JSON, generates simulated data every five seconds, and evaluates readings against one process-wide active crop.
-- `backend/simulate-sensor.js` is an optional second simulator that reads the active threshold from `/api/status` then submits a sample to `/api/readings`. It is not firmware and does not emulate a transport failure or real device identity.
-- The API's readings (maximum 200), alerts (maximum 50), trend buckets (at most 90 days), SMS log (maximum 50), incidents, and selected thresholds live in process memory. Restart clears those collections and restarts the synthetic 24-hour chart baseline.
-- User actions are separately appended to `backend/data/actions.jsonl` and reloaded on startup, capped to the most recent 2,500. This file is not a transactional domain database; a crash/partial write, concurrent writers, retention semantics, and recovery have not been tested.
-- `backend/public/index.html` fetches dashboard data directly from the same API. It displays readings, alert/SMS log, trends, export actions and a heuristic storage-time estimate.
-- Top-level `lib/` is the Flutter client. `ApiService` calls the same HTTP endpoints; `DashboardController` polls status-related data on a five-second timer. App settings can point at a LAN or emulator address.
-
-## Current request/data flow
-
-1. Backend startup seeds a 24-hour synthetic trend series and an immediate randomly generated reading; its five-second timer creates additional simulated readings.
-2. A sensor simulator can POST finite numeric temperature/humidity and a non-empty site. Humidity is restricted to 0–100; temperature has no plausible physical range bound. If a crop is supplied, it must match the globally active crop.
-3. A reading is tagged `simulation` or `sensor`, stored in memory, rolled into a minute aggregate, and compared to the active crop's hard-coded limits. Any temperature or RH bound crossing creates an alert and a simulated `logged` SMS record.
-4. The web and Flutter clients poll status/alerts/history/trends. Crop selection replaces the global active crop, reseeds synthetic trends, and records a safe simulated reading.
-5. CSV and Markdown exports are generated by API routes. CSV fields are quoted and selected textual fields are protected from spreadsheet formulas.
-
-## Boundaries and non-claims
-
-There is no real sensor ingestion identity/authentication, persistence for research measurements, stale-data indicator based on reading timestamps, SMS gateway, delivery receipt, access-control layer, or verified spoilage model. Trend startup points are synthetic. “Storage time estimate” values are fixed heuristic buckets. Threshold logic detects configured bounds only. The dashboard's hard-coded “Synced 5 mins ago” string is not derived from actual synchronization time. No SQLite schema or Wokwi/firmware configuration is in the top-level repository.
+See [HANDOFF.md](HANDOFF.md), [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md), and [TEST_REPORT.md](TEST_REPORT.md) for current build status, data sources, and verification evidence.

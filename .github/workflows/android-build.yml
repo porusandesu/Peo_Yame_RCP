@@ -33,6 +33,12 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Run Flutter widget tests
+        run: flutter test
+
+      - name: Analyze Dart code
+        run: flutter analyze --no-fatal-infos lib test
+
       - name: Build Android APK
         run: flutter build apk --debug
 
@@ -43,3 +49,33 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  backend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Install SQLite CLI for backend integration tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+
+      - name: Check backend JavaScript syntax
+        run: npm run check
+
+      - name: Test backend and web demo entry
+        run: npm test

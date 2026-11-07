@@ -9,6 +9,6 @@ The API stores crop definitions, the selected crop, and received readings in SQL
 3. Put the API behind an HTTPS reverse proxy and allow sensor/app traffic only through the intended network path.
 4. Back up the database using SQLite's online backup API or a coordinated backup procedure. Do not copy only the main database file while it is actively using WAL mode.
 
-Production mode disables the fake sensor generator and synthetic trend baseline. It binds to loopback unless `HOST` is explicitly set. Development mode retains simulated readings for demos. Crop writes use validated, parameterized SQL statements and survive restarts.
+Production mode disables the fake sensor generator and synthetic trend baseline. It binds to loopback unless `HOST` is explicitly set. Development mode retains simulated readings for demos. Crop definitions and readings survive restarts; request values are validated and SQL string values are escaped before being passed to SQLite.
 
-This prepares persistent data and deployment configuration; it does not provide production user authentication or authorization. The current app login remains a local demo gate, so do not expose this API to the public internet until an account/authentication system and per-device credentials are implemented.
+This prepares persistent data and deployment configuration; it does not provide production user authentication or authorization. The app currently provides a direct demo entry only. Do not expose this API to the public internet until account authentication, API authorization, and per-device credentials are implemented and tested.

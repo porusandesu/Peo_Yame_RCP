@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
-const ACTION_LOG_PATH = path.join(__dirname, "data", "actions.jsonl");
+const ACTION_LOG_PATH = process.env.ACTION_LOG_PATH || path.join(__dirname, "data", "actions.jsonl");
 const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
@@ -95,7 +95,7 @@ const thresholds = Object.fromEntries(cropDatabase.listCrops().map((crop) => [cr
 let threshold = cropDatabase.getCrop(cropDatabase.activeCropName()) || thresholds.Maize;
 
 // ---- In-memory "database" (swap for real DB queries later) ----
-if (process.env.NODE_ENV !== "production") cropDatabase.seedDemoHistory();
+if (process.env.NODE_ENV !== "production" && process.env.SEED_DEMO_HISTORY !== "false") cropDatabase.seedDemoHistory();
 let readings = cropDatabase.recentReadings(200);
 // Keep one compact aggregate per hour from SQLite, then add live minute buckets.
 let trendBuckets = cropDatabase.trendHistory(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()).map((point) => ({
@@ -219,7 +219,7 @@ function generateReading() {
     ? threshold.maxTemp + Math.random() * Math.max(2, tempRange * 0.3)
     : tempMidpoint + (Math.random() - 0.5) * tempRange * 0.25;
   const humidity = spike
-    ? threshold.maxHumidity + Math.random() * Math.max(5, humidityRange * 0.25)
+    ? Math.min(100, threshold.maxHumidity + Math.random() * Math.max(5, humidityRange * 0.25))
     : humidityMidpoint + (Math.random() - 0.5) * humidityRange * 0.25;
 
   return recordReading(temperature, humidity);
@@ -268,7 +268,7 @@ app.get("/api/status", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
+  res.json({ status: "ok", time: new Date().toISOString(), demoMode: process.env.NODE_ENV !== "production" });
 });
 
 app.get("/api/events", (req, res) => {

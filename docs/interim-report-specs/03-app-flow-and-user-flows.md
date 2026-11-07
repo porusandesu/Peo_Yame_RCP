@@ -1,12 +1,14 @@
 # App Flow and User Flows
 
+> **Revision status (2026-11-07):** Current clients bypass sign-in in Demo mode and open the dashboard directly. Phone login and backend QR SSO are requested future work. Login/OTP flows below are historical or target designs, not current behavior. See [current handoff](../HANDOFF.md).
+
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Describe current user journeys and target flows for Interim Report 2 design/evaluation
 **Status:** Current screen names and actions were inspected in the top-level Flutter app. Flow diagrams are explanatory specifications, not proof that every path was tested.
 
 ## 1. Scope and flow conventions
 
-The Flutter app now has a phone-number sign-in screen, a six-cell OTP demo screen, an Accounts screen and a My Crops screen in addition to its four-destination bottom navigation (Overview, Trends, Alerts, Settings). OTP and account/crop/sensor interactions are local demo behavior. The sample PIN advances a local profile; there is no authentication backend, OTP delivery, account service or linked-device registry. Do not describe this as secure login or live multi-sensor monitoring.
+The Flutter app has direct Demo entry and Accounts/My Crops screens in addition to its four-destination bottom navigation. Account/crop/sensor data in the added views is local demo behavior. There is no authentication backend, OTP delivery, account service or linked-device registry. Do not describe this as secure login or live multi-sensor monitoring. The older phone/OTP sequence elsewhere in this document records prior design state only.
 
 The web dashboard now mirrors these entry and account journeys: phone entry, six-cell sample PIN, browser-local demo profile, Accounts summary, and searchable/filterable My Crops sensor fixtures. The browser stores only a demo profile in local storage; the monitor API remains separate and has no authenticated session or account-scoped data. Web sensor rows use fixed sample values and freshness labels. Both clients disclose that login, SMS and device connectivity are not implemented.
 
