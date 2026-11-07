@@ -91,7 +91,18 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
 
-      - name: Test authenticator codes
+      - name: Install SQLite CLI for integration tests
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "sqlite-tools.zip"
+          $directory = Join-Path $env:RUNNER_TEMP "sqlite-tools"
+          Invoke-WebRequest -Uri "https://www.sqlite.org/2025/sqlite-tools-win-x64-3500400.zip" -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $directory -Force
+          $sqlite = Get-ChildItem -Path $directory -Filter "sqlite3.exe" -Recurse | Select-Object -First 1
+          if (-not $sqlite) { throw "sqlite3.exe was not found in the SQLite tools archive." }
+          "SQLITE3_PATH=$($sqlite.FullName)" >> $env:GITHUB_ENV
+
+      - name: Test backend and demo workflows
         run: npm test
 
       - name: Build portable Windows app

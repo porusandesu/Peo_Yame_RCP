@@ -19,7 +19,7 @@
 | Backend tests | Pass | Five checks cover authenticator codes, existing-database crop migration, demo mode HTTP integration, crop catalog groups, tokenless crop CRUD, disabled auth endpoints and dashboard inline JavaScript syntax. |
 | Backend syntax | Pass | `npm run check` validates server and database JavaScript. |
 | Diff whitespace | Pass | `git diff --check`. |
-| GitHub Actions | Pending | Expanded workflow is committed/pushed before a run can validate current sources. |
+| GitHub Actions run 44 | Partial | Ubuntu backend tests and Flutter tests/analysis passed. Windows revealed its SQLite CLI was unavailable; the workflow now provisions it before running integration tests. Android build and follow-up run are pending. |
 
 During validation, the HTTP smoke test exposed an SQLite CLI output-buffer
 overflow when startup loaded trend history for the expanded crop catalog. The

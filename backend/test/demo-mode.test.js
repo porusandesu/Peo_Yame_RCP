@@ -19,9 +19,9 @@ async function freePort() {
 test("demo mode opens farmer/crop APIs without auth and disables sign-in", { timeout: 30000 }, async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "peo-yame-demo-"));
   const port = await freePort();
-  const sqlitePath = process.platform === "win32"
+  const sqlitePath = process.env.SQLITE3_PATH || (process.platform === "win32"
     ? path.join(__dirname, "..", "vendor", "sqlite3.exe")
-    : "sqlite3";
+    : "sqlite3");
   const databasePath = path.join(directory, "demo.sqlite");
   execFileSync(sqlitePath, [databasePath], {
     input: `CREATE TABLE crops (

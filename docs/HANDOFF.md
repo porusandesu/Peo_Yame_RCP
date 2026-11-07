@@ -102,7 +102,11 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
   retry timer; the reconnect timer is now cancelled on controller disposal.
 - The expanded GitHub Actions workflow adds Flutter widget tests and analysis,
   backend syntax/integration checks, Android APK build/artifact upload, and
-  Windows backend tests/package. A run for the current changes is pending push.
+  Windows backend tests/package. Run [42370867151](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42370867151)
+  passed Ubuntu backend tests and Flutter widget/analyzer checks. Its Windows
+  integration test initially found that the runner lacked SQLite on PATH; the
+  workflow now installs the pinned SQLite CLI before testing. A follow-up run
+  is pending.
 
 - [ANDROID_BUILD_2026-11-06.md](ANDROID_BUILD_2026-11-06.md) records a successful
   root Flutter release APK build (52.8 MB) and SHA-256
