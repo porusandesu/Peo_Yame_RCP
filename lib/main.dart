@@ -16,6 +16,7 @@ const _forest = Color(0xFF176B4A);
 const _header = Color(0xFF10251F);
 const _canvas = Color(0xFFF3F7F3);
 const _ink = Color(0xFF172923);
+const _red = Color(0xFFB84036);
 
 void main() => runApp(const StorageMonitorApp());
 
