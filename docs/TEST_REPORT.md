@@ -2,7 +2,7 @@
 
 ## Current build status on `pauls-branch`
 
-The historical baseline below describes an older source state and is not evidence for the current changes. This increment adds a web demo-entry static test, a backend SQLite crop-package integration test, a Flutter demo-entry widget test, and GitHub Actions jobs for Flutter tests/analysis/APK build and Node checks/tests. Local tests and builds were intentionally not run; GitHub Actions results are pending. Update this section with the run URL and job conclusions after pushing.
+The historical baseline below describes an older source state and is not evidence for the current changes. This increment adds a web demo-entry static test, a backend SQLite crop-package integration test, a Flutter demo-entry widget test, and GitHub Actions jobs for Flutter tests/analysis/APK build and Node checks/tests. Local tests and builds were intentionally not run. GitHub run [42380409390](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380409390): backend checks passed; Flutter widget tests and Dart analysis passed; Android APK packaging failed because Gradle's 1 GiB heap was exhausted during Jetifier transforms. Gradle heap has been increased to 3 GiB for the follow-up run. The failing run produced no APK artifact.
 
 Current scope: demo entry is direct and session-free. Phone login, account creation, and QR SSO remain unimplemented. The crop package is a starter reference; it is not locally validated postharvest advice. See [HANDOFF.md](HANDOFF.md) and [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md).
 
