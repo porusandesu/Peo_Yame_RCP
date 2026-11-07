@@ -892,30 +892,8 @@ class _DashboardPageState extends State<DashboardPage> {
     await _controller.refresh();
   }
 
-  Future<void> _openAccounts() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => AccountsScreen(
-          name: _accountName,
-          email: _accountEmail,
-          phone: _accountPhone,
-          isDemo: widget.token == null,
-          onLogout: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            widget.onLogout();
-          },
-          onDestinationSelected: (index) {
-            if (mounted) setState(() => _selectedTab = index);
-          },
-          onShowSignInQr: widget.token == null ? null : _showSignInQr,
-          onScanSignInQr: widget.token == null ? null : _scanBrowserLoginQr,
-          onManageLocations: widget.token == null ? null : () {
-            if (mounted) setState(() => _selectedTab = 2);
-          },
-          onEditProfile: widget.token == null ? null : _editProfile,
-        ),
-      ),
-    );
+  void _openSettings() {
+    if (mounted) setState(() => _selectedTab = 4);
   }
 
   Future<void> _showSignInQr() async {
@@ -1144,12 +1122,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             actions: [
               _ConnectionPill(connected: connected),
-              if (widget.token != null)
-                IconButton(
-                  onPressed: _scanBrowserLoginQr,
-                  tooltip: 'Connect a web browser',
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                ),
               IconButton(
                 onPressed: _controller.refresh,
                 tooltip: 'Refresh',
@@ -1228,7 +1200,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _FarmerGreeting(
       userName: _accountName,
       isDemo: widget.token == null,
-      onAccountTap: _openAccounts,
+      onSettingsTap: _openSettings,
       onLogout: widget.onLogout,
     ),
     const SizedBox(height: 16),
@@ -1571,7 +1543,7 @@ class _DashboardPageState extends State<DashboardPage> {
       style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
-    _SectionTitle(title: widget.token == null ? 'Shared demo profile' : 'Account information'),
+    const _SectionTitle(title: 'Profile'),
     const SizedBox(height: 8),
     Card(
       child: Padding(
@@ -1625,6 +1597,39 @@ class _DashboardPageState extends State<DashboardPage> {
         style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
       ),
       const SizedBox(height: 16),
+    ],
+    const _SectionTitle(title: 'Accounts'),
+    const SizedBox(height: 8),
+    Card(
+      child: ListTile(
+        leading: const Icon(Icons.eco_outlined, color: _forest),
+        title: const Text('My Crops'),
+        subtitle: Text(widget.token == null
+            ? 'Browse the shared crop catalog.'
+            : 'Manage crop locations and linked sensors.'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => setState(() => _selectedTab = 2),
+      ),
+    ),
+    if (widget.token != null) ...[
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.qr_code_2_rounded, color: _forest),
+          title: const Text('Link another phone'),
+          subtitle: const Text('Show a one-time QR code to connect this backend and sign in on another Peo Yame phone.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _showSignInQr,
+        ),
+      ),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.qr_code_scanner_rounded, color: _forest),
+          title: const Text('Approve browser sign-in'),
+          subtitle: const Text('Scan a one-time code from the Peo Yame web sign-in page.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _scanBrowserLoginQr,
+        ),
+      ),
     ],
     const SizedBox(height: 16),
     const _SectionTitle(title: 'Hardware package'),
@@ -1754,21 +1759,6 @@ class _DashboardPageState extends State<DashboardPage> {
     const _SectionTitle(title: 'About'),
     const SizedBox(height: 8),
     const _SimulationBanner(),
-    const SizedBox(height: 8),
-    if (widget.token == null)
-      Card(
-        child: SwitchListTile(
-        secondary: const Icon(Icons.science_outlined, color: _forest),
-        title: const Text('Demo mode'),
-        subtitle: Text(
-          _controller.demoMode
-              ? 'Demo alert controls are available on the Alerts screen.'
-              : 'Enable the demo alert control for testing.',
-        ),
-        value: _controller.demoMode,
-        onChanged: (enabled) => _controller.setDemoMode(enabled),
-        ),
-      ),
     const SizedBox(height: 8),
     const Card(
       child: ListTile(
@@ -2127,13 +2117,13 @@ class _FarmerGreeting extends StatelessWidget {
   const _FarmerGreeting({
     required this.userName,
     required this.isDemo,
-    required this.onAccountTap,
+    required this.onSettingsTap,
     required this.onLogout,
   });
 
   final String userName;
   final bool isDemo;
-  final VoidCallback onAccountTap;
+  final VoidCallback onSettingsTap;
   final VoidCallback onLogout;
 
   @override
@@ -2143,7 +2133,7 @@ class _FarmerGreeting extends StatelessWidget {
         PopupMenuButton<String>(
           tooltip: 'User menu',
           onSelected: (value) {
-            if (value == 'accounts') onAccountTap();
+            if (value == 'settings') onSettingsTap();
             if (value == 'logout') onLogout();
           },
           itemBuilder: (context) => [
@@ -2153,12 +2143,12 @@ class _FarmerGreeting extends StatelessWidget {
             ),
             const PopupMenuDivider(),
             PopupMenuItem<String>(
-              value: 'accounts',
+              value: 'settings',
               child: Row(
                 children: [
-                  const Icon(Icons.manage_accounts_outlined, size: 18),
+                  const Icon(Icons.settings_outlined, size: 18),
                   const SizedBox(width: 10),
-                  Text(isDemo ? 'Profile & crops' : 'Accounts & crops'),
+                  const Text('Settings'),
                 ],
               ),
             ),
