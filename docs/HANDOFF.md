@@ -12,7 +12,7 @@ change is awaiting GitHub Actions validation.
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest pushed code: `ac56dd6` on `exe-work`; CI run 45 passed. See `git log --oneline` for the full history.
+- Latest pushed code: `2e18721` on `exe-work`; CI run 46 passed. See `git log --oneline` for the full history.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -34,8 +34,9 @@ The latest change adds an explicit demo entry button to both sign-in screens.
 Demo mode presents only the demo profile and button; tapping it loads the shared
 backend profile. Production login still validates the backend demo flag before
 allowing entry to demo mode. The backend profile is updated to the requested
-name/email. A mobile widget assertion and web/API checks cover this behavior;
-GitHub Actions is the requested build/test environment for the current change.
+name/email. GitHub Actions run [42374133023](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42374133023)
+passed the mobile widget test, web/API checks, Android build and Windows package.
+The APK and Windows ZIP are available as artifacts from the run page.
 
 Commit `6dff368` adds phone-to-web QR sign-in approval through the backend; the
 crop and demo-auth work described here is newer than that commit.
@@ -118,6 +119,9 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
   artifacts. They are available from the run page for 14 and 30 days,
   respectively. The local APK is at
   `build/app/outputs/flutter-apk/app-debug.apk`.
+- Run 46 validates the latest demo entry and profile change on GitHub-hosted
+  Ubuntu and Windows runners. The local machine was not used for this change's
+  tests or build.
 
 - [ANDROID_BUILD_2026-11-06.md](ANDROID_BUILD_2026-11-06.md) records a successful
   root Flutter release APK build (52.8 MB) and SHA-256

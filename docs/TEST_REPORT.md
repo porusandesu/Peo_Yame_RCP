@@ -1,11 +1,11 @@
 # Verification record
 
-> **Current validation (7 Nov 2026):** Demo auth removal, the crop package and
-> build path now have local automated coverage. CI for the current worktree is
-> pending push; physical-device and live-farmer usability checks remain open.
+> **Current validation (7 Nov 2026):** Demo auth removal, the crop package,
+> demo-entry button, and build path passed automated checks in GitHub Actions.
+> Physical-device and live-farmer usability checks remain open.
 
-> **New demo-entry change:** The web and mobile Demo mode buttons and the
-> requested profile are pending GitHub Actions validation.
+> **New demo-entry change:** The web/mobile Demo mode buttons and requested
+> profile passed in GitHub Actions run 46.
 
 **Updated:** 7 November 2026
 **Branch:** `exe-work`
@@ -22,7 +22,7 @@
 | Backend tests | Pass | Five checks cover authenticator codes, existing-database crop migration, demo mode HTTP integration, crop catalog groups, tokenless crop CRUD, disabled auth endpoints and dashboard inline JavaScript syntax. |
 | Backend syntax | Pass | `npm run check` validates server and database JavaScript. |
 | Diff whitespace | Pass | `git diff --check`. |
-| GitHub Actions run 45 | Pass | Flutter tests/analysis and Android debug APK; Ubuntu backend syntax/integration tests; Windows backend integration tests and packaged app build. [Run details and artifacts](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42371103365). |
+| GitHub Actions run 46 | Pass | Flutter tests/analysis and Android debug APK; Ubuntu backend syntax/integration tests; Windows backend integration tests and packaged app build. Covers one-tap demo entry and the requested shared profile. [Run details and artifacts](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42374133023). |
 
 During validation, the HTTP smoke test exposed an SQLite CLI output-buffer
 overflow when startup loaded trend history for the expanded crop catalog. The
