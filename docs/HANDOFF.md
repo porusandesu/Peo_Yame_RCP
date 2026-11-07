@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `d4894b7` — `Record GitHub Actions validation in handoff`.
+- Latest committed revision reviewed: `e64fd93` — `Add Windows backend tray controls and clarify OTP feedback`.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -16,19 +16,19 @@ farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
 for the recent commit history and current local work.
 
-The current uncommitted work adds a Windows notification-area menu with web
-panel launch, backend restart and shutdown, and application exit actions. OTP
-verification now gives immediate incomplete-code feedback and a busy state.
-An isolated backend OTP request → verify → authenticated-account check passed.
-The web UI still needs an end-to-end browser/device check with the running demo.
+Commit `e64fd93` adds a Windows notification-area menu with web panel launch,
+backend restart and shutdown, and application exit actions. OTP verification
+shows incomplete-code feedback and a busy state. An isolated backend OTP
+request → verify → authenticated-account check passed. The web UI and tray menu
+still need interactive browser/device checks.
 
-The prior account-pairing changes and fresh-install widget test are committed
-in `bc5d5c1`. Flutter widget/backend tests and JavaScript syntax checks passed.
-GitHub Actions run [42355687815](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42355687815)
-passed the Android debug APK build and Windows backend tests/package. The
-follow-up documentation run [42356162301](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42356162301)
-also passed. `dart analyze` did not return diagnostics within 30 seconds. The
-APK and tray controls have not been exercised interactively on devices.
+Flutter widget/backend tests and JavaScript syntax checks passed. GitHub Actions
+run [42356938067](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42356938067)
+passed the Android debug APK build and Windows backend tests/package for
+`e64fd93`. Earlier run [42355687815](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42355687815)
+also passed both jobs for the account-pairing changes. `dart analyze` did not
+return diagnostics within 30 seconds. The APK and tray controls have not been
+exercised interactively on devices.
 
 Account records, crop locations, sensor assignments, and sessions live in the
 backend SQLite database. Web and mobile clients see the same data when they use
