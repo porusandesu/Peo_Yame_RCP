@@ -23,9 +23,9 @@ function decodeBase32(secret) {
   let bits = 0;
   let value = 0;
   const bytes = [];
-  for (const character of secret.toUpperCase().replace(/=+$/g, "")) {
+  for (const character of String(secret).toUpperCase().replace(/=+$/g, "")) {
     const digit = BASE32_ALPHABET.indexOf(character);
-    if (digit < 0) throw new Error("Invalid authenticator setup key.");
+    if (digit < 0) throw new TypeError("Invalid authenticator setup key.");
     value = (value << 5) | digit;
     bits += 5;
     if (bits >= 8) {
@@ -34,6 +34,7 @@ function decodeBase32(secret) {
       value &= (1 << bits) - 1;
     }
   }
+  if (bits >= 5) throw new TypeError("Invalid authenticator setup key.");
   return Buffer.from(bytes);
 }
 
@@ -48,8 +49,8 @@ function authenticatorCode(secret, timestamp = Date.now()) {
 }
 
 function verifyAuthenticatorCode(secret, code, timestamp = Date.now()) {
-  if (!secret || !/^\d{6}$/.test(code)) return false;
-  const supplied = Buffer.from(code);
+  if (!secret || !/^\d{6}$/.test(String(code || ""))) return false;
+  const supplied = Buffer.from(String(code));
   for (const offset of [-30000, 0, 30000]) {
     const expected = Buffer.from(authenticatorCode(secret, timestamp + offset));
     if (crypto.timingSafeEqual(supplied, expected)) return true;

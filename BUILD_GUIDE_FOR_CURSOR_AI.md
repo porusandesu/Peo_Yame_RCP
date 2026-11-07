@@ -1,13 +1,5 @@
 # Build Guide: Low-Cost IoT Storage Monitoring System (simulation-based)
 
-> **Specification snapshot:** This file is an original build plan, not an
-> up-to-date procedure for this checkout. Its proposed `better-sqlite3`,
-> folder layout, schema, UI and test commands differ from the implemented
-> Node/Express + SQLite CLI backend and Flutter app. Use [README.md](README.md),
-> [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md), and
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for current instructions and
-> boundaries. Do not treat planned work below as implemented or verified.
-
 Self-contained spec for building the whole project on one PC with Cursor's
 free plan, with little back-and-forth. It can rebuild from zero. If working code
 already exists (a `storage-demo` backend and a `storage_monitor_flutter` app),

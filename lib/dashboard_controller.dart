@@ -27,45 +27,42 @@ class DashboardController extends ChangeNotifier {
 
   StatusResponse? status;
   List<Alert> alerts = const [];
+  List<Map<String, dynamic>> smsLog = const [];
   List<Reading> history = const [];
   List<TrendPoint> trends = const [];
   String trendRange = '24h';
   String? trendError;
   bool isLoading = true;
+  bool isTriggering = false;
   bool isChangingHarvest = false;
+  bool demoMode = false;
   List<Threshold> crops = const [];
   String? errorMessage;
-  bool isBackendConnected = false;
-  bool hasConnectionStatus = false;
-  int _missedRefreshes = 0;
 
   Timer? _timer;
-  Timer? _eventRetryTimer;
-  Completer<void>? _eventRetryCompleter;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
   Completer<void>? _eventDisconnect;
   bool _disposed = false;
   bool _connectingEvents = false;
+  int farmerAccountRevision = 0;
   int _refreshGeneration = 0;
   bool _refreshInFlight = false;
   bool _refreshQueued = false;
 
-  void startPolling() {
+  void startPolling({required bool demoMode}) {
     _timer?.cancel();
-    unawaited(loadCrops());
+    this.demoMode = demoMode;
     _refresh();
     _connectEvents();
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
   }
 
   Future<void> _connectEvents() async {
     if (_connectingEvents || _disposed) return;
     _connectingEvents = true;
-    var retrySeconds = 2;
     try {
       while (!_disposed) {
         StreamSubscription<Map<String, dynamic>>? subscription;
-        var receivedEvent = false;
         final disconnected = Completer<void>();
         _eventDisconnect = disconnected;
         try {
@@ -74,8 +71,11 @@ class DashboardController extends ChangeNotifier {
           subscription = stream.listen(
             (event) {
               if (_disposed) return;
-              receivedEvent = true;
               if (event['type'] == 'crops') unawaited(loadCrops());
+              if (event['type'] == 'account') {
+                farmerAccountRevision++;
+                notifyListeners();
+              }
               unawaited(_refresh());
             },
             onError: (Object _, StackTrace __) {
@@ -102,16 +102,7 @@ class DashboardController extends ChangeNotifier {
           }
         }
         if (!_disposed) {
-          if (receivedEvent) retrySeconds = 2;
-          final retry = Completer<void>();
-          _eventRetryCompleter = retry;
-          _eventRetryTimer = Timer(Duration(seconds: retrySeconds), () {
-            if (!retry.isCompleted) retry.complete();
-          });
-          await retry.future;
-          _eventRetryTimer = null;
-          _eventRetryCompleter = null;
-          retrySeconds = (retrySeconds * 2).clamp(2, 30).toInt();
+          await Future<void>.delayed(const Duration(seconds: 2));
         }
       }
     } finally {
@@ -222,6 +213,7 @@ class DashboardController extends ChangeNotifier {
       final results = await Future.wait([
         _api.getStatus(),
         _api.getAlerts(),
+        _api.getSmsLog().catchError((_) => smsLog),
         _api.getHistory(limit: 20),
       ]);
 
@@ -229,20 +221,14 @@ class DashboardController extends ChangeNotifier {
 
       status = results[0] as StatusResponse;
       alerts = results[1] as List<Alert>;
-      history = results[2] as List<Reading>;
-      isBackendConnected = true;
-      hasConnectionStatus = true;
-      _missedRefreshes = 0;
+      smsLog = results[2] as List<Map<String, dynamic>>;
+      history = results[3] as List<Reading>;
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (_) {
       if (_disposed || generation != _refreshGeneration) return;
-      _missedRefreshes++;
-      if (_missedRefreshes >= 3) {
-        hasConnectionStatus = true;
-        isBackendConnected = false;
-        errorMessage = 'Backend unavailable. Reconnecting…';
-      }
+      errorMessage =
+          'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
     } finally {
       _refreshInFlight = false;
       final shouldRefreshAgain = _refreshQueued && !_disposed;
@@ -255,13 +241,41 @@ class DashboardController extends ChangeNotifier {
     }
   }
 
+  Future<void> triggerDemoBreach() async {
+    if (isTriggering) return;
+    isTriggering = true;
+    notifyListeners();
+    try {
+      await _api.triggerDemoBreach();
+      await _refresh();
+    } catch (_) {
+      if (_disposed) return;
+      errorMessage =
+          'The demo alert could not be sent. Check your Wi-Fi and try again.';
+      isLoading = false;
+    } finally {
+      if (!_disposed) {
+        isTriggering = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> acknowledgeAlert(int id) async {
+    try {
+      await _api.acknowledgeAlert(id);
+      await _refresh();
+    } catch (_) {
+      if (_disposed) return;
+      errorMessage = 'Could not update this alert. Check the connection and try again.';
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _timer?.cancel();
-    _eventRetryTimer?.cancel();
-    final retry = _eventRetryCompleter;
-    if (retry != null && !retry.isCompleted) retry.complete();
     final disconnect = _eventDisconnect;
     if (disconnect != null && !disconnect.isCompleted) {
       disconnect.complete();

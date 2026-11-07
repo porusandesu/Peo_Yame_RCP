@@ -1,48 +1,20 @@
-# Backend deployment and security notes
+# Backend deployment notes
 
-## Local demonstration
+The API stores crop definitions, the selected crop, and received readings in SQLite. The backend calls the system `sqlite3` command-line program, so install SQLite 3 and ensure `sqlite3` is on `PATH`. The default file is `backend/data/storage-monitor.sqlite`; set `DATABASE_PATH` to a persistent disk path in deployments. Keep the database and its `-wal`/`-shm` sidecar files on the same host and a local filesystem. SQLite WAL does not support sharing a database file across network filesystems or multiple server hosts.
 
-Install Node.js 18+ and SQLite 3, with `sqlite3` on `PATH`:
+## Windows demo package
 
-```bash
-npm ci
-npm run demo
-```
+The `windows-backend` GitHub Actions job builds and smoke-tests a portable ZIP containing `Peo-Yame-Backend.exe`, a hidden backend runtime, the SQLite CLI, and a quick-start file. The launcher starts the backend in the background and remains in the Windows system tray. Its menu opens the dashboard, restarts or stops the backend, and exits the tray app. The launcher and its `runtime` folder must stay together when extracted.
 
-Demo mode generates simulated readings and synthetic trend history. It binds
-to loopback and detected private IPv4 interfaces. The database defaults to
-`backend/data/storage-monitor.sqlite`; `DATABASE_PATH` can select another
-local path. SQLite WAL files must stay on the same host and local filesystem.
+Download the `peo-yame-backend-windows` artifact from a successful Actions run. User data is written under `%LOCALAPPDATA%\Peo Yame\data`, so the ZIP can live in a read-only or removable folder. On first launch, Windows may ask to allow the backend through the firewall; allow it only on private networks for phone-to-PC demo use. The package does not install a Windows service and is not intended for public hosting.
 
-## Demo account flow
+## Run for production
 
-Both clients show a **Demo mode** button that opens the shared account without
-login. The profile is **Mr Lesego Lefoko** (`LLefoko@email.co.bw`). Demo mode
-does not request a phone number, password, authenticator or QR, and does not
-issue or require session tokens. Authentication endpoints return not found in
-demo mode. Crop locations and sensor assignments are saved under this shared
-demo account.
+1. Install dependencies with `npm ci` and install SQLite 3 on the host.
+2. Set `NODE_ENV=production`, `PORT`, `HOST`, `DATABASE_PATH`, and `CORS_ORIGINS` (comma-separated exact browser origins, if the browser dashboard is used).
+3. Put the API behind an HTTPS reverse proxy and allow sensor/app traffic only through the intended network path.
+4. Back up the database using SQLite's online backup API or a coordinated backup procedure. Do not copy only the main database file while it is actively using WAL mode.
 
-## Production account flow
+Production mode disables the fake sensor generator and synthetic trend baseline. It binds to loopback unless `HOST` is explicitly set. Development mode retains simulated readings for demos. Crop definitions and readings survive restarts; request values are validated and SQL string values are escaped before being passed to SQLite.
 
-Production retains phone verification, email/password credentials, Google
-Authenticator and one-use QR pairing. Passwords use Node `scrypt` with a random
-salt; raw passwords are not stored. Password sign-in is rate-limited by email
-for five failed attempts per five-minute window. Farmer sessions expire after
-seven days; SQLite stores only a SHA-256 token hash. Active QR and OTP
-challenges remain in process memory.
-
-## Production limitations
-
-Set `NODE_ENV=production`, configure `HOST`, `PORT`, `DATABASE_PATH`, and
-`CORS_ORIGINS`, and place the service behind HTTPS before remote access. In
-production, phone verification returns an error until an SMS provider is
-configured. Configure account/session recovery, revocation, monitoring, backup,
-and abuse controls before public deployment.
-
-The global monitor/status/reading/alert routes are not account-scoped even
-though farmer profile and crop-assignment routes require a farmer session.
-Sensor IDs are discovered from submitted reading site fields, not verified
-device credentials. The default HTTP configuration and unauthenticated demo
-mode are for controlled local demonstrations only; demo data has no account
-isolation.
+Farmer accounts use Botswana phone numbers and passwords when `AUTH_ENABLED=true` or `NODE_ENV=production`; passwords are salted and hashed, and bearer sessions expire and can be revoked. Authenticated crop sites and sensor links are owner-scoped. Demo entry remains session-free. This is still a small demonstration service, not a production security review: login throttling is process-local, data is not encrypted at rest by the app, there is no SMS provider or device credential enrollment, and global dashboard readings are shared demo data rather than farmer-isolated telemetry. Use HTTPS, private network controls and a security review before handling real farmer data or exposing the service publicly.

@@ -4,8 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#10251f" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/peo-yame-32.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/icons/peo-yame-192.png" />
     <title>Peo Yame | Storage dashboard</title>
     <style>
       :root { color-scheme:light; --ink:#172923; --muted:#65776f; --line:#dce6df; --green:#176b4a; --bg:#f3f7f3; --red:#a8332d; }
@@ -14,7 +12,7 @@
       header { padding:21px max(22px,calc((100vw - 1120px)/2)); background:#10251f; color:white; display:flex; justify-content:space-between; align-items:center; gap:20px; box-shadow:0 8px 26px #10251f2b; }
       h1 { margin:0; font-size:clamp(25px,4vw,34px); letter-spacing:-.03em; }
       .brand { display:flex; align-items:center; gap:10px; }
-      .brand-plant { width:36px; height:36px; border-radius:8px; background:white; object-fit:cover; }
+      .brand-plant { width:42px; height:42px; border-radius:10px; filter:drop-shadow(0 3px 4px #0005); }
       .header-actions { display:flex; align-items:center; gap:8px; }
       .status-chip { padding:8px 11px; border:1px solid #ffffff30; border-radius:11px; background:#ffffff12; font-size:12px; white-space:nowrap; }
       .status-chip small { display:block; margin-left:15px; color:#c4d7cd; font-size:10px; }
@@ -29,11 +27,6 @@
       .account-menu button { display:block; width:100%; text-align:left; border:0; background:white; font-size:13px; }
       .account-menu button:hover { background:var(--bg); }
       .account-menu .menu-name { padding:8px 9px; color:var(--muted); font-size:12px; }
-      .app-menu-wrap { position:relative; }
-      .app-menu { position:absolute; z-index:8; top:calc(100% + 7px); right:0; width:220px; padding:7px; background:white; color:var(--ink); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 28px #10251f30; }
-      .app-menu[hidden] { display:none; }
-      .app-menu button { display:block; width:100%; text-align:left; border:0; background:white; font-size:13px; }
-      .app-menu button:hover { background:var(--bg); }
       dialog { width:min(440px,calc(100% - 28px)); border:1px solid var(--line); border-radius:16px; padding:20px; color:var(--ink); box-shadow:0 18px 60px #10251f35; }
       dialog::backdrop { background:#10251f77; }
       dialog h2 { margin:0 0 14px; }
@@ -43,9 +36,6 @@
       .form-grid input { width:100%; min-width:0; padding:9px; border:1px solid var(--line); border-radius:8px; font:inherit; color:var(--ink); }
       .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
       .dialog-error { min-height:18px; margin-top:8px; color:var(--red); font-size:12px; }
-      #editProfileForm { display:grid; gap:10px; }
-      #editProfileForm > label { display:grid; gap:6px; color:var(--muted); font-size:13px; text-align:left; }
-      #editProfileForm input { width:100%; min-height:42px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; color:var(--ink); font:inherit; }
       .harvest-controls { display:flex; gap:6px; align-items:center; margin-top:7px; }
       .harvest-controls .harvest-select { flex:1; min-width:0; margin:0; }
       .add-crop { min-width:36px; width:38px; height:40px; color:var(--green); font-size:20px; }
@@ -104,22 +94,21 @@
       .auth-shell[hidden], .view[hidden], main[hidden], header[hidden] { display:none; }
       .auth-card { width:min(440px,100%); padding:26px; background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:0 12px 34px #18332612; }
       .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
-      .auth-brand img { width:32px; height:32px; border-radius:7px; object-fit:cover; }
-      #connectionQr svg { display:block; width:min(240px,70vw); height:auto; }
+      .auth-brand img { width:36px; height:36px; border-radius:9px; }
       .auth-card h2 { margin:30px 0 5px; font-size:25px; }
       .auth-card p { color:var(--muted); font-size:13px; }
       .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
       .auth-card input { width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:9px; font:inherit; color:var(--ink); }
+      .auth-card [hidden] { display:none; }
+      .auth-card .primary { width:100%; }
+      .auth-links { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:10px; }
+      .auth-links button { min-width:0; border:0; background:transparent; color:var(--green); text-decoration:underline; }
+      .auth-error { min-height:18px; margin-top:9px; color:var(--red); font-size:12px; }
+      .qr-box { margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:12px; text-align:center; }
+      .qr-box img { width:220px; height:220px; max-width:100%; }
       .primary { width:100%; margin-top:12px; padding:11px; color:#fff; border-color:var(--green); background:var(--green); }
       .auth-notice,.demo-note { padding:10px 12px; border:1px solid #ead9a8; border-radius:10px; background:#fff8e6; color:#624d1c; font-size:12px; }
-      .auth-alternative { margin-top:12px; color:var(--muted); font-size:12px; }
-      .auth-alternative summary { cursor:pointer; }
-      .auth-qr-section { margin-top:14px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#f8faf8; }
-      .auth-qr-section h3 { margin:0 0 5px; font-size:14px; }
-      .auth-qr-section p { margin:0; font-size:12px; }
       .auth-link { display:block; margin:14px auto 0; border:0; background:none; color:var(--green); }
-      .pin-row { display:grid; grid-template-columns:repeat(6,1fr); gap:7px; margin:18px 0; }
-      .pin-row input { text-align:center; font-size:19px; font-weight:700; }
       .view { width:min(900px,calc(100% - 32px)); margin:24px auto 48px; }
       .view-heading { display:flex; align-items:center; gap:12px; margin-bottom:15px; }
       .view-heading h2 { flex:1; margin:0; font-size:25px; }
@@ -148,53 +137,43 @@
     </style>
   </head>
   <body>
-    <section class="auth-shell" id="authShell" aria-live="polite" hidden>
-      <div class="auth-card" id="loginPanel">
-        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
-        <form id="passwordLoginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="username" required></label><label>Password<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8"></label><div class="dialog-error" id="passwordLoginError" role="alert"></div><button class="primary" type="submit">Sign in →</button></form>
-        <details class="auth-alternative"><summary>Log in with phone number</summary><form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue →</button></form></details>
-        <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
-        <button class="auth-link" id="loginDemoMode" type="button">Demo mode</button><div class="dialog-error" id="loginDemoModeError" role="status"></div>
-        <div class="auth-notice">Local demo sign-in does not send SMS. Use the demo verification option after requesting a phone code.</div>
-        <section class="auth-qr-section"><h3>Sign in with QR code</h3><p>Scan this one-time code with Peo Yame on a phone that is already signed in.</p><button class="auth-link" id="showWebLoginQr" type="button">Show sign-in QR</button><div id="webLoginQr" style="display:grid;place-items:center;padding:10px" hidden></div><p id="webLoginQrStatus" role="status"></p></section>
+    <section class="auth-shell" id="authShell" aria-live="polite">
+      <div class="auth-card" id="demoPanel">
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt=""> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <h2>Welcome to Peo Yame</h2><p>Open the storage dashboard directly using the shared demo profile.</p>
+        <div class="auth-notice"><strong>Shared demo profile · Mr Lesego Lefoko</strong><br>LLefoko@email.co.bw</div>
+        <button class="primary" id="enterDemoMode" type="button">Demo mode →</button>
+        <button class="auth-link" id="openWebSignIn" type="button">Sign in or create farmer account</button>
+        <p>Demo access does not ask for a phone number, send a PIN, or create an authenticated account.</p>
       </div>
-      <div class="auth-card" id="demoPanel" hidden>
-        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <h2>Demo mode</h2><p>Continue to the dashboard without signing in.</p>
-        <article class="profile-card"><strong>Mr Lesego Lefoko</strong><p class="profile-meta">LLefoko@email.co.bw</p></article>
-        <div class="dialog-error" id="demoModeError" role="status"></div><button class="primary" id="enterDemoMode" type="button">Open demo home →</button>
-      </div>
-      <div class="auth-card" id="otpPanel" hidden>
-        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2 id="otpTitle">Verify your number</h2><p id="otpPrompt"><span id="otpPromptText">Enter the 6-digit one-time PIN for </span><strong id="phonePreview"></strong></p>
-        <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
-        <form id="otpForm" novalidate><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" autocomplete="one-time-code" inputmode="numeric"><input aria-label="PIN digit 2" inputmode="numeric"><input aria-label="PIN digit 3" inputmode="numeric"><input aria-label="PIN digit 4" inputmode="numeric"><input aria-label="PIN digit 5" inputmode="numeric"><input aria-label="PIN digit 6" inputmode="numeric"></div><button class="primary" id="verifyOtpButton" type="submit">Verify &amp; continue →</button></form>
-        <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
-        <button class="auth-link" id="skipDemoVerification" type="button" hidden>Skip verification (demo)</button>
-      </div>
-      <div class="auth-card" id="credentialsPanel" hidden>
-        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Secure your account</h2><p>Your number is verified. Add an email and password for future sign-ins.</p>
-        <form id="credentialsForm"><label>Email address<input id="credentialEmail" type="email" autocomplete="email" required maxlength="254"></label><label>Create password<input id="credentialPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label><div class="dialog-error" id="credentialsError" role="alert"></div><button class="primary" id="saveCredentials" type="submit">Save and continue →</button></form>
-        <button class="auth-link" id="skipCredentialSetup" type="button" hidden>Skip account security (demo)</button>
-      </div>
-      <div class="auth-card" id="profilePanel" hidden>
-        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Create farmer account</h2><p>Your account and linked crop list will be saved on this backend.</p>
-        <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
+      <div class="auth-card" id="webAuthPanel" hidden>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt=""> Peo Yame</div>
+        <h2 id="webAuthTitle">Sign in</h2><p>Use your Botswana phone number and password.</p>
+        <label id="webNameLabel" hidden>Farmer name<input id="webName" autocomplete="name" maxlength="80"></label>
+        <label>Phone number<input id="webPhone" type="tel" autocomplete="tel" placeholder="+267 71 234 567"></label>
+        <label>Password<input id="webPassword" type="password" autocomplete="current-password"></label>
+        <label id="webTotpLabel" hidden>Authenticator code (if enabled)<input id="webTotp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label>
+        <div id="webAuthError" class="auth-error" role="alert"></div>
+        <button class="primary" id="webAuthSubmit" type="button">Sign in</button>
+        <div class="auth-links"><button id="toggleWebAuth" type="button">Create account</button><button id="webQrSignIn" type="button">Use phone QR sign-in</button></div>
+        <div class="qr-box" id="webQrBox" hidden><img id="webQrImage" alt="One-time Peo Yame sign-in QR code"><p id="webQrStatus">Scan this code with a signed-in Peo Yame phone.</p><button id="cancelWebQr" type="button">Cancel</button></div>
+        <button class="auth-link" id="backToDemo" type="button">Back to Demo mode</button>
       </div>
     </section>
     <header id="appHeader" hidden>
-      <div class="brand"><img class="brand-plant" src="/icons/peo-yame-128.png" alt="" /><h1>Peo Yame</h1></div>
+      <div class="brand"><img class="brand-plant" src="/icons/peo-yame-128.png" alt=""><h1>Peo Yame</h1></div>
       <div class="header-actions">
         <div class="status-chip" id="connectionHeader"><span class="connected-dot"></span><strong>Backend</strong> · Connecting<small>Waiting for demo service</small></div>
-        <div class="account-wrap"><div class="account-button" id="accountSummary"><span class="account-avatar" id="accountInitial">F</span><span><strong class="account-name" id="accountName">Farmer</strong><small class="account-email" id="accountPhone"></small></span></div></div>
-        <button class="icon-button" id="homeButton" type="button" aria-label="Home" title="Home" hidden>⌂</button>
+        <div class="account-wrap"><button class="account-button" id="accountButton" type="button" title="User menu" aria-label="Open user menu" aria-expanded="false"><span class="account-avatar" id="accountInitial">O</span><span><strong class="account-name" id="accountName">Olerato</strong><small class="account-email" id="accountPhone">Demo profile</small></span></button><div class="account-menu" id="accountMenu" hidden><div class="menu-name" id="menuName">Demo farmer account</div><button id="openAccounts" type="button">Accounts &amp; crops</button><button id="logout" type="button">Sign out</button></div></div>
+        <button class="icon-button" id="exportActions" aria-label="Export activity log as Markdown" title="Export activity log as Markdown">⇩</button>
+        <button class="icon-button" id="exportData" aria-label="Export sensor data for Excel" title="Export sensor data for Excel (CSV)">▦</button>
         <button class="icon-button" id="refresh" aria-label="Refresh readings" title="Refresh readings">↻</button>
-        <div class="app-menu-wrap"><button class="icon-button" id="appMenuButton" type="button" aria-label="Open settings menu" aria-expanded="false" title="Settings">☰</button><div class="app-menu" id="appMenu" hidden><button type="button" data-open-view="settings">Settings &amp; profile</button><button type="button" data-open-view="crops">My Crops</button><button id="connectPhone" type="button">Connect mobile app</button><button id="logout" type="button">Sign out</button></div></div>
+        <button class="icon-button" id="trigger" aria-label="Trigger a demo breach" title="Trigger a demo breach" hidden>⚠</button>
       </div>
     </header>
     <main id="dashboard" hidden>
-      <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Demo sensor mode</strong>Farmer accounts, crop locations and linked sensor IDs are saved on this backend. Sensor readings are still generated by the demo, and one-time PIN delivery is shown locally until an SMS provider is connected.</div></div>
+      <nav class="top-nav" aria-label="Application sections"><button type="button" data-open-view="accounts">Accounts</button><button type="button" data-open-view="crops">My Crops</button><button type="button" data-open-view="settings">Settings</button></nav>
+        <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Demo data</strong>Dashboard readings are simulated. No physical sensors are connected and no text messages are sent.</div></div>
       <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
       <div id="error" role="status" aria-live="polite"></div>
       <section class="cards" aria-label="Current storage status">
@@ -221,25 +200,29 @@
         </div>
       </section>
     </main>
-    <section class="view" id="settingsView" hidden>
-      <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
-      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta" id="profileEmail"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
-      <h2 id="authSecurityHeader" style="margin-top:18px">Two-step sign-in</h2><article class="profile-card" id="authSecurityCard"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden>6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
-      <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
-      <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
-      <h2 style="margin-top:18px">Crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
+    <section class="view" id="accountsView" hidden>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2 id="accountViewTitle">Accounts</h2><button type="button" id="editProfile">Edit</button></div>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">O</div><div><strong id="profileName">Olerato</strong><div class="profile-meta" id="profilePhone">+267 71 234 567</div><div class="profile-meta" id="profileEmail"></div></div></div><div class="count-row"><div><strong id="ownedCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="ownedSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <h2>Your crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="cropSummary">Your saved storage locations</small></button><button type="button" data-open-view="crops">◉ &nbsp; Manage linked sensors <small>Assign only sensors the backend has received data from</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor</button><button type="button" id="connectPhone">▦ &nbsp; Sign in on a phone with QR</button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
+      <div class="qr-box" id="mobileQrBox" hidden><img id="mobileQrImage" alt="One-time Peo Yame phone sign-in code"><p id="mobileQrStatus">Scan this code with the Peo Yame phone app.</p><button id="cancelMobileQr" type="button">Close</button></div>
     </section>
     <section class="view" id="cropsView" hidden>
-      <div class="view-heading"><h2>My Crops</h2><button type="button" id="addFarmerCrop">＋ Add crop</button></div>
-      <div class="demo-note">Add as many crop locations and sensor IDs as you need. Sensor IDs are saved to your farmer account.</div>
-      <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, storage or sensor ID" aria-label="Search your crops and sensors"></div>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>My Crops</h2><button type="button" id="addDemoSensor">＋ Add</button></div>
+      <div class="demo-note" id="cropDemoNote">Saved crop locations and linked sensor IDs belong to the signed-in account. Last-seen time is shown where readings exist.</div>
+      <div class="profile-card"><strong id="cropAccountLabel">Your storage locations</strong><div class="profile-meta" id="ownedCropSummary"></div></div>
+      <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, location or sensor ID" aria-label="Search crop, location or sensor ID"><button class="filter-button" data-sensor-filter="all" aria-pressed="true">All sensors</button></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
-    <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><p id="farmerCropGuide" class="profile-meta"></p><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
-    <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Email address<input name="email" id="editProfileEmail" type="email" autocomplete="email" maxlength="254"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
-    <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
-    <dialog id="connectionDialog"><h2>Sign in to the mobile app</h2><p>Sign in to your farmer account here first, then scan this one-time QR code in the Peo Yame mobile app. Keep both devices on the same Wi-Fi network.</p><label class="profile-meta" for="connectionAddress">Choose a network</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="One-time mobile sign-in QR code" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" id="refreshConnectionQr">Create a new QR</button><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
-    <script src="/qrcode-generator.js"></script>
+    <section class="view" id="settingsView" hidden>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Settings</h2></div>
+      <article class="profile-card"><h2>Account information</h2><div class="profile-line"><div class="profile-avatar" id="settingsInitial">D</div><div><strong id="settingsName">Shared Demo profile</strong><div class="profile-meta" id="settingsIdentity"></div></div></div><button type="button" id="settingsEditProfile" style="margin-top:12px">Edit profile</button></article>
+      <article class="profile-card" id="webSecuritySettings"><h2>Account security</h2><div class="profile-meta" id="authenticatorStatus">Checking authenticator status…</div><button type="button" id="authenticatorAction" style="margin-top:10px">Check status</button><div class="profile-meta" id="securityNotice" role="status" aria-live="polite" style="margin-top:8px"></div></article>
+      <article class="profile-card"><h2>Monitor and data</h2><div class="profile-meta" id="webBackendInfo">This page uses the backend serving this web app.</div><div class="view-actions"><button type="button" id="settingsRefresh">↻ &nbsp; Refresh shared data</button><button type="button" id="settingsExportCsv">▦ &nbsp; Export readings as CSV</button><button type="button" id="settingsExportActions">⇩ &nbsp; Export activity log</button></div><div class="profile-meta" style="margin-top:10px">Demo readings are simulated. No physical sensor or SMS provider is connected.</div></article>
+    </section>
+    <dialog id="siteDialog"><form id="siteForm"><h2>Add a crop location</h2><div class="form-grid"><label>Crop<select name="commodity" id="siteCommodity" required></select></label><label>Storage or field name<input name="label" required maxlength="80" placeholder="For example: North store"></label></div><div id="siteError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="siteDialog">Cancel</button><button type="submit">Save location</button></div></form></dialog>
+    <dialog id="sensorDialog"><form id="sensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Crop location<select name="siteId" id="sensorSiteId"></select></label><label>Discovered sensor<select name="sensorId" id="sensorId" required></select></label></div><div id="sensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="sensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
+    <dialog id="profileDialog"><form id="profileForm"><h2>Edit profile</h2><label>Name<input name="name" id="profileNameInput" required minlength="2" maxlength="80"></label><label>Email address (optional)<input name="email" id="profileEmailInput" type="email" maxlength="254"></label><div class="profile-meta">Your phone number is the sign-in identity and cannot be changed here.</div><div id="profileEditError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="profileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
+    <dialog id="authenticatorDialog"><form id="authenticatorForm"><h2 id="authenticatorTitle">Set up authenticator</h2><p class="profile-meta" id="authenticatorInstructions"></p><p id="authenticatorSecret" style="font-weight:800;letter-spacing:1.2px;overflow-wrap:anywhere"></p><label>Current 6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label><div id="authenticatorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="authenticatorDialog">Cancel</button><button type="submit" id="authenticatorSubmit">Enable</button></div></form></dialog>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
       const $ = (id) => document.getElementById(id);
@@ -248,24 +231,20 @@
       const isBreach = (r, t) => r.temperature < t.minTemp || r.temperature > t.maxTemp || r.humidity < t.minHumidity || r.humidity > t.maxHumidity;
       let selectedRange = '24h';
       let chartData = [];
-      let activeThreshold = null;
       let refreshRevision = 0;
       let lastSyncAt = null;
       let demoMode = true;
       let demoProfile = null;
-      let authToken = localStorage.getItem('peo_yame_farmer_token') || '';
-      let verifiedFarmer = null;
-      let demoSkipAvailable = false;
-      let farmerCrops = [];
-      let farmerSensors = [];
-      let availableFarmerSensors = [];
-      let cropGuidance = [];
-      let pendingProfile = null;
-      let authPhone = '';
-      let authMode = 'pin';
+      let authToken = sessionStorage.getItem('peoYameSession');
+      let registeredMode = false;
+      let webQrPoll = null;
+      let mobileQrPoll = null;
+      let ownedSites = [];
+      let ownedSensors = [];
+      let ownedDataRevision = 0;
+      let authenticatorEnabled = false;
+      let authenticatorDialogMode = 'enable';
       let currentView = 'dashboard';
-      let connectionPort = 3000;
-      let mobileLoginChallenge = '';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
         $('harvest').innerHTML = available.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
@@ -274,163 +253,327 @@
       function updateDemoControls() {
         $('trigger').hidden = !demoMode || !demoProfile;
       }
-      function showAuthPanel(name) {
-        for (const id of ['loginPanel','otpPanel','credentialsPanel','profilePanel','demoPanel']) $(id).hidden = id !== name;
+      function showDemoGate() {
+        if (webQrPoll) clearInterval(webQrPoll);
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        webQrPoll = null;
+        mobileQrPoll = null;
+        demoProfile = null;
+        $('demoPanel').hidden = false;
+        $('webAuthPanel').hidden = true;
         $('authShell').hidden = false;
         $('appHeader').hidden = true;
         $('dashboard').hidden = true;
-        $('settingsView').hidden = true;
+        $('accountsView').hidden = true;
         $('cropsView').hidden = true;
+        $('settingsView').hidden = true;
+      }
+      function showWebAuth(createAccount = false) {
+        registeredMode = createAccount;
+        $('demoPanel').hidden = true;
+        $('webAuthPanel').hidden = false;
+        $('authShell').hidden = false;
+        $('appHeader').hidden = true;
+        $('dashboard').hidden = true;
+        $('webNameLabel').hidden = !registeredMode;
+        $('webTotpLabel').hidden = registeredMode;
+        $('webAuthTitle').textContent = registeredMode ? 'Create farmer account' : 'Farmer sign in';
+        $('webAuthSubmit').textContent = registeredMode ? 'Create account' : 'Sign in';
+        $('toggleWebAuth').textContent = registeredMode ? 'Sign in instead' : 'Create account';
+        $('webPassword').autocomplete = registeredMode ? 'new-password' : 'current-password';
+        $('webQrBox').hidden = true;
+        $('webAuthError').textContent = '';
       }
       function showView(name) {
         currentView = name;
         $('authShell').hidden = true;
         $('appHeader').hidden = false;
         $('dashboard').hidden = name !== 'dashboard';
-        $('settingsView').hidden = name !== 'settings';
+        $('accountsView').hidden = name !== 'accounts';
         $('cropsView').hidden = name !== 'crops';
-        $('homeButton').hidden = name === 'dashboard';
-        $('appMenu').hidden = true;
-        $('appMenuButton').setAttribute('aria-expanded','false');
-        if (name === 'crops') void loadFarmerData();
+        $('settingsView').hidden = name !== 'settings';
+        $('accountMenu').hidden = true;
+        $('accountButton').setAttribute('aria-expanded','false');
+        if (name === 'crops') renderSensors();
       }
-      function activateProfile(profile) {
-        demoProfile = profile;
+      function activateProfile(profile, token = null) {
+        demoMode = token == null;
+        authToken = token;
+        if (token) sessionStorage.setItem('peoYameSession', token);
+        else sessionStorage.removeItem('peoYameSession');
+        demoProfile = {
+          name:profile.name || (token == null ? 'Mr Lesego Lefoko' : 'Farmer'),
+          phone:profile.phone || '',
+          email:profile.email || (token == null ? 'LLefoko@email.co.bw' : '')
+        };
         $('accountName').textContent = demoProfile.name;
-        $('accountPhone').textContent = demoProfile.phone || demoProfile.email || '';
-        $('menuName').textContent = `${demoProfile.name} · Farmer account`;
+        $('accountPhone').textContent = demoMode ? 'Shared demo profile' : (demoProfile.phone || demoProfile.email || 'Farmer account');
+        $('menuName').textContent = `${demoProfile.name}${demoMode ? ' · Demo profile' : ''}`;
+        $('accountViewTitle').textContent = demoMode ? 'Shared demo profile' : 'Accounts';
+        $('openAccounts').textContent = demoMode ? 'Profile & crops' : 'Accounts & crops';
+        $('logout').textContent = demoMode ? 'Exit Demo mode' : 'Sign out';
         $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileName').textContent = demoProfile.name;
-        $('profilePhone').textContent = demoProfile.phone;
+        $('profilePhone').textContent = demoProfile.phone || 'Demo profile';
         $('profileEmail').textContent = demoProfile.email || '';
-        $('authSecurityHeader').hidden = demoMode;
-        $('authSecurityCard').hidden = demoMode;
-        $('logout').hidden = demoMode;
+        $('settingsInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+        $('settingsName').textContent = demoProfile.name;
+        $('settingsIdentity').textContent = demoMode ? (demoProfile.email || 'Shared demo profile') : [demoProfile.phone, demoProfile.email].filter(Boolean).join(' · ');
+        $('cropAccountLabel').textContent = `${demoProfile.name}’s storage locations`;
+        $('editProfile').hidden = demoMode;
+        $('settingsEditProfile').hidden = demoMode;
+        $('webSecuritySettings').hidden = demoMode;
+        $('linkSensor').hidden = demoMode;
         $('connectPhone').hidden = demoMode;
-        document.querySelector('[data-edit-profile]').hidden = demoMode;
+        $('addDemoSensor').hidden = !demoMode;
+        $('addDemoSensor').textContent = demoMode ? '＋ Add crop' : '＋ Add location';
+        $('cropDemoNote').textContent = demoMode
+          ? 'This is a shared demo. Account data, crop locations and sensor links are not saved.'
+          : 'Saved crop locations and linked sensor IDs belong to your account. Last-seen time is based on received readings.';
         updateDemoControls();
         showView('dashboard');
-        void loadFarmerData();
-        if (!demoMode) void loadAuthenticator();
+        if (!demoMode) { void loadOwnedData(); void loadAuthenticatorStatus(); }
         refresh();
       }
-      async function syncAccountProfile() {
-        if ((!authToken && !demoMode) || !demoProfile) return;
-        try {
-          const profile = await getJson('/api/account');
-          if (profile.name === demoProfile.name && profile.phone === demoProfile.phone && (profile.email || '') === (demoProfile.email || '')) return;
-          demoProfile = profile;
-          $('accountName').textContent = profile.name;
-          $('accountPhone').textContent = profile.phone || profile.email || '';
-          $('accountInitial').textContent = profile.name.slice(0,1).toUpperCase();
-          $('profileInitial').textContent = profile.name.slice(0,1).toUpperCase();
-          $('profileName').textContent = profile.name;
-          $('profilePhone').textContent = profile.phone;
-          $('profileEmail').textContent = profile.email || '';
-          updateDemoControls();
-        } catch (_) {}
-      }
-      function authHeaders() { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
-      async function getJson(url) {
-        const response = await fetch(url, { headers: { Accept: 'application/json', ...authHeaders() } });
-        if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Server returned ${response.status}`); }
-        return response.json();
-      }
-      async function postJson(url, payload) {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Server returned ${response.status}`); }
-        return response.json();
-      }
-      function finishAuthentication(result) {
-        authToken = result.token;
-        verifiedFarmer = result.farmer;
-        if (verifiedFarmer.passwordEnabled || (demoSkipAvailable && verifiedFarmer.demoSecuritySkipped)) {
-          localStorage.setItem('peo_yame_farmer_token', authToken);
-          activateProfile(verifiedFarmer);
+      function renderSensors() {
+        const query = $('sensorSearch').value.trim().toLowerCase();
+        if (demoMode) {
+          const crops = cropCatalog.filter((crop) => `${crop.commodity} ${crop.cropGroup || ''} ${crop.storageNote || ''}`.toLowerCase().includes(query));
+          $('sensorList').innerHTML = `${crops.map((crop) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)}</strong><span class="profile-meta">${escapeHtml(crop.cropGroup || 'Crop guide')}</span><button type="button" data-monitor-crop="${escapeHtml(crop.commodity)}">Monitor</button></div><div class="profile-meta">Room target ${Number(crop.minTemp)}–${Number(crop.maxTemp)} °C · ${Number(crop.minHumidity)}–${Number(crop.maxHumidity)}% RH</div><div class="profile-meta">${escapeHtml(crop.storageNote || 'Indicative reference band; confirm advice for the crop and its condition.')}</div>${crop.safeMoisturePct == null ? '' : `<div class="profile-meta">Grain moisture guide: at or below ${Number(crop.safeMoisturePct)}%; measure separately with a moisture meter.</div>`}</article>`).join('') || '<div class="empty">No crop guides match your search.</div>'}<div class="empty">Shared demo only: crop locations and physical sensor links are not saved here.</div>`;
+          $('sensorList').querySelectorAll('[data-monitor-crop]').forEach((button) => button.addEventListener('click', async () => {
+            try {
+              const selected = await postJson('/api/commodity', {name:button.dataset.monitorCrop, source:'web'});
+              applyHarvestSelection(selected);
+              showView('dashboard');
+              await refresh();
+            } catch (error) { $('cropActionNotice').textContent = error.message; }
+          }));
           return;
         }
-        $('credentialEmail').value = pendingProfile?.email || verifiedFarmer.email || '';
-        $('credentialPassword').value = '';
-        $('credentialsError').textContent = '';
-        $('skipCredentialSetup').hidden = !demoSkipAvailable;
-        showAuthPanel('credentialsPanel');
+        const filtered = ownedSites.filter((site) => `${site.commodity} ${site.label} ${(site.sensors || []).join(' ')}`.toLowerCase().includes(query));
+        const sitesHtml = filtered.map((site) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(site.commodity.slice(0,1))}</span><strong>${escapeHtml(site.commodity)}</strong><span class="profile-meta">${escapeHtml(site.label)}</span><button type="button" data-remove-site="${Number(site.id)}" aria-label="Remove ${escapeHtml(site.label)}">Remove</button></div><div class="profile-meta">Room target ${site.minTemp}–${site.maxTemp} °C · ${site.minHumidity}–${site.maxHumidity}% RH</div>${ownedSensors.filter((sensor) => Number(sensor.siteId) === Number(site.id)).map((sensor) => `<div class="sensor-title"><span class="profile-meta">Sensor ${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div>`).join('') || '<div class="profile-meta">No linked sensors</div>'}</article>`).join('') || '<div class="empty">No crop locations yet. Add a crop and storage location to get started.</div>';
+        const guides = cropCatalog.filter((crop) => `${crop.commodity} ${crop.cropGroup || ''} ${crop.storageNote || ''}`.toLowerCase().includes(query));
+        const guidesHtml = `<h2>Crop guides</h2><div class="profile-meta">Selecting a guide updates the shared monitoring crop and its configured target band.</div>${guides.map((crop) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)}</strong><span class="profile-meta">${escapeHtml(crop.cropGroup || 'Crop guide')}</span><button type="button" data-monitor-crop="${escapeHtml(crop.commodity)}">Monitor</button></div><div class="profile-meta">Room target ${Number(crop.minTemp)}–${Number(crop.maxTemp)} °C · ${Number(crop.minHumidity)}–${Number(crop.maxHumidity)}% RH</div><div class="profile-meta">${escapeHtml(crop.storageNote || 'Indicative reference band; confirm advice for the crop and its condition.')}</div>${crop.safeMoisturePct == null ? '' : `<div class="profile-meta">Grain moisture guide: at or below ${Number(crop.safeMoisturePct)}%; measure separately with a moisture meter.</div>`}</article>`).join('') || '<div class="empty">No crop guides match your search.</div>'}`;
+        const unassigned = ownedSensors.filter((sensor) => !ownedSites.some((site) => Number(site.id) === Number(sensor.siteId)));
+        const unassignedHtml = unassigned.length ? `<h2>Unassigned linked sensors</h2>${unassigned.map((sensor) => `<article class="sensor-card"><div class="sensor-title"><strong>Sensor ${escapeHtml(sensor.sensorId)}</strong><span class="profile-meta">No crop location · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div></article>`).join('')}` : '';
+        $('sensorList').innerHTML = `${sitesHtml}${unassignedHtml}${guidesHtml}`;
+        $('sensorList').querySelectorAll('[data-remove-site]').forEach((button) => button.addEventListener('click', async () => {
+          try { await requestJson(`/api/farmer/crops/${button.dataset.removeSite}`, { method:'DELETE' }); await loadOwnedData(); }
+          catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+        $('sensorList').querySelectorAll('[data-unlink-sensor]').forEach((button) => button.addEventListener('click', async () => {
+          try { await requestJson(`/api/farmer/sensors/${encodeURIComponent(button.dataset.unlinkSensor)}`, { method:'DELETE' }); await loadOwnedData(); }
+          catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+        $('sensorList').querySelectorAll('[data-monitor-crop]').forEach((button) => button.addEventListener('click', async () => {
+          try {
+            const selected = await postJson('/api/commodity', {name:button.dataset.monitorCrop, source:'web'});
+            applyHarvestSelection(selected);
+            showView('dashboard');
+            await refresh();
+          } catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
       }
-      async function loadFarmerData() {
-        if (!authToken && !demoProfile) return;
+      async function requestJson(url, options = {}) {
+        const headers = { Accept:'application/json', ...(options.body ? {'Content-Type':'application/json'} : {}), ...(authToken ? {Authorization:`Bearer ${authToken}`} : {}), ...(options.headers || {}) };
+        const response = await fetch(url, {...options, headers});
+        const payload = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
+        if (!response.ok) throw new Error(payload?.error || `Server returned ${response.status}`);
+        return payload;
+      }
+      async function loadOwnedData() {
+        if (demoMode || !authToken) return;
+        const revision = ++ownedDataRevision;
         try {
-          [farmerCrops, farmerSensors, availableFarmerSensors] = await Promise.all([getJson('/api/farmer/crops'), getJson('/api/farmer/sensors'), getJson('/api/farmer/available-sensors')]);
-          $('accountCropCount').textContent = farmerCrops.length;
-          $('accountSensorCount').textContent = farmerSensors.length;
-          $('accountCropSummary').textContent = `${farmerCrops.length} crop locations · ${farmerSensors.length} assigned sensors`;
-          const cropOptions = await getJson('/api/crops');
-          cropGuidance = cropOptions;
-          const groups = new Map();
-          for (const crop of cropOptions) {
-            const group = crop.cropGroup || 'Other';
-            if (!groups.has(group)) groups.set(group, []);
-            groups.get(group).push(crop);
+          const [sites, sensors] = await Promise.all([requestJson('/api/farmer/crops'), requestJson('/api/farmer/sensors')]);
+          if (revision !== ownedDataRevision) return;
+          ownedSites = sites;
+          ownedSensors = sensors;
+          $('ownedCropCount').textContent = ownedSites.length;
+          $('ownedSensorCount').textContent = ownedSensors.length;
+          $('cropSummary').textContent = `${ownedSites.length} location${ownedSites.length === 1 ? '' : 's'} · ${ownedSensors.length} linked sensor${ownedSensors.length === 1 ? '' : 's'}`;
+          $('ownedCropSummary').textContent = `${ownedSites.length} locations · ${ownedSensors.length} linked sensors`;
+          renderSensors();
+        } catch (error) {
+          if (revision === ownedDataRevision) $('accountActionNotice').textContent = error.message;
+        }
+      }
+      async function loadAuthenticatorStatus() {
+        if (demoMode || !authToken) return;
+        $('authenticatorAction').disabled = true;
+        $('authenticatorStatus').textContent = 'Checking authenticator status…';
+        try {
+          const result = await requestJson('/api/account/authenticator');
+          authenticatorEnabled = result.enabled === true;
+          $('authenticatorStatus').textContent = authenticatorEnabled
+            ? 'Authenticator sign-in is enabled for this account.'
+            : 'Authenticator sign-in is not enabled.';
+          $('authenticatorAction').textContent = authenticatorEnabled ? 'Turn off authenticator sign-in' : 'Set up authenticator sign-in';
+          $('securityNotice').textContent = '';
+        } catch (error) {
+          $('authenticatorStatus').textContent = `Could not check account security: ${error.message}`;
+          $('authenticatorAction').textContent = 'Retry status check';
+        } finally { $('authenticatorAction').disabled = false; }
+      }
+      async function reloadFarmerProfile() {
+        if (demoMode || !authToken) return;
+        try {
+          const profile = await requestJson('/api/account');
+          demoProfile = {name:profile.name || 'Farmer', phone:profile.phone || '', email:profile.email || ''};
+          $('accountName').textContent = demoProfile.name;
+          $('accountPhone').textContent = demoProfile.phone || demoProfile.email || 'Farmer account';
+          $('menuName').textContent = demoProfile.name;
+          $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('profileName').textContent = demoProfile.name;
+          $('profilePhone').textContent = demoProfile.phone || 'Farmer account';
+          $('profileEmail').textContent = demoProfile.email;
+          $('cropAccountLabel').textContent = `${demoProfile.name}’s storage locations`;
+          $('settingsInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('settingsName').textContent = demoProfile.name;
+          $('settingsIdentity').textContent = [demoProfile.phone, demoProfile.email].filter(Boolean).join(' · ');
+        } catch (_) {
+          // Leave the last server-confirmed values in place during reconnect.
+        }
+      }
+      async function openAuthenticatorDialog() {
+        if (demoMode || !authToken) return;
+        $('authenticatorError').textContent = '';
+        $('authenticatorCode').value = '';
+        if (authenticatorEnabled) {
+          authenticatorDialogMode = 'disable';
+          $('authenticatorTitle').textContent = 'Turn off authenticator sign-in';
+          $('authenticatorInstructions').textContent = 'Enter the current code from your authenticator app to disable this extra sign-in check.';
+          $('authenticatorSecret').hidden = true;
+          $('authenticatorSubmit').textContent = 'Turn off';
+        } else {
+          try {
+            const setup = await postJson('/api/account/authenticator/setup', {});
+            authenticatorDialogMode = 'enable';
+            $('authenticatorTitle').textContent = 'Set up authenticator';
+            $('authenticatorInstructions').textContent = 'Add this key in Google Authenticator or another TOTP app, then enter its current six-digit code.';
+            $('authenticatorSecret').textContent = setup.secret;
+            $('authenticatorSecret').hidden = false;
+            $('authenticatorSubmit').textContent = 'Enable';
+          } catch (error) {
+            $('securityNotice').textContent = `Could not start setup: ${error.message}`;
+            return;
           }
-          $('farmerCropSelect').innerHTML = [...groups].map(([group, items]) => `<optgroup label="${escapeHtml(group)}">${items.map(crop => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('')}</optgroup>`).join('');
-          updateFarmerCropGuide();
-          $('farmerSensorCrop').innerHTML = farmerCrops.map(crop => `<option value="${crop.id}">${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</option>`).join('');
-          $('farmerSensorCode').innerHTML = `<option value="" selected disabled>Select an available sensor</option>${availableFarmerSensors.map(sensor => `<option value="${escapeHtml(sensor.sensorCode)}" ${sensor.connected ? '' : 'disabled'}>${escapeHtml(sensor.sensorCode)} · ${sensor.connected ? 'Connected' : 'Offline'}</option>`).join('')}`;
-          renderFarmerSensorChoices();
-          $('linkSensor').disabled = farmerCrops.length === 0 || !availableFarmerSensors.some(sensor => sensor.connected);
-          renderFarmerCrops();
-        } catch (error) { $('cropActionNotice').textContent = error.message; }
+        }
+        $('authenticatorDialog').showModal();
       }
-      async function loadAuthenticator() {
+      async function openSiteDialog() {
+        $('siteError').textContent = '';
         try {
-          const status = await getJson('/api/account/authenticator');
-          $('authenticatorStatus').textContent = status.enabled ? 'Authenticator app is on' : 'Authenticator app is off';
-          $('startAuthenticator').hidden = status.enabled;
-          $('disableAuthenticator').hidden = !status.enabled;
-          $('authenticatorCodeLabel').hidden = !status.enabled;
-          $('authenticatorCodeLabel').style.display = status.enabled ? 'grid' : 'none';
-          $('confirmAuthenticator').hidden = true;
-          $('authenticatorSetup').hidden = true;
-          $('authenticatorError').textContent = '';
-        } catch (error) { $('authenticatorError').textContent = error.message; }
+          if (!cropCatalog.length) cropCatalog = await getJson('/api/crops');
+          $('siteCommodity').innerHTML = cropCatalog.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
+          $('siteDialog').showModal();
+        } catch (error) { $('cropActionNotice').textContent = `Crop catalog unavailable: ${error.message}`; }
       }
-      function renderFarmerSensorChoices() {
-        $('farmerCropSensors').innerHTML = availableFarmerSensors.length
-          ? availableFarmerSensors.map(sensor => `<label style="display:flex;align-items:center;gap:8px;padding:6px 2px"><input type="checkbox" name="sensorCodes" value="${escapeHtml(sensor.sensorCode)}" ${sensor.connected ? '' : 'disabled'}><span><strong>${escapeHtml(sensor.sensorCode)}</strong><small class="profile-meta" style="display:block">${sensor.connected ? 'Connected' : 'Offline'} · last seen ${escapeHtml(new Date(sensor.lastSeen).toLocaleString())}</small></span></label>`).join('')
-          : '<div class="profile-meta">No sensor has sent a reading to this backend yet. A sensor ID appears here after its first reading.</div>';
+      async function openSensorDialog() {
+        $('sensorError').textContent = '';
+        try {
+          await loadOwnedData();
+          const available = await getJson('/api/farmer/available-sensors');
+          if (!available.length) throw new Error('No unassigned physical sensor readings have reached this backend yet.');
+          $('sensorSiteId').innerHTML = `<option value="">No location yet</option>${ownedSites.map((site) => `<option value="${Number(site.id)}">${escapeHtml(site.commodity)} · ${escapeHtml(site.label)}</option>`).join('')}`;
+          $('sensorId').innerHTML = available.map((sensor) => `<option value="${escapeHtml(sensor.sensorId)}">${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</option>`).join('');
+          $('sensorDialog').showModal();
+        } catch (error) { $('accountActionNotice').textContent = error.message; }
       }
-      function renderFarmerCrops() {
-        const query = $('sensorSearch').value.trim().toLowerCase();
-        const cards = farmerCrops.map(crop => {
-          const sensors = farmerSensors.filter(sensor => sensor.farmerCropId === crop.id);
-          if (!`${crop.commodity} ${crop.label} ${sensors.map(sensor => `${sensor.sensorCode} ${sensor.label}`).join(' ')}`.toLowerCase().includes(query)) return '';
-          return `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</strong><span class="profile-meta">${sensors.length} sensor${sensors.length === 1 ? '' : 's'}</span></div>${sensors.map(sensor => `<div class="sensor-title" style="margin-top:10px;padding-top:9px;border-top:1px solid var(--line)"><strong>${escapeHtml(sensor.label)}</strong><span class="profile-meta">${escapeHtml(sensor.sensorCode)}</span><span class="sensor-status">Linked to this account</span><button type="button" data-unlink-sensor="${sensor.id}">Unlink</button></div>`).join('') || '<div class="empty">No sensors assigned yet. Use Link a sensor to add one.</div>'}<div style="margin-top:10px;text-align:right"><button type="button" data-delete-crop="${crop.id}">Delete crop location</button></div></article>`;
-        }).filter(Boolean).join('');
-        $('sensorList').innerHTML = cards || (farmerCrops.length ? '<div class="empty">No crop locations match your search.</div>' : '<div class="empty">No crops yet. Add a crop location to get started.</div>');
-        $('sensorList').querySelectorAll('[data-unlink-sensor]').forEach(button => button.addEventListener('click', async () => {
-          if (!window.confirm('Unlink this sensor from your account?')) return;
-          try {
-            const response = await fetch(`/api/farmer/sensors/${button.dataset.unlinkSensor}`, { method:'DELETE', headers:authHeaders() });
-            const body = await response.json();
-            if (!response.ok) throw new Error(body.error || 'Could not unlink sensor');
-            await loadFarmerData();
-          } catch (error) { $('cropActionNotice').textContent = error.message; }
-        }));
-        $('sensorList').querySelectorAll('[data-delete-crop]').forEach(button => button.addEventListener('click', async () => {
-          const crop = farmerCrops.find(item => item.id === Number(button.dataset.deleteCrop));
-          if (!crop || !window.confirm(`Delete ${crop.commodity} · ${crop.label} and unlink its sensors?`)) return;
-          try {
-            const response = await fetch(`/api/farmer/crops/${crop.id}`, { method:'DELETE', headers:authHeaders() });
-            const body = await response.json();
-            if (!response.ok) throw new Error(body.error || 'Could not delete crop location');
-            await loadFarmerData();
-          } catch (error) { $('cropActionNotice').textContent = error.message; }
-        }));
-        $('accountCropCount').textContent = farmerCrops.length;
-        $('accountSensorCount').textContent = farmerSensors.length;
+      async function getJson(url) {
+        return requestJson(url);
+      }
+      async function postJson(url, payload) {
+        return requestJson(url, {method:'POST', body:JSON.stringify(payload)});
+      }
+      async function submitWebAuth() {
+        const payload = {
+          phone:$('webPhone').value.trim(),
+          password:$('webPassword').value,
+          ... (registeredMode ? {name:$('webName').value.trim()} : {authenticatorCode:$('webTotp').value.trim()})
+        };
+        $('webAuthSubmit').disabled = true;
+        $('webAuthError').textContent = '';
+        try {
+          const result = await postJson(registeredMode ? '/api/auth/register' : '/api/auth/login', payload);
+          if (!result?.token || !result?.farmer) throw new Error('The server returned an incomplete farmer session.');
+          activateProfile(result.farmer, result.token);
+        } catch (error) {
+          $('webAuthError').textContent = error.message;
+        } finally {
+          $('webAuthSubmit').disabled = false;
+        }
+      }
+      async function startWebQrSignIn() {
+        if (webQrPoll) clearInterval(webQrPoll);
+        $('webQrStatus').textContent = 'Creating a short-lived sign-in code…';
+        $('webQrBox').hidden = false;
+        try {
+          const result = await postJson('/api/auth/qr/web-challenge', {serverBaseUrl:window.location.origin});
+          $('webQrImage').src = result.qrCode;
+          $('webQrStatus').textContent = `Scan with a signed-in phone before ${fmtTime(result.expiresAt)}.`;
+          let checking = false;
+          webQrPoll = setInterval(async () => {
+            if (checking) return;
+            if (Date.now() >= Date.parse(result.expiresAt)) {
+              clearInterval(webQrPoll);
+              webQrPoll = null;
+              $('webQrStatus').textContent = 'This code has expired. Create a new one to sign in.';
+              $('webQrImage').removeAttribute('src');
+              return;
+            }
+            checking = true;
+            try {
+              const session = await getJson(`/api/auth/qr/web-challenge/${encodeURIComponent(result.challenge)}`);
+              if (session.status === 'approved') {
+                clearInterval(webQrPoll);
+                webQrPoll = null;
+                activateProfile(session.farmer, session.token);
+              }
+            } catch (error) {
+              if (/expired|already used|invalid sign-in/i.test(error.message)) {
+                clearInterval(webQrPoll);
+                webQrPoll = null;
+                $('webQrImage').removeAttribute('src');
+                $('webQrStatus').textContent = error.message;
+              } else {
+                $('webQrStatus').textContent = 'Connection interrupted. Retrying while this code is valid…';
+              }
+            } finally { checking = false; }
+          }, 1800);
+        } catch (error) {
+          $('webQrStatus').textContent = error.message;
+        }
+      }
+      async function startMobileQr() {
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        $('mobileQrBox').hidden = false;
+        $('mobileQrStatus').textContent = 'Creating a short-lived sign-in code…';
+        try {
+          const result = await postJson('/api/auth/qr/mobile-challenge', {serverBaseUrl:window.location.origin});
+          $('mobileQrImage').src = result.qrCode;
+          $('mobileQrStatus').textContent = `Scan with Peo Yame on the phone before ${fmtTime(result.expiresAt)}.`;
+          mobileQrPoll = setTimeout(() => {
+            $('mobileQrStatus').textContent = 'This code has expired. Create a new one to connect another phone.';
+            $('mobileQrImage').removeAttribute('src');
+            mobileQrPoll = null;
+          }, Math.max(0, Date.parse(result.expiresAt) - Date.now()));
+        } catch (error) {
+          $('mobileQrStatus').textContent = error.message;
+        }
+      }
+      async function restoreWebSession() {
+        if (!authToken) return;
+        try {
+          const session = await getJson('/api/auth/session');
+          activateProfile(session.farmer, authToken);
+        } catch (_) {
+          authToken = null;
+          sessionStorage.removeItem('peoYameSession');
+          showDemoGate();
+        }
       }
       function positionRisk(id, value, min, max) {
         const midpoint = (min + max) / 2;
@@ -438,67 +581,42 @@
         const risk = Math.min(1, Math.abs(value - midpoint) / halfRange);
         $(id).style.left = `${Math.max(0, Math.min(100, risk * 100))}%`;
       }
+      function describeCropGuide(t) {
+        const crop = cropCatalog.find((item) => item.commodity === t.commodity) || t;
+        const moisture = crop.safeMoisturePct == null ? '' : ` Grain moisture guide: at or below ${crop.safeMoisturePct}%; measure separately with a grain moisture meter.`;
+        return `Room target band: ${t.minTemp}–${t.maxTemp} °C and ${t.minHumidity}–${t.maxHumidity}% RH.${moisture} ${crop.storageNote || ''}`;
+      }
+      let cropCatalog = [];
       function applyHarvestSelection({ threshold: t, reading: latest }) {
-        activeThreshold = t;
         $('harvest').value = t.commodity;
-        $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
-        $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
-        if (!latest) {
-          $('temperature').textContent = '—';
-          $('humidity').textContent = '—';
-          $('status').textContent = 'No data';
-          $('status').className = 'value';
-          $('statusNote').textContent = 'Waiting for a reading for this crop';
-          $('storageEstimate').textContent = 'Awaiting readings';
-          drawChart(chartData, activeThreshold);
-          return;
-        }
-        $('temperature').textContent = `${latest.temperature.toFixed(1)} °C`;
-        $('humidity').textContent = `${latest.humidity.toFixed(1)} %`;
-        const breached = isBreach(latest, t);
-        $('status').textContent = breached ? 'ALERT' : 'Safe';
+        $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
+        $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
+        const breached = latest ? isBreach(latest, t) : false;
+        $('status').textContent = !latest ? 'No data' : breached ? 'ALERT' : 'In range';
         $('status').className = `value ${breached ? 'status-alert' : 'status-safe'}`;
-        $('statusNote').textContent = `Last reading ${fmtTime(latest.recordedAt)}`;
-        $('qualityEstimate').textContent = 'Status is based on configured crop limits.';
-        $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
-        $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+        $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for a reading for this crop';
+        $('qualityEstimate').textContent = 'Status compares room readings with the selected crop’s configured target band.';
+        $('qualityNote').textContent = describeCropGuide(t);
+        $('tempRange').textContent = `Target band: ${t.minTemp}–${t.maxTemp} °C`;
+        $('humidityRange').textContent = `Target band: ${t.minHumidity}–${t.maxHumidity} % RH`;
         $('storageEstimate').textContent = 'Monitoring configured limits';
-        positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
-        positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
-        drawChart(chartData, activeThreshold);
+        if (latest) {
+          positionRisk('tempMarker', latest.temperature, t.minTemp, t.maxTemp);
+          positionRisk('humidityMarker', latest.humidity, t.minHumidity, t.maxHumidity);
+        }
       }
-      function chartAxis(min, max, hardMin = -Infinity, hardMax = Infinity) {
-        const span = Math.max(max - min, 1);
-        const rawStep = span * 1.4 / 4;
-        const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-        const normalized = rawStep / magnitude;
-        const step = magnitude * (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10);
-        let axisMin = Math.max(hardMin, Math.floor((min - span * .2) / step) * step);
-        let axisMax = Math.min(hardMax, Math.ceil((max + span * .2) / step) * step);
-        if (axisMax <= axisMin) { axisMin = Math.max(hardMin, min - 1); axisMax = Math.min(hardMax, max + 1); }
-        return { min:axisMin, max:axisMax };
-      }
-      function drawChart(points, t = activeThreshold) {
+      function drawChart(points) {
         const svg = $('trendChart');
-        const W = 800, H = 240, pad = { l:52, r:42, t:16, b:30 };
+        const W = 800, H = 240, pad = { l:42, r:14, t:16, b:30 };
         const innerW = W - pad.l - pad.r, innerH = H - pad.t - pad.b;
         const rangeMs = ({ '24h':24, month:720, '3months':2160 }[selectedRange]) * 3600000;
         const end = Date.now(), start = end - rangeMs;
         const x = (time) => pad.l + ((time - start) / rangeMs) * innerW;
-        const safeTempMin = Number(t?.minTemp ?? 0), safeTempMax = Number(t?.maxTemp ?? 40);
-        const safeHumidityMin = Number(t?.minHumidity ?? 0), safeHumidityMax = Number(t?.maxHumidity ?? 100);
-        const tempValues = points.map(point => Number(point.temperature)).filter(Number.isFinite);
-        const humidityValues = points.map(point => Number(point.humidity)).filter(Number.isFinite);
-        const tempAxis = chartAxis(Math.min(safeTempMin, ...tempValues), Math.max(safeTempMax, ...tempValues));
-        const humidityAxis = chartAxis(Math.min(safeHumidityMin, ...humidityValues), Math.max(safeHumidityMax, ...humidityValues), 0, 100);
-        const tempY = (value) => pad.t + innerH - ((value - tempAxis.min) / (tempAxis.max - tempAxis.min)) * innerH;
-        const humY = (value) => pad.t + innerH - ((value - humidityAxis.min) / (humidityAxis.max - humidityAxis.min)) * innerH;
-        const grid = [0,1,2,3,4].map((step) => {
-          const portion = 1 - step / 4;
-          const y = pad.t + innerH - portion * innerH;
-          const tempValue = tempAxis.min + portion * (tempAxis.max - tempAxis.min);
-          const humidityValue = humidityAxis.min + portion * (humidityAxis.max - humidityAxis.min);
-          return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#e8eee9"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#65776f" font-size="10">${tempValue.toFixed(0)}°</text><text x="${W-pad.r+8}" y="${y+4}" text-anchor="start" fill="#65776f" font-size="10">${humidityValue.toFixed(0)}%</text>`;
+        const tempY = (value) => pad.t + innerH - ((value - 0) / 40) * innerH;
+        const humY = (value) => pad.t + innerH - (value / 100) * innerH;
+        const grid = [0,25,50,75,100].map((v) => {
+          const y = pad.t + innerH - v / 100 * innerH;
+          return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#e8eee9"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" fill="#65776f" font-size="10">${v}</text>`;
         }).join('');
         const paths = (key, color, yFn) => {
           const data = points.filter((p) => {
@@ -525,7 +643,7 @@
         try {
           const result = await getJson(`/api/readings/trends?range=${selectedRange}`);
           chartData = result.points || [];
-          drawChart(chartData, activeThreshold);
+          drawChart(chartData);
         } catch (err) { $('chartCaption').textContent = `Trend unavailable: ${err.message}`; }
       }
       async function refresh() {
@@ -537,22 +655,22 @@
           ]);
           if (revision !== refreshRevision) return;
           const t = status.threshold, latest = status.latest;
-          activeThreshold = t;
-          drawChart(chartData, activeThreshold);
           $('error').textContent = '';
-          $('status').textContent = latest ? (status.breached ? 'ALERT' : 'Safe') : 'No data';
+          $('status').textContent = latest ? (status.breached ? 'ALERT' : 'In range') : 'No data';
           $('status').className = `value ${status.breached ? 'status-alert' : 'status-safe'}`;
           $('statusNote').textContent = latest ? `Last reading ${fmtTime(latest.recordedAt)}` : 'Waiting for first reading';
-          $('qualityEstimate').textContent = 'Status is based on configured crop limits.';
-          $('qualityNote').textContent = 'Status is determined by comparing readings with the selected crop’s configured temperature and humidity ranges.';
+          $('qualityEstimate').textContent = 'Status compares room readings with the selected crop’s configured target band.';
+          cropCatalog = crops;
+          if (currentView === 'crops') renderSensors();
+          $('qualityNote').textContent = describeCropGuide(t);
           $('temperature').textContent = latest ? `${latest.temperature.toFixed(1)} °C` : '—';
           $('humidity').textContent = latest ? `${latest.humidity.toFixed(1)} %` : '—';
           renderCrops(crops, t.commodity);
           $('storageEstimate').textContent = latest ? 'Monitoring configured limits' : 'Awaiting readings';
-          $('tempRange').textContent = `Safe range: ${t.minTemp}–${t.maxTemp} °C`;
-          $('humidityRange').textContent = `Safe range: ${t.minHumidity}–${t.maxHumidity} % RH`;
+          $('tempRange').textContent = `Target band: ${t.minTemp}–${t.maxTemp} °C`;
+          $('humidityRange').textContent = `Target band: ${t.minHumidity}–${t.maxHumidity} % RH`;
           if (latest) { positionRisk('tempMarker',latest.temperature,t.minTemp,t.maxTemp); positionRisk('humidityMarker',latest.humidity,t.minHumidity,t.maxHumidity); }
-          $('readings').innerHTML = history.slice().reverse().map((r) => `<tr><td>${escapeHtml(fmtTime(r.recordedAt))}</td><td>${Number(r.temperature).toFixed(1)} °C</td><td>${Number(r.humidity).toFixed(1)} %</td><td class="${isBreach(r,t) ? 'status-alert' : 'status-safe'}">${isBreach(r,t) ? 'Breach' : 'Safe'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No readings yet.</td></tr>';
+          $('readings').innerHTML = history.slice().reverse().map((r) => `<tr><td>${escapeHtml(fmtTime(r.recordedAt))}</td><td>${Number(r.temperature).toFixed(1)} °C</td><td>${Number(r.humidity).toFixed(1)} %</td><td class="${isBreach(r,t) ? 'status-alert' : 'status-safe'}">${isBreach(r,t) ? 'Breach' : 'In range'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No readings yet.</td></tr>';
           const entries = [
             ...alerts.slice(0, 8).map((a) => ({ time:a.sentAt, title:a.message, note:'Threshold alert' })),
             ...sms.slice(0, 8).map((s) => ({ time:s.createdAt, title:s.body, note:`SMS ${s.status} for ${s.to}` }))
@@ -641,360 +759,144 @@
         void recordAction('Changed trend range', {range:selectedRange});
         loadTrend();
       }));
-      $('appMenuButton').addEventListener('click', () => {
-        $('appMenu').hidden = !$('appMenu').hidden;
-        $('appMenuButton').setAttribute('aria-expanded', String(!$('appMenu').hidden));
+      $('accountButton').addEventListener('click', () => {
+        $('accountMenu').hidden = !$('accountMenu').hidden;
+        $('accountButton').setAttribute('aria-expanded', String(!$('accountMenu').hidden));
       });
-      $('homeButton').addEventListener('click', () => showView('dashboard'));
-      document.addEventListener('click', (event) => {
-        if (!event.target.closest('.app-menu-wrap')) {
-          $('appMenu').hidden = true;
-          $('appMenuButton').setAttribute('aria-expanded', 'false');
-        }
-      });
-      $('connectPhone').addEventListener('click', async () => {
-        $('appMenu').hidden = true;
-        $('appMenuButton').setAttribute('aria-expanded', 'false');
-        $('connectionDialog').showModal();
-        $('connectionQrError').textContent = 'Preparing a secure sign-in QR…';
-        try {
-          const info = await getJson('/api/connection-info');
-          connectionPort = Number(info.port) || 3000;
-          $('connectionAddress').innerHTML = info.addresses.map((item, index) => `<option value="${escapeHtml(item.address)}">Wi-Fi network ${index + 1}</option>`).join('');
-          if (!info.addresses.length) {
-            $('connectionQrError').textContent = 'No network address was found. Connect this computer to Wi-Fi and try again.';
-            $('connectionQr').hidden = true;
-          } else {
-            await loadConnectionQr();
-          }
-        } catch (error) { $('connectionQrError').textContent = `Could not prepare a QR code: ${error.message}`; }
-      });
-      async function loadConnectionQr() {
-        const address = $('connectionAddress').value;
-        if (!address) return;
-        const url = `http://${address}:${connectionPort}`;
-        $('connectionQr').hidden = true;
-        $('connectionQrError').textContent = 'Creating a one-time sign-in code…';
-        $('connectionUrl').textContent = 'The code expires after two minutes and can only be used once.';
-        try {
-          const result = await postJson('/api/account/mobile-login-qr', {});
-          mobileLoginChallenge = result.challenge;
-          const qr = qrcode(0, 'M');
-          qr.addData(JSON.stringify({ type:'peo-yame-mobile-login', backend:url, challenge:mobileLoginChallenge }));
-          qr.make();
-          $('connectionQr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4, scalable: true });
-          $('connectionQr').hidden = false;
-          $('connectionQrError').textContent = '';
-        } catch (error) {
-          $('connectionQr').hidden = true;
-          $('connectionQrError').textContent = `Could not create a sign-in QR: ${error.message}`;
-        }
-      }
-      let webQrPollTimer;
-      $('showWebLoginQr').addEventListener('click', async () => {
-        const status = $('webLoginQrStatus');
-        const box = $('webLoginQr');
-        clearInterval(webQrPollTimer);
-        status.textContent = 'Creating a one-time sign-in code…';
-        box.hidden = true;
-        try {
-          const { challenge } = await postJson('/api/auth/web-login-qr', {});
-          const address = `${location.protocol}//${location.hostname}:${location.port || 3000}`;
-          const qr = qrcode(0, 'M');
-          qr.addData(JSON.stringify({type:'peo-yame-web-login', backend:address, challenge}));
-          qr.make(); box.innerHTML = qr.createSvgTag({cellSize:6,margin:4,scalable:true}); box.hidden = false;
-          status.textContent = 'Waiting for approval from the signed-in phone…';
-          webQrPollTimer = setInterval(async () => {
-            try {
-              const result = await postJson('/api/auth/web-qr-session', {challenge});
-              if (result.pending) return;
-              clearInterval(webQrPollTimer);
-              localStorage.setItem('peo_yame_farmer_token', result.token);
-              authToken = result.token; activateProfile(result.farmer);
-            } catch (error) {
-              if (/expired|reload/i.test(error.message)) { clearInterval(webQrPollTimer); status.textContent = error.message; }
-            }
-          }, 1500);
-        } catch (error) { status.textContent = error.message; }
-      });
-      $('connectionAddress').addEventListener('change', () => { void loadConnectionQr(); });
-      $('refreshConnectionQr').addEventListener('click', () => { void loadConnectionQr(); });
+      $('openAccounts').addEventListener('click', () => showView('accounts'));
       document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
       document.querySelectorAll('[data-back-dashboard]').forEach((button) => button.addEventListener('click', () => showView('dashboard')));
-      async function requestOtp(phone, name = '', email = '') {
-        const result = await postJson('/api/auth/request-otp', { phone, name, email });
-        authPhone = result.phone;
-        authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
-        demoSkipAvailable = result.demoMode === true || result.delivery === 'demo-skip-available';
-        $('phonePreview').textContent = authPhone;
-        $('otpTitle').textContent = authMode === 'authenticator' ? 'Google Authenticator' : 'Verify your number';
-        $('otpPromptText').textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
-        $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : demoSkipAvailable ? 'Demo mode has no SMS delivery. Use Skip verification (demo) to continue.' : 'A PIN was sent to your phone.';
-        $('resendPin').hidden = authMode === 'authenticator';
-        $('skipDemoVerification').hidden = !demoSkipAvailable || authMode === 'authenticator';
-        document.querySelectorAll('.pin-row input').forEach((input, index) => input.setAttribute('aria-label', `${authMode === 'authenticator' ? 'Authenticator' : 'PIN'} digit ${index + 1}`));
-        document.querySelectorAll('.pin-row input').forEach(input => input.value = '');
-        showAuthPanel('otpPanel');
-        document.querySelector('.pin-row input').focus();
-      }
-      $('loginForm').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        pendingProfile = null;
-        $('loginError').textContent = '';
-        try { await requestOtp($('phoneInput').value.trim()); }
-        catch (error) { $('loginError').textContent = error.message; showAuthPanel('loginPanel'); }
+      document.querySelectorAll('[data-back-accounts]').forEach((button) => button.addEventListener('click', () => showView('accounts')));
+      $('enterDemoMode').addEventListener('click', () => {
+        const previousToken = authToken;
+        activateProfile({name:'Mr Lesego Lefoko',email:'LLefoko@email.co.bw'});
+        if (previousToken) void fetch('/api/auth/logout', {method:'POST', headers:{Authorization:`Bearer ${previousToken}`,'Content-Type':'application/json'}, body:'{}'}).catch(() => {});
       });
-      $('backToLogin').addEventListener('click', () => showAuthPanel('loginPanel'));
-      $('resendPin').addEventListener('click', async () => {
-        try { await requestOtp(authPhone, pendingProfile?.name || '', pendingProfile?.email || ''); }
-        catch (error) { $('otpNotice').textContent = error.message; }
+      $('openWebSignIn').addEventListener('click', () => showWebAuth(false));
+      $('backToDemo').addEventListener('click', showDemoGate);
+      $('toggleWebAuth').addEventListener('click', () => showWebAuth(!registeredMode));
+      $('webAuthSubmit').addEventListener('click', submitWebAuth);
+      $('webPassword').addEventListener('keydown', (event) => { if (event.key === 'Enter') void submitWebAuth(); });
+      $('webQrSignIn').addEventListener('click', startWebQrSignIn);
+      $('cancelWebQr').addEventListener('click', () => {
+        if (webQrPoll) clearInterval(webQrPoll);
+        webQrPoll = null;
+        $('webQrImage').removeAttribute('src');
+        $('webQrBox').hidden = true;
       });
-      $('otpForm').addEventListener('submit', async (event) => {
+      $('connectPhone').addEventListener('click', startMobileQr);
+      $('cancelMobileQr').addEventListener('click', () => {
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
+        mobileQrPoll = null;
+        $('mobileQrImage').removeAttribute('src');
+        $('mobileQrBox').hidden = true;
+      });
+      $('editProfile').addEventListener('click', () => {
+        $('profileEditError').textContent = '';
+        $('profileNameInput').value = demoProfile?.name || '';
+        $('profileEmailInput').value = demoProfile?.email || '';
+        $('profileDialog').showModal();
+      });
+      $('settingsEditProfile').addEventListener('click', () => $('editProfile').click());
+      $('authenticatorAction').addEventListener('click', () => {
+        if (!authToken) { void loadAuthenticatorStatus(); return; }
+        void openAuthenticatorDialog();
+      });
+      $('authenticatorForm').addEventListener('submit', async (event) => {
         event.preventDefault();
-        const pin = [...document.querySelectorAll('.pin-row input')].map((input) => input.value).join('');
-        if (!/^\d{6}$/.test(pin)) {
-          $('otpNotice').textContent = 'Enter all six digits of the PIN, then try again.';
-          document.querySelector('.pin-row input').focus();
-          return;
+        const code = $('authenticatorCode').value.trim();
+        $('authenticatorSubmit').disabled = true;
+        $('authenticatorError').textContent = '';
+        try {
+          await postJson(`/api/account/authenticator/${authenticatorDialogMode}`, {code});
+          $('authenticatorDialog').close();
+          $('securityNotice').textContent = authenticatorDialogMode === 'enable' ? 'Authenticator sign-in enabled.' : 'Authenticator sign-in disabled.';
+          await loadAuthenticatorStatus();
+        } catch (error) { $('authenticatorError').textContent = error.message; }
+        finally { $('authenticatorSubmit').disabled = false; }
+      });
+      $('settingsRefresh').addEventListener('click', () => { void recordAction('Manual refresh'); void refresh(); if (!demoMode) void loadOwnedData(); });
+      $('settingsExportCsv').addEventListener('click', () => $('exportData').click());
+      $('settingsExportActions').addEventListener('click', () => $('exportActions').click());
+      $('linkSensor').addEventListener('click', openSensorDialog);
+      $('addDemoSensor').addEventListener('click', () => {
+        if (demoMode) {
+          $('cropError').textContent = '';
+          $('cropDialog').showModal();
+        } else {
+          void openSiteDialog();
         }
-        const verifyButton = $('verifyOtpButton');
-        verifyButton.disabled = true;
-        $('otpNotice').textContent = 'Checking your code…';
-        try {
-          const result = await postJson('/api/auth/verify-otp', { phone: authPhone, code: pin });
-          if (!result.token || !result.farmer || !result.farmer.name) throw new Error('The server verified the PIN but returned an incomplete farmer account.');
-          finishAuthentication(result);
-        } catch (error) {
-          $('otpNotice').textContent = error.message;
-          document.querySelector('.pin-row input').focus();
-        } finally {
-          verifyButton.disabled = false;
-        }
       });
-      $('skipDemoVerification').addEventListener('click', async () => {
-        const button = $('skipDemoVerification');
-        button.disabled = true;
-        $('otpNotice').textContent = 'Starting demo sign-in…';
-        try {
-          const result = await postJson('/api/auth/demo/skip-verification', { phone: authPhone });
-          finishAuthentication(result);
-        } catch (error) {
-          $('otpNotice').textContent = error.message;
-        } finally { button.disabled = false; }
-      });
-      $('passwordLoginForm').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        $('passwordLoginError').textContent = '';
-        try {
-          const result = await postJson('/api/auth/password', {
-            email: $('loginEmail').value.trim(),
-            password: $('loginPassword').value,
-          });
-          localStorage.setItem('peo_yame_farmer_token', result.token);
-          authToken = result.token;
-          activateProfile(result.farmer);
-        } catch (error) { $('passwordLoginError').textContent = error.message; }
-      });
-      async function openDemoHome(errorId) {
-        $(errorId).textContent = '';
-        try {
-          const health = await getJson('/api/health');
-          if (health.demoMode !== true) throw new Error('Demo mode is not enabled on this backend.');
-          demoMode = true;
-          authToken = '';
-          localStorage.removeItem('peo_yame_farmer_token');
-          activateProfile(await getJson('/api/account'));
-        } catch (error) {
-          $(errorId).textContent = error.message;
-        }
-      }
-      $('loginDemoMode').addEventListener('click', () => void openDemoHome('loginDemoModeError'));
-      $('enterDemoMode').addEventListener('click', () => void openDemoHome('demoModeError'));
-      $('credentialsForm').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const button = $('saveCredentials');
-        button.disabled = true;
-        $('credentialsError').textContent = '';
-        try {
-          const response = await fetch('/api/account/credentials', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ email: $('credentialEmail').value.trim(), password: $('credentialPassword').value }),
-          });
-          const profile = await response.json();
-          if (!response.ok) throw new Error(profile.error || `Server returned ${response.status}`);
-          verifiedFarmer = profile;
-          localStorage.setItem('peo_yame_farmer_token', authToken);
-          pendingProfile = null;
-          activateProfile(profile);
-        } catch (error) { $('credentialsError').textContent = error.message; }
-        finally { button.disabled = false; }
-      });
-      $('skipCredentialSetup').addEventListener('click', async () => {
-        const button = $('skipCredentialSetup');
-        if (!demoSkipAvailable || !verifiedFarmer || !authToken) {
-          $('credentialsError').textContent = 'The demo sign-in has expired. Start again from the login page.';
-          return;
-        }
-        button.disabled = true;
-        $('credentialsError').textContent = '';
-        try {
-          const profile = await postJson('/api/account/credentials/skip', {});
-          verifiedFarmer = profile;
-          localStorage.setItem('peo_yame_farmer_token', authToken);
-          pendingProfile = null;
-          activateProfile(profile);
-        } catch (error) {
-          $('credentialsError').textContent = error.message;
-        } finally { button.disabled = false; }
-      });
-      $('createProfile').addEventListener('click', () => showAuthPanel('profilePanel'));
-      $('profileCancel').addEventListener('click', () => showAuthPanel('loginPanel'));
-      $('profileForm').addEventListener('submit', (event) => {
-        event.preventDefault();
-        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-        pendingProfile = {name:values.name.trim(), email:values.email?.trim() || ''};
-        $('profileError').textContent = '';
-        requestOtp(values.phone.trim(), pendingProfile.name, pendingProfile.email).catch(error => { $('profileError').textContent = error.message; });
-      });
-      document.querySelectorAll('[data-edit-profile]').forEach(button => button.addEventListener('click', () => {
-        $('editProfileError').textContent = '';
-        $('editProfileName').value = demoProfile?.name || '';
-        $('editProfilePhone').value = demoProfile?.phone || '';
-        $('editProfileEmail').value = demoProfile?.email || '';
-        $('editProfileDialog').showModal();
-      }));
-      $('editProfileForm').addEventListener('submit', async event => {
+      $('sensorSearch').addEventListener('input', renderSensors);
+      document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => $(button.dataset.close).close()));
+      $('siteForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(event.currentTarget).entries());
         try {
-          const response = await fetch('/api/account', { method:'PATCH', headers:{'Content-Type':'application/json',...authHeaders()}, body:JSON.stringify(values) });
-          const body = await response.json();
-          if (!response.ok) throw new Error(body.error || 'Could not update account');
-          $('editProfileDialog').close();
-          demoProfile = body;
-          $('accountName').textContent = body.name;
-          $('accountPhone').textContent = body.phone;
-          $('accountInitial').textContent = body.name.slice(0,1).toUpperCase();
-          $('profileInitial').textContent = body.name.slice(0,1).toUpperCase();
-          $('profileName').textContent = body.name;
-          $('profilePhone').textContent = body.phone;
-          $('profileEmail').textContent = body.email || '';
-          updateDemoControls();
+          await postJson('/api/farmer/crops', values);
+          $('siteDialog').close();
+          event.currentTarget.reset();
+          await loadOwnedData();
+        } catch (error) { $('siteError').textContent = error.message; }
+      });
+      $('sensorForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+        values.siteId = values.siteId === '' ? null : Number(values.siteId);
+        try {
+          await postJson('/api/farmer/sensors', values);
+          $('sensorDialog').close();
+          event.currentTarget.reset();
+          await loadOwnedData();
+        } catch (error) { $('sensorError').textContent = error.message; }
+      });
+      $('profileForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const payload = {name:$('profileNameInput').value.trim(), email:$('profileEmailInput').value.trim()};
+        try {
+          const updated = await requestJson('/api/account', {method:'PATCH', body:JSON.stringify(payload)});
+          $('profileDialog').close();
+          activateProfile(updated, authToken);
+          showView('accounts');
           $('accountActionNotice').textContent = 'Profile saved.';
-        } catch (error) { $('editProfileError').textContent = error.message; }
+        } catch (error) { $('profileEditError').textContent = error.message; }
       });
-      $('startAuthenticator').addEventListener('click', async () => {
-        try {
-          const setup = await postJson('/api/account/authenticator/setup', {});
-          $('authenticatorSecret').textContent = setup.secret;
-          const qr = qrcode(0, 'M');
-          qr.addData(setup.otpauthUrl); qr.make();
-          $('authenticatorQr').innerHTML = qr.createSvgTag({cellSize:5,margin:4,scalable:true});
-          $('authenticatorSetup').hidden = false;
-          $('authenticatorCodeLabel').hidden = false;
-          $('authenticatorCodeLabel').style.display = 'grid';
-          $('confirmAuthenticator').hidden = false;
-          $('authenticatorCode').value = '';
-          $('authenticatorError').textContent = '';
-        } catch (error) { $('authenticatorError').textContent = error.message; }
-      });
-      $('confirmAuthenticator').addEventListener('click', async () => {
-        try {
-          await postJson('/api/account/authenticator/enable', {code:$('authenticatorCode').value.trim()});
-          $('authenticatorCode').value = '';
-          await loadAuthenticator();
-        } catch (error) { $('authenticatorError').textContent = error.message; }
-      });
-      $('disableAuthenticator').addEventListener('click', async () => {
-        try {
-          await postJson('/api/account/authenticator/disable', {code:$('authenticatorCode').value.trim()});
-          $('authenticatorCode').value = '';
-          await loadAuthenticator();
-        } catch (error) { $('authenticatorError').textContent = error.message; }
-      });
-      $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
-      $('addFarmerCrop').addEventListener('click', () => { $('farmerCropError').textContent = ''; $('farmerCropDialog').showModal(); });
-      $('sensorSearch').addEventListener('input', renderFarmerCrops);
-      function updateFarmerCropGuide() {
-        const crop = cropGuidance.find(item => item.commodity === $('farmerCropSelect').value);
-        $('farmerCropGuide').textContent = !crop ? '' : `Room target: ${crop.minTemp}–${crop.maxTemp} °C and ${crop.minHumidity}–${crop.maxHumidity}% RH. ${crop.safeMoisturePct == null ? '' : `Grain moisture target: ≤${crop.safeMoisturePct}% (measure with a grain moisture meter). `}${crop.storageNote}`;
-      }
-      $('farmerCropSelect').addEventListener('change', updateFarmerCropGuide);
-      $('farmerCropForm').addEventListener('submit', async event => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        const payload = { commodity:form.get('commodity'), label:form.get('label'), sensorCodes:form.getAll('sensorCodes') };
-        if (!payload.sensorCodes.length) { $('farmerCropError').textContent = 'Select at least one connected sensor.'; return; }
-        try { await postJson('/api/farmer/crop-setup', payload); $('farmerCropDialog').close(); event.currentTarget.reset(); await loadFarmerData(); }
-        catch (error) { $('farmerCropError').textContent = error.message; }
-      });
-      $('farmerSensorForm').addEventListener('submit', async event => {
-        event.preventDefault();
-        const payload = Object.fromEntries(new FormData(event.currentTarget));
-        payload.farmerCropId = Number(payload.farmerCropId);
-        try { await postJson('/api/farmer/sensors', payload); $('farmerSensorDialog').close(); event.currentTarget.reset(); await loadFarmerData(); }
-        catch (error) { $('farmerSensorError').textContent = error.message; }
-      });
-      document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $(button.dataset.closeDialog).close()));
-      document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('input', () => {
-        const digits = input.value.replace(/\D/g,'');
-        if (digits.length > 1) {
-          inputs.forEach((digitInput) => { digitInput.value = ''; });
-          digits.slice(0, inputs.length).split('').forEach((digit, digitIndex) => { inputs[digitIndex].value = digit; });
-          inputs[Math.min(digits.length, inputs.length) - 1].focus();
-          return;
-        }
-        input.value = digits.slice(-1);
-        if (input.value && inputs[index + 1]) inputs[index + 1].focus();
-      }));
-      document.querySelectorAll('.pin-row input').forEach((input,index,inputs) => input.addEventListener('keydown', (event) => {
-        if (event.key === 'Backspace' && !input.value && inputs[index - 1]) inputs[index - 1].focus();
+      document.querySelectorAll('[data-sensor-filter]').forEach((button) => button.addEventListener('click', () => {
+        document.querySelectorAll('[data-sensor-filter]').forEach((tab) => tab.setAttribute('aria-pressed', String(tab === button)));
+        renderSensors();
       }));
       $('logout').addEventListener('click', async () => {
-        try { await postJson('/api/auth/logout', {}); } catch (_) {}
-        demoProfile = null;
-        authToken = '';
-        localStorage.removeItem('peo_yame_farmer_token');
-        updateDemoControls();
-        $('appMenu').hidden = true;
-        $('appMenuButton').setAttribute('aria-expanded', 'false');
-        showAuthPanel('loginPanel');
-      });
-      getJson('/api/health').then(async health => {
-        demoMode = health.demoMode === true;
-        if (demoMode) {
-          authToken = '';
-          localStorage.removeItem('peo_yame_farmer_token');
-          $('demoModeError').textContent = '';
-          showAuthPanel('demoPanel');
-          return;
+        const previousToken = authToken;
+        if (previousToken) {
+          try { await fetch('/api/auth/logout', {method:'POST', headers:{Authorization:`Bearer ${previousToken}`,'Content-Type':'application/json'}, body:'{}'}); }
+          catch (_) {}
         }
-        if (authToken) {
-          try { activateProfile(await getJson('/api/account')); }
-          catch (_) { authToken=''; localStorage.removeItem('peo_yame_farmer_token'); showAuthPanel('loginPanel'); }
-        } else showAuthPanel('loginPanel');
-      }).catch(() => {
-        demoMode = true;
-        authToken = '';
-        localStorage.removeItem('peo_yame_farmer_token');
-        showAuthPanel('demoPanel');
-        $('demoModeError').textContent = 'Waiting for the demo backend. Check the connection and try again.';
+        authToken = null;
+        sessionStorage.removeItem('peoYameSession');
+        demoProfile = null;
+        updateDemoControls();
+        $('accountMenu').hidden = true;
+        $('accountButton').setAttribute('aria-expanded', 'false');
+        showDemoGate();
+      });
+      showDemoGate();
+      void restoreWebSession();
+      window.addEventListener('pagehide', () => {
+        if (webQrPoll) clearInterval(webQrPoll);
+        if (mobileQrPoll) clearTimeout(mobileQrPoll);
       });
       const updates = new EventSource('/api/events');
       updates.onmessage = (event) => {
+        refresh();
         try {
           const update = JSON.parse(event.data);
-          if (update.type === 'farmer-account') void syncAccountProfile();
-          if (update.type === 'farmer-crops' || update.type === 'farmer-sensors') void loadFarmerData();
+          if (update.type === 'account' && !demoMode) { void loadOwnedData(); void loadAuthenticatorStatus(); void reloadFarmerProfile(); }
         } catch (_) {}
-        refresh();
       };
       updates.onerror = () => {
         $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Reconnecting<small>Waiting for demo service</small>';
       };
       setInterval(refresh, 30000);
-      setInterval(syncAccountProfile, 20000);
     </script>
   </body>
 </html>

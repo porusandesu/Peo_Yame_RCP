@@ -1,76 +1,43 @@
 # Verification record
 
-> **Current validation (7 Nov 2026):** Demo auth removal, the crop package,
-> demo-entry button, and build path passed automated checks in GitHub Actions.
-> Physical-device and live-farmer usability checks remain open.
+## Current build status on `pauls-branch`
 
-> **New demo-entry change:** The web/mobile Demo mode buttons and requested
-> profile passed in GitHub Actions run 46.
+Latest verification: [GitHub Actions run 42394803726](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42394803726), commit `1b18157a80363e8b1579af5f27f5f8bd6471d387`, passed on 2026-11-07. Backend checks and integration tests passed on Linux and Windows, including farmer profile update, owner-scoped crop deletion, sensor unlink/rediscovery, and shared SSE updates. Flutter Accounts navigation/profile callback tests and Dart analysis passed. Android debug APK and Windows backend package/smoke-test uploads passed. Artifacts: `storage-monitor-android-debug` (expires 2026-11-21) and `peo-yame-backend-windows` (expires 2026-12-07). The Windows smoke test covers packaged backend startup and HTTP health/dashboard/crop/database paths, not interactive tray behavior. CI does not test physical-device camera access, visual rendering, live sensor connectivity, SMS delivery, or full browser/mobile auth interactions. No local tests or builds were run.
 
-**Updated:** 7 November 2026
-**Branch:** `exe-work`
-**Code commit:** `e2161c6` (`Improve farmer sign-in and center mobile crops tab`)
-**Actions:** [run 42360332399](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42360332399)
+The sync and Accounts QR follow-up is verified by run `42391735676`. Mobile crop-location management, real-sensor assignment/unlink, account-event refresh, backend deletion/unlink assertions, and Accounts navigation coverage are verified by run `42393553982`. Authenticated profile-name editing from Accounts and Settings and its backend mutation assertion are verified by run `42394803726` above. Physical sensor connectivity and device visuals remain unverified.
 
-## Current worktree validation
+The historical baseline below describes an older source state and is not evidence for the current changes. This increment adds a web demo-entry static test, a backend SQLite crop-package integration test, a Flutter demo-entry widget test, and GitHub Actions jobs for Flutter tests/analysis/APK build and Node checks/tests. Local tests and builds were intentionally not run. First run [42380409390](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380409390): backend checks, Flutter widget tests and Dart analysis passed; Android packaging exhausted Gradle's 1 GiB heap during Jetifier transforms. Gradle heap was increased to 3 GiB. Follow-up run [42380844326](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42380844326) passed backend checks, Flutter widget tests, Dart analysis, Android debug APK build and upload. The `storage-monitor-android-debug` artifact is downloadable from the run page until 2026-11-21. CI verifies the tested demo/crop/API paths and compiles the app; it does not verify phone authentication, QR SSO, physical sensors, or production security.
 
-| Check | Result | Evidence |
+Current implementation scope (2026-11-07): Demo is direct, shared and session-free. Phone/password auth, optional TOTP, both QR SSO directions, farmer-owned site/sensor APIs and web/mobile screens are committed. Browser/mobile auth is not covered end-to-end, and TOTP disable, physical sensors and SMS are not available or verified. Brand assets are restored from `exe-work`. Crop targets remain indicative references, not locally validated postharvest advice. See [HANDOFF.md](HANDOFF.md) and [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md).
+
+**Date:** 15 October 2026  
+**Target:** top-level `backend/` and Flutter app in branch `v.0.0.0.0.01`.  
+**Environment:** local Node/Express demo on port 3000; Flutter SDK at `/home/porusandesu/flutter`.  
+**Scope note:** the user requested a baseline audit and specific behavior checks. These are focused probes, not a full test suite or production security assessment.
+
+## Executed checks
+
+| Check | Result | Evidence / limitation |
 |---|---|---|
-| Flutter widget test | Pass | Fresh demo entry shows Demo Farmer and no sign-in/QR/OTP actions. |
-| Flutter analysis | Pass with infos | `flutter analyze --no-pub --no-fatal-infos lib`; 22 style/context informational notices. |
-| Android debug build | Pass | `flutter build apk --debug --no-pub`; APK at `build/app/outputs/flutter-apk/app-debug.apk` (136.5 seconds). |
-| Backend tests | Pass | Five checks cover authenticator codes, existing-database crop migration, demo mode HTTP integration, crop catalog groups, tokenless crop CRUD, disabled auth endpoints and dashboard inline JavaScript syntax. |
-| Backend syntax | Pass | `npm run check` validates server and database JavaScript. |
-| Diff whitespace | Pass | `git diff --check`. |
-| GitHub Actions run 46 | Pass | Flutter tests/analysis and Android debug APK; Ubuntu backend syntax/integration tests; Windows backend integration tests and packaged app build. Covers one-tap demo entry and the requested shared profile. [Run details and artifacts](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42374133023). |
+| Backend starts with `npm run demo` | **Pass** | Logged `Storage monitor demo API running on http://0.0.0.0:3000`. |
+| Status and synthetic 24-hour chart baseline | **Pass** | `/api/status` returned active Maize; `/api/readings/trends?range=24h` returned at least 90 points including `synthetic: true`. Baseline points are generated, not sensor observations. |
+| Invalid sensor payloads | **Pass (sampled cases)** | String temperature, RH 101, and whitespace-only site returned HTTP 400. This does not establish exhaustive schema validation. |
+| Valid sensor payload and in-range no-alert case | **Pass** | Maize reading 19 °C / 50% RH accepted with HTTP 201 and no alert. |
+| Crop mismatch and unsupported crop | **Pass** | Maize-active request tagged Tomato returned HTTP 409; selecting unsupported Lettuce returned HTTP 400. |
+| Crop threshold switch | **Pass** | Selecting Tomato returned limits 10–20 °C / 85–95% RH. |
+| Threshold breach creates alert | **Pass** | Tomato reading 21 °C / 90% RH returned HTTP 201 and an unacknowledged alert (`Threshold breached: 21°C, 90% RH`). This verifies a configured-bound crossing only. |
+| SMS failure/delivery behavior | **Not applicable / unsupported** | The only observable result is an in-memory log with `status: "logged"`; there is no network dispatch, modem, delivery receipt or failure path to test. |
+| API access control | **Not present** | Code inspection: no auth middleware or authorization checks, unrestricted `cors()`, plain HTTP, all-interface bind. No positive access-control result can be claimed. |
+| Stale sensor reading behavior | **Not implemented** | No age/staleness evaluation in `/api/status`; any newest in-memory reading is returned. This was established by source inspection, not an outage test. |
+| Persistence of domain records | **Not implemented** | Readings/alerts/incidents are process-memory arrays. Only action history is appended to JSONL. No SQLite DB or restart persistence test exists. |
+| CSV export contract | **Pass (smoke)** | `/api/readings/export.csv` returned CSV containing `threshold_breach`; probe checked header shape only, not exhaustive escaping/formula-injection cases. |
+| Flutter widget test | **Blocked before test execution** | `flutter test --no-pub` exited 1: “Package(s) objective_c require the native assets feature to be enabled.” `flutter test` without `--no-pub` stalled at dependency resolution and was interrupted. This is environment/tool setup, not a widget assertion failure. |
+| Performance/latency | **Not measured** | No benchmark harness or recorded timing evidence. Do not claim response latency, throughput, or alert-delivery speed. |
 
-During validation, the HTTP smoke test exposed an SQLite CLI output-buffer
-overflow when startup loaded trend history for the expanded crop catalog. The
-buffer is now 32 MB. The widget test exposed an event-stream retry timer that
-survived widget disposal; the timer is now cancellable and disposal is covered
-by the passing widget test. Run 44 first exposed a missing SQLite CLI on the
-Windows runner. Run 45 provisions it and all three jobs pass.
+The API probes temporarily changed the running demo's in-memory active crop and added sample readings/alerts. Restarting its process resets these demo values. The persistent action log can include the test-generated harvest/sensor events. No source code was changed to execute the checks.
 
-## Later unverified crop-package edits
+## Test inventory and remaining verification
 
-The current working tree adds fruit and vegetable profiles, crop groups,
-storage notes and an SQLite migration, plus selected-crop guidance in both
-clients. These edits were made after the recorded code commit and are not
-covered by the checks below. Do not treat this report as verification of the
-new package; run the backend migration against both a fresh and existing
-database and check crop selection in web and mobile before release.
+This historical report's inventory predates the current tests. The Flutter Demo entry/crop-tab/alert-control widget assertion and backend demo-entry/crop-package/auth integration tests passed in run `42388143703`. These checks do not replace physical-device or live-service end-to-end testing.
 
-## Checks run
-
-| Check | Result | Notes |
-|---|---|---|
-| `flutter test` | Pass | Fresh-install mobile screen assertion passes. |
-| `npm test` in `backend/` | Pass | Runs the authenticator-code test. |
-| `node --check backend/server.js` and `backend/database.js` | Pass | JavaScript syntax checks. |
-| Web inline JavaScript `node --check` | Pass | Inline script extracted from `backend/public/index.html`. |
-| Isolated backend login flow (historical) | Pass | Confirmed demo PIN absent from response, demo skip works, credentials save, and email/password sign-in succeeds. This predates demo auth removal. Used a temporary SQLite database. |
-| `dart analyze lib` | No errors | 14 style/context informational notices remain. |
-| `git diff --check` | Pass | No whitespace errors at the time of the code commit. |
-| GitHub Actions Android debug APK build | Pass | Run 42360332399. |
-| GitHub Actions Windows backend tests/package | Pass | Run 42360332399. |
-
-GitHub Actions also annotated that its v4 checkout/setup-node/upload-artifact
-actions target Node 20 and were being run under Node 24. The workflows still
-completed successfully.
-
-## Not exercised
-
-- The web login and credential forms have not been exercised in an interactive
-  browser. The backend path was checked through HTTP requests.
-- The Android APK and QR pairing have not been exercised on a physical phone.
-- The packaged Windows tray controls have not been exercised interactively.
-- SMS delivery, physical sensor identity/input, production HTTPS deployment,
-  production account recovery, and performance were not tested.
-
-## Coverage boundaries
-
-The committed backend test suite currently covers authenticator code
-generation/verification. The widget test checks a fresh mobile install. The
-isolated login integration flow is a one-off verification, not a checked-in
-automated regression test. These checks do not establish production security,
-SMS delivery, device identity, or data isolation for global monitor routes.
+Before research evaluation, add repeatable backend tests for inclusive/exclusive boundary semantics, missing/null/non-finite values, temperature plausibility, timestamp validity and staleness, per-crop rule selection, alert acknowledgement, bounded retention, restart persistence, malformed/oversized JSON, export escaping, CORS/auth denial cases, SMS failure states, and simulator outage/recovery. Add current-client widget tests. Store command output and fixture data with the project; only then report measurements. See [BASELINE_AUDIT.md](BASELINE_AUDIT.md) for the incremental plan.

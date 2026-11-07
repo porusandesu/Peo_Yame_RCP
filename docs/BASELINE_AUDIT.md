@@ -1,24 +1,13 @@
 # Baseline audit and research traceability
 
-**Review date:** 15 October 2026 (historical baseline)
-**Scope:** the top-level app and backend in this repository, on branch `v.0.0.0.0.01`. The nested `flutter_application_1/` copies and the untracked `from sasa/` folder are not the runtime selected by the top-level README.
+> Historical audit for the October 2026 prototype on the former `v.0.0.0.0.01`
+> branch. The app and backend have since changed. For the current build state,
+> see [HANDOFF.md](HANDOFF.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
+> [TEST_REPORT.md](TEST_REPORT.md).
+
+**Review date:** 15 October 2026  
+**Scope:** the top-level app and backend in this repository, on branch `v.0.0.0.0.01`. The nested `flutter_application_1/` copies and the untracked `from sasa/` folder are not the runtime selected by the top-level README.  
 **Review method:** source and configuration inspection, repository inventory, API probes against the local demo server, and one attempted Flutter widget test. No physical hardware, external SMS service, database, or deployment was available.
-
-> **Superseded runtime snapshot:** This audit predates SQLite-backed farmer
-> accounts/sessions, account crop assignments, web email/password sign-in,
-> authenticated QR pairing, and the current test suite. Retain it as evidence
-> of the October baseline only. For current architecture and checks, see
-> [ARCHITECTURE.md](ARCHITECTURE.md), [HANDOFF.md](HANDOFF.md), and
-> [TEST_REPORT.md](TEST_REPORT.md). Its proposal and crop-limit cautions remain
-> relevant; its runtime inventory and test-status statements do not.
-
-> **Crop catalog follow-up (7 November 2026):** A later change adds a seeded
-> Botswana-oriented crop package for grains, pulses, oilseeds, vegetables and
-> fruits, with room conditions and optional grain-moisture guidance. This
-> October audit remains historical; see
-> [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md) and the
-> current [architecture](ARCHITECTURE.md) for the later implementation. The
-> starter ranges are not validated operating limits.
 
 ## Executive finding
 

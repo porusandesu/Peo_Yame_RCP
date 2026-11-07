@@ -1,96 +1,130 @@
-# Peo Yame Storage Monitor
+# Peo Yame — Storage Monitor
 
-Peo Yame is a local-network demonstration app with a Flutter mobile client, a
-responsive web dashboard, and a Node.js/Express backend. The backend stores
-farmer accounts, crop locations, sensor assignments, crop thresholds, and
-readings in SQLite. Sensor readings and trend baselines are simulated; assigned
-sensor IDs are metadata and do not prove device identity. Alerts and the SMS
-log are demo records, not messages sent through a carrier.
+Peo Yame is a Flutter and responsive web prototype for monitoring produce
+storage conditions. Both clients display simulated temperature/humidity data,
+configured-limit status, trends, and alerts through a Node.js backend. SQLite
+persists crop settings and readings; no physical sensor or SMS provider is
+connected. Demo mode opens directly as Mr Lesego Lefoko
+(`LLefoko@email.co.bw`). It does not request phone verification or create an
+authenticated account.
 
-## Run the backend from source
-
-Install Node.js 18 or newer and SQLite 3 (`sqlite3` must be on `PATH`):
+## Start the backend on the PC
 
 ```bash
 cd backend
-npm ci
+npm install
 npm run demo
 ```
 
-Open <http://localhost:3000>. In demo mode the backend binds to loopback and
-detected private Wi-Fi addresses so a phone on the same network can connect.
-Allow the app through the computer's firewall if needed. The default database
-is `backend/data/storage-monitor.sqlite`; set `DATABASE_PATH` to use another
-local file. Keep database/WAL files on one host and local storage.
+Open `http://localhost:3000` to view the web dashboard, or
+`http://localhost:3000/api/status` to inspect the API. The server listens on
+`0.0.0.0:3000` for a phone on the same Wi-Fi network. Find the PC's
+Wi-Fi IP with `hostname -I` on Linux, `ipconfig` on Windows, or
+`ipconfig getifaddr en0` on macOS. If the phone cannot reach the PC, check the
+firewall and that both devices are on the same network.
 
-## Windows packaged backend
+## Connect the Android phone
 
-Download the `peo-yame-backend-windows` artifact from a successful
-[GitHub Actions run](https://github.com/porusandesu/Peo_Yame_RCP/actions),
-extract it, and launch `Peo-Yame-Backend.exe`. Its notification-area icon may
-be under **Show hidden icons**. The menu can launch the web panel, restart or
-shut down the backend, or exit the launcher.
+Run the Flutter app on the phone. Tap the settings gear and enter the PC address,
+for example `192.168.1.42:3000`. The app adds `http://` when needed and saves
+the address on the phone. The default `10.0.2.2` address is for an Android
+emulator only.
 
-## Open the demo
+## Build the Android app with GitHub Actions
 
-In demo mode, both apps show a **Demo mode** button. Press it to open the shared
-account without entering login details. The account is **Mr Lesego Lefoko**
-(`LLefoko@email.co.bw`). Demo mode has no PIN, password, account setup or QR
-pairing. Both apps use the same demo farmer and crop assignments when they
-connect to the same backend. Separate backend instances have separate databases. The Android
-emulator default is `http://10.0.2.2:3000`; physical phones can use **Settings →
-Backend address** to connect to the PC on the same Wi-Fi. Mobile navigation is
-Overview, Trends, **My Crops**, Alerts, Settings.
+The **Android build** workflow runs when code is pushed and can also be started
+from the repository's **Actions** tab with **Run workflow**. When it finishes,
+open the run and download the `storage-monitor-android-debug` artifact. Extract
+it and install `app-debug.apk` on an Android device. This is a debug build for
+testing, not a Play Store release.
 
-Production mode retains phone verification, password login, and one-use QR
-pairing. Production needs a configured SMS provider for phone verification.
+## Package the Windows backend with its system tray app
 
-## Demo behavior and limitations
+The same GitHub Actions workflow builds a portable Windows package on every
+push. Open the successful run and download the `peo-yame-backend-windows`
+artifact. Extract the ZIP and double-click `Peo-Yame-Backend.exe`; the backend
+runs in the background, opens the dashboard, and places its icon in the
+notification area. Right-click the tray icon to reopen the dashboard, restart
+or stop the backend, or exit Peo Yame. The package includes its own runtime and SQLite helper, so Windows
+does not need Node.js or SQLite installed. Farmer data stays in the Windows
+user's Local AppData folder. Keep the launcher and `runtime` folder together.
 
-- Readings and historical baselines are synthetic. The simulator can be
-  replaced later with an authenticated device integration.
-- The backend seeds a Botswana starter catalog of grains, pulses, oilseeds,
-  vegetables, and fruits. Crop ranges are indicative room-monitoring targets;
-  they are not validated spoilage thresholds. Dry-grain moisture targets are
-  separate from room humidity and need a grain moisture meter. See the
-  [crop package and sources](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md).
-- The mobile crop-quality estimate is a heuristic for Maize and Sorghum using
-  ambient temperature and RH. It does not measure grain moisture or inspect
-  produce. It is not a quality or shelf-life prediction.
-- Production farmer account, crop-location and sensor-assignment routes require
-  a seven-day bearer session. Demo mode uses a shared built-in demo farmer
-  without issuing or requiring a session token. Authentication routes are
-  disabled in demo mode.
-- The global monitoring/reading routes are not farmer-scoped. The backend uses
-  plain HTTP by default. Do not expose it to untrusted networks or use real
-  credentials in this local demo.
-- SMS entries are logged only; no SMS provider or physical sensor is
-  connected.
+The Windows CI job starts the packaged executable and checks health, the
+dashboard, crop profiles, and database creation before uploading it.
 
-For a farmer-friendly setup and monitoring path, see the suggested
-[low-literacy workflow](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md#suggested-low-literacy-farmer-workflow).
+On either app, tap **Demo mode** to open the dashboard immediately using the
+shared demo profile, Mr Lesego Lefoko (`LLefoko@email.co.bw`). Demo is session
+free. Its readings and alerts are simulated; no physical sensors or SMS
+provider are connected. My Crops shows the shared crop catalog and indicative
+guidance, while saved farmer locations remain empty in Demo. Selecting a crop
+changes the shared dashboard's monitored crop. Demo changes are not isolated
+per farmer.
 
-## Run checks
+For farmer accounts, set `AUTH_ENABLED=true` when running the development
+backend. Create an account with a name, Botswana phone number, and password;
+there is no phone OTP because no delivery provider is configured. Sessions can
+be restored and revoked. A signed-in browser can issue a QR code for the phone,
+and a signed-in phone can approve browser sign-in. QR codes expire after two
+minutes and are single-use. Accounts can manage their profile, crop locations,
+and sensor links; only sensor IDs already observed by the backend can be linked.
+The simulated demo readings are shared and are not presented as farmer-owned
+telemetry.
 
-```bash
-flutter test
-flutter analyze --no-fatal-infos lib
-(cd backend && npm test && npm run check)
-```
+Use the **Harvest** selector to switch among the catalog's crops. Their room
+temperature and relative-humidity bands are indicative references, not validated
+spoilage limits or predictions about crop quality or storage time.
 
-GitHub Actions runs Flutter tests/analysis and builds a debug APK; it also runs
-backend syntax/integration checks and packages the Windows backend on pushes.
-See [the handoff](docs/HANDOFF.md) for the latest
-verified commit, Actions run, and remaining interactive checks.
+The backend also exposes `/api/health` and sensor-gateway endpoints. To run an
+optional simulated sensor that follows the selected harvest, start the backend
+first, then run `cd backend && npm run simulate:sensor` in a second terminal.
+Sensor readings can be submitted with `POST /api/readings`; recent readings are
+available from `GET /api/readings?limit=60`. Alerts can be acknowledged through
+`POST /api/alerts/:id/acknowledge`, and incident records use `GET` and `POST`
+`/api/incidents`.
 
-## Project documentation
+## Activity log export
 
-- [Current architecture](docs/ARCHITECTURE.md)
-- [Botswana crop storage package and workflow suggestion](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md)
-- [Deployment notes](backend/DEPLOYMENT.md)
-- [Handoff and verification](docs/HANDOFF.md)
-- [Changes and history](docs/changes-2026-11-07.md)
-- [Research baseline audit](docs/BASELINE_AUDIT.md)
-- [Risk register](docs/RISK_REGISTER.md)
-- [Test report](docs/TEST_REPORT.md)
-- [Interim-report specification snapshots](docs/interim-report-specs/README.md)
+The backend records dashboard and app actions, including harvest changes,
+manual refreshes, trend-range changes, alert actions, incident records, sensor
+submissions, and demo breaches. The web dashboard's download icon saves a
+Markdown file; the Flutter app's export icon opens the device share sheet with
+the same file. The API is also available at `GET /api/actions/export.md`.
+Entries persist in `backend/data/actions.jsonl` (ignored by Git) and are capped
+at the most recent 2,500 actions. Backend startup and export events are logged
+too.
+
+## Excel data export
+
+Use the spreadsheet icon in the web dashboard to download `peo-yame-readings.csv`.
+The Flutter app offers the same file through the device share sheet. Excel opens
+the CSV directly. It includes the latest retained readings, UTC timestamps,
+harvest, data source, temperature and humidity, crop limits, and a breach flag.
+The export includes the latest 200 readings. Longer chart history remains in
+SQLite and is shown as simulated history, separate from live readings.
+
+For a build-time address override, use
+`flutter run --dart-define=API_BASE_URL=http://192.168.1.42:3000`.
+
+## Project context
+
+- [Interim report specification pack](docs/interim-report-specs/README.md)
+- [Build guide](BUILD_GUIDE_FOR_CURSOR_AI.md)
+- [Phone app demo guide](PHONE_APP_DEMO_VSCODE.md)
+- [Baseline audit, traceability, and research-claim status](docs/BASELINE_AUDIT.md)
+- [Implemented architecture](docs/ARCHITECTURE.md)
+- [Botswana starter crop package and sources](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md)
+- [Current handoff and next build steps](docs/HANDOFF.md)
+- [Prioritised risk register](docs/RISK_REGISTER.md)
+- [Verification record](docs/TEST_REPORT.md)
+
+The audit documents the implementation present in this branch, including
+known gaps between the presentation prototype and the research proposal. Crop
+limits in the demo are indicative software settings; they are not validated
+spoilage thresholds. The dashboard reports whether readings are within the
+configured target band. It does not estimate crop quality or remaining storage
+time.
+
+Use the project only as a controlled local-network demonstration. The backend
+uses plain HTTP, login throttling is process-local, and data is not encrypted at
+rest by the app. See [backend deployment notes](backend/DEPLOYMENT.md) before
+using real farmer data. Do not expose it to the public internet.

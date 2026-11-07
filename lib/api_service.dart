@@ -6,243 +6,231 @@ import 'config.dart';
 import 'models.dart';
 
 class ApiService {
-  ApiService({String? baseUrl, http.Client? client})
+  ApiService({String? baseUrl, String? authToken, http.Client? client})
     : baseUrl = normalizeApiBaseUrl(baseUrl ?? defaultApiBaseUrl),
+      authToken = authToken,
       _client = client ?? http.Client();
 
   String baseUrl;
   String? authToken;
-  bool isDemoMode = true;
   final http.Client _client;
 
-  Map<String, String> get _authHeaders =>
-      authToken == null ? const {} : {'Authorization': 'Bearer $authToken'};
+  Map<String, String> get _authHeaders => authToken == null
+      ? const {}
+      : {'Authorization': 'Bearer $authToken'};
 
-  Future<void> checkConnection() async {
-    final response = await _client
-        .get(_uri('/api/health'))
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw FormatException(
-        'This address returned HTTP ${response.statusCode}.',
-      );
-    }
-    final result = jsonDecode(response.body) as Map<String, dynamic>;
-    if (result['status'] != 'ok') {
-      throw const FormatException('This address is not a Peo Yame backend.');
-    }
-    isDemoMode = result['demoMode'] == true;
+  Map<String, String> get _jsonAuthHeaders => {
+    'Content-Type': 'application/json',
+    ..._authHeaders,
+  };
+
+  Uri _uri(String path, [Map<String, String>? query]) {
+    return Uri.parse('$baseUrl$path').replace(queryParameters: query);
   }
 
-  Future<Map<String, dynamic>> signInWithMobileQr({
-    required String challenge,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/mobile-qr'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'challenge': challenge}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    final result = jsonDecode(response.body) as Map<String, dynamic>;
-    authToken = result['token'] as String;
-    return result['farmer'] as Map<String, dynamic>;
-  }
-
-  Future<void> approveWebLoginQr(String challenge) async {
-    final response = await _client
-        .post(
-          _uri('/api/account/web-login-qr/approve'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'challenge': challenge}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-  }
-
-  Future<Map<String, dynamic>> requestPhoneSignInCode({
-    required String phone,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/request-otp'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> signInWithPhoneCode({
-    required String phone,
-    required String code,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/verify-otp'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone, 'code': code}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    final result = jsonDecode(response.body) as Map<String, dynamic>;
-    authToken = result['token'] as String;
-    return result;
-  }
-
-  Future<Map<String, dynamic>> skipPhoneVerificationForDemo({
-    required String phone,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/demo/skip-verification'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    final result = jsonDecode(response.body) as Map<String, dynamic>;
-    authToken = result['token'] as String;
-    return result;
-  }
-
-  Future<Map<String, dynamic>> updateAccount({
-    required String name,
-    required String phone,
-    required String email,
-  }) async {
-    final response = await _client
-        .patch(
-          _uri('/api/account'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'name': name, 'phone': phone, 'email': email}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> getAccount() async {
-    final response = await _client
-        .get(_uri('/api/account'), headers: _authHeaders)
+  Future<Map<String, dynamic>> checkConnection() async {
+    final response = await _client.get(_uri('/api/health'))
         .timeout(const Duration(seconds: 6));
     _ensureOk(response);
+    final health = jsonDecode(response.body) as Map<String, dynamic>;
+    if (health['status'] != 'ok') throw const FormatException('This is not a Peo Yame backend.');
+    return health;
+  }
+
+  Future<Map<String, dynamic>> registerFarmer({
+    required String name,
+    required String phone,
+    required String password,
+  }) async {
+    final response = await _client.post(
+      _uri('/api/auth/register'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'name': name, 'phone': phone, 'password': password}),
+    ).timeout(const Duration(seconds: 12));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result;
+  }
+
+  Future<Map<String, dynamic>> signIn({
+    required String phone,
+    required String password,
+    String? authenticatorCode,
+  }) async {
+    final response = await _client.post(
+      _uri('/api/auth/login'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'phone': phone,
+        'password': password,
+        if (authenticatorCode != null && authenticatorCode.isNotEmpty)
+          'authenticatorCode': authenticatorCode,
+      }),
+    ).timeout(const Duration(seconds: 12));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result;
+  }
+
+  Future<Map<String, dynamic>> restoreSession(String token) async {
+    authToken = token;
+    final response = await _client.get(
+      _uri('/api/auth/session'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> getAuthenticatorStatus() async {
-    final response = await _client
-        .get(_uri('/api/account/authenticator'), headers: _authHeaders)
-        .timeout(const Duration(seconds: 8));
+  Future<void> signOut() async {
+    final response = await _client.post(
+      _uri('/api/auth/logout'),
+      headers: _jsonAuthHeaders,
+      body: '{}',
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    authToken = null;
+  }
+
+  Future<Map<String, dynamic>> approveWebLoginQr(String challenge) async {
+    final response = await _client.post(
+      _uri('/api/auth/qr/web-challenge/$challenge/approve'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> exchangeMobileLoginQr(String challenge) async {
+    final response = await _client.post(
+      _uri('/api/auth/qr/mobile-exchange'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'challenge': challenge}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result;
+  }
+
+  Future<Map<String, dynamic>> createMobileLoginQr({String? serverBaseUrl}) async {
+    final response = await _client.post(
+      _uri('/api/auth/qr/mobile-challenge'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({if (serverBaseUrl != null) 'serverBaseUrl': serverBaseUrl}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateFarmerProfile({required String name, String? email}) async {
+    final response = await _client.patch(
+      _uri('/api/account'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'name': name, if (email != null) 'email': email}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getFarmerAccount() async {
+    final response = await _client.get(
+      _uri('/api/account'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> setupAuthenticator() async {
-    final response = await _client
-        .post(
-          _uri('/api/account/authenticator/setup'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: '{}',
-        )
-        .timeout(const Duration(seconds: 8));
+    final response = await _client.post(
+      _uri('/api/account/authenticator/setup'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<void> enableAuthenticator(String code) async {
-    final response = await _client
-        .post(
-          _uri('/api/account/authenticator/enable'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'code': code}),
-        )
-        .timeout(const Duration(seconds: 8));
+    final response = await _client.post(
+      _uri('/api/account/authenticator/enable'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'code': code}),
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
   }
 
+  Future<bool> getAuthenticatorEnabled() async {
+    final response = await _client.get(
+      _uri('/api/account/authenticator'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as Map<String, dynamic>)['enabled'] == true;
+  }
+
   Future<void> disableAuthenticator(String code) async {
-    final response = await _client
-        .post(
-          _uri('/api/account/authenticator/disable'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'code': code}),
-        )
-        .timeout(const Duration(seconds: 8));
+    final response = await _client.post(
+      _uri('/api/account/authenticator/disable'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'code': code}),
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
   }
 
   Future<List<Map<String, dynamic>>> getFarmerCrops() async {
-    final response = await _client
-        .get(_uri('/api/farmer/crops'), headers: _authHeaders)
+    final response = await _client.get(_uri('/api/farmer/crops'), headers: _authHeaders)
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);
-    return (jsonDecode(response.body) as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-  }
-
-  Future<List<Threshold>> getCropOptions() => getCrops();
-
-  Future<List<Map<String, dynamic>>> getAvailableFarmerSensors() async {
-    final response = await _client
-        .get(_uri('/api/farmer/available-sensors'), headers: _authHeaders)
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    return (jsonDecode(response.body) as List<dynamic>)
-        .cast<Map<String, dynamic>>();
+    return (jsonDecode(response.body) as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
   Future<List<Map<String, dynamic>>> getFarmerSensors() async {
-    final response = await _client
-        .get(_uri('/api/farmer/sensors'), headers: _authHeaders)
+    final response = await _client.get(_uri('/api/farmer/sensors'), headers: _authHeaders)
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);
-    return (jsonDecode(response.body) as List<dynamic>)
-        .cast<Map<String, dynamic>>();
+    return (jsonDecode(response.body) as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
-  Future<void> addFarmerCropWithSensors({
-    required String commodity,
-    required String label,
-    required List<String> sensorCodes,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/farmer/crop-setup'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({
-            'commodity': commodity,
-            'label': label,
-            'sensorCodes': sensorCodes,
-          }),
-        )
-        .timeout(const Duration(seconds: 12));
+  Future<List<Map<String, dynamic>>> getAvailableFarmerSensors() async {
+    final response = await _client.get(_uri('/api/farmer/available-sensors'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> addFarmerCrop({required String commodity, required String label}) async {
+    final response = await _client.post(
+      _uri('/api/farmer/crops'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'commodity': commodity, 'label': label}),
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
   }
 
   Future<void> deleteFarmerCrop(int id) async {
-    final response = await _client
-        .delete(_uri('/api/farmer/crops/$id'), headers: _authHeaders)
+    final response = await _client.delete(_uri('/api/farmer/crops/$id'), headers: _authHeaders)
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);
   }
 
-  Future<void> logout() async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/logout'),
-          headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: '{}',
-        )
-        .timeout(const Duration(seconds: 5));
+  Future<void> linkFarmerSensor({required String sensorId, int? siteId}) async {
+    final response = await _client.post(
+      _uri('/api/farmer/sensors'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'sensorId': sensorId, if (siteId != null) 'siteId': siteId}),
+    ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
-    authToken = null;
   }
 
-  Uri _uri(String path, [Map<String, String>? query]) {
-    return Uri.parse('$baseUrl$path').replace(queryParameters: query);
+  Future<void> unlinkFarmerSensor(String sensorId) async {
+    final response = await _client.delete(
+      _uri('/api/farmer/sensors/${Uri.encodeComponent(sensorId)}'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
   }
 
   Future<StatusResponse> getStatus() async {
@@ -301,6 +289,23 @@ class ApiService {
     return list
         .map((item) => Alert.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getSmsLog() async {
+    final response = await _client.get(_uri('/api/sms-log'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
+  }
+
+  Future<void> acknowledgeAlert(int id) async {
+    final response = await _client.post(
+      _uri('/api/alerts/$id/acknowledge'),
+      headers: _jsonAuthHeaders,
+      body: '{}',
+    ).timeout(const Duration(seconds: 5));
+    _ensureOk(response);
   }
 
   Future<List<Reading>> getHistory({int limit = 20}) async {
@@ -421,15 +426,6 @@ class ApiService {
 
   void _ensureOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      try {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final message = body['error'];
-        if (message is String && message.isNotEmpty) {
-          throw Exception(message);
-        }
-      } on FormatException {
-        // Use the status/body fallback for non-JSON errors.
-      }
       throw Exception('HTTP ${response.statusCode}: ${response.body}');
     }
   }

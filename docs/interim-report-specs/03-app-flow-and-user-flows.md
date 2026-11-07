@@ -1,22 +1,6 @@
 # App Flow and User Flows
 
-> **Current runtime update (7 Nov 2026):** In demo mode, both apps open the
-> shared Demo Farmer directly. The login, OTP and QR steps below are historical
-> flows; production retains its authentication and QR SSO flow. If demo
-> backend discovery times out, clients remain on the demo home/offline state
-> instead of opening verification.
-
-> **Historical planning snapshot (24 October 2026).** The OTP/account flow descriptions below predate the current implementation. Mobile now signs in by scanning a one-use QR issued from an authenticated web account; web supports phone verification and email/password. See the [current walkthrough](../../walkthrough.md) and [architecture](../ARCHITECTURE.md).
-
-> **Later flow update (7 November 2026):** Crop setup now loads grouped crop
-> profiles and shows the selected room range plus storage notes. The suggested
-> low-literacy farmer journey is documented in
-> [BOTSWANA_CROP_STORAGE_PACKAGE.md](../BOTSWANA_CROP_STORAGE_PACKAGE.md).
-> It proposes picture-led crop choice, saved store names, sensor discovery,
-> one-action status cards and short local-language/audio instructions. These
-> enhancements need farmer testing and are not all implemented.
-> Sign-in QR pairing also supports a signed-in phone approving the web
-> login-page QR through the backend.
+> **Revision status (2026-11-07):** Current clients bypass sign-in in Demo mode and open the dashboard directly. Phone login and backend QR SSO are requested future work. Login/OTP flows below are historical or target designs, not current behavior. See [current handoff](../HANDOFF.md).
 
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Describe current user journeys and target flows for Interim Report 2 design/evaluation
@@ -24,7 +8,7 @@
 
 ## 1. Scope and flow conventions
 
-The Flutter app now has a phone-number sign-in screen, a six-cell OTP demo screen, an Accounts screen and a My Crops screen in addition to its four-destination bottom navigation (Overview, Trends, Alerts, Settings). OTP and account/crop/sensor interactions are local demo behavior. The sample PIN advances a local profile; there is no authentication backend, OTP delivery, account service or linked-device registry. Do not describe this as secure login or live multi-sensor monitoring.
+The Flutter app has direct Demo entry and Accounts/My Crops screens in addition to its four-destination bottom navigation. Account/crop/sensor data in the added views is local demo behavior. There is no authentication backend, OTP delivery, account service or linked-device registry. Do not describe this as secure login or live multi-sensor monitoring. The older phone/OTP sequence elsewhere in this document records prior design state only.
 
 The web dashboard now mirrors these entry and account journeys: phone entry, six-cell sample PIN, browser-local demo profile, Accounts summary, and searchable/filterable My Crops sensor fixtures. The browser stores only a demo profile in local storage; the monitor API remains separate and has no authenticated session or account-scoped data. Web sensor rows use fixed sample values and freshness labels. Both clients disclose that login, SMS and device connectivity are not implemented.
 

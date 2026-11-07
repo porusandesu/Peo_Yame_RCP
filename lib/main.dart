@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Threshold;
-import 'package:flutter/services.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'account_screens.dart';
 import 'api_service.dart';
@@ -18,21 +16,7 @@ const _forest = Color(0xFF176B4A);
 const _header = Color(0xFF10251F);
 const _canvas = Color(0xFFF3F7F3);
 const _ink = Color(0xFF172923);
-
-bool _isPrivateIpv4Address(String host) {
-  final parts = host.split('.').map(int.tryParse).toList();
-  if (parts.length != 4 ||
-      parts.any((part) => part == null || part < 0 || part > 255)) {
-    return false;
-  }
-  final a = parts[0]!;
-  final b = parts[1]!;
-  return a == 10 ||
-      (a == 172 && b >= 16 && b <= 31) ||
-      (a == 192 && b == 168) ||
-      (a == 169 && b == 254) ||
-      (a == 100 && b >= 64 && b <= 127);
-}
+const _red = Color(0xFFB84036);
 
 void main() => runApp(const StorageMonitorApp());
 
@@ -94,277 +78,159 @@ class _AppGate extends StatefulWidget {
 }
 
 class _AppGateState extends State<_AppGate> {
+  static const _demoAccount = AccountInfo(
+    name: 'Mr Lesego Lefoko',
+    email: 'LLefoko@email.co.bw',
+    phone: '',
+  );
   final ApiService _authApi = ApiService();
   AccountInfo? _account;
-  bool _loadingSession = true;
+  String? _authToken;
+  bool _authEnabled = false;
+  bool _checkingBackend = true;
+  bool _demoSelected = false;
 
   @override
   void initState() {
     super.initState();
-    _restoreSession();
+    _restoreSavedSession();
   }
 
-  Future<void> _restoreSession() async {
+  Future<void> _restoreSavedSession() async {
     try {
       final preferences = await SharedPreferences.getInstance();
       _authApi.baseUrl = normalizeApiBaseUrl(
         preferences.getString(apiBaseUrlPreferenceKey) ?? defaultApiBaseUrl,
       );
-      try {
-        await _authApi.checkConnection();
-      } catch (_) {}
-      if (_authApi.isDemoMode) {
-        _authApi.authToken = null;
-        await preferences.remove('farmer_auth_token');
-      } else {
-        _authApi.authToken = preferences.getString('farmer_auth_token');
-        if (_authApi.authToken != null) {
-          final farmer = await _authApi.getAccount();
-          _account = AccountInfo(
-            name: farmer['name'] as String,
-            phone: farmer['phone'] as String? ?? '',
-            email: farmer['email'] as String? ?? '',
-          );
-        }
-      }
-    } catch (_) {
-      _authApi.authToken = null;
-    }
-    if (mounted) setState(() => _loadingSession = false);
-  }
-
-  Future<void> _enterDemoMode() async {
-    await _authApi.checkConnection();
-    if (!_authApi.isDemoMode) {
-      throw Exception('Demo mode is not enabled on this backend.');
-    }
-    _authApi.authToken = null;
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.remove('farmer_auth_token');
-    final farmer = await _authApi.getAccount();
-    if (!mounted) return;
-    setState(() {
-      _account = AccountInfo(
-        name: farmer['name'] as String,
-        phone: farmer['phone'] as String? ?? '',
-        email: farmer['email'] as String? ?? '',
-      );
-    });
-  }
-
-  Future<void> _connectBackend(String address) async {
-    final previousAddress = _authApi.baseUrl;
-    final nextAddress = normalizeApiBaseUrl(address);
-    _authApi.baseUrl = nextAddress;
-    try {
-      await _authApi.checkConnection();
-    } catch (error) {
-      _authApi.baseUrl = previousAddress;
-      throw Exception(
-        'Could not reach the monitor at this address. Check that the PC and phone share Wi-Fi and that Windows allows Peo Yame through the firewall. ($error)',
-      );
-    }
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(apiBaseUrlPreferenceKey, nextAddress);
-    } catch (_) {
-      // The connection works for this session even if preferences are unavailable.
-    }
-  }
-
-  Future<void> _backendChanged(String address) async {
-    final nextAddress = normalizeApiBaseUrl(address);
-    final changed = _authApi.baseUrl != nextAddress;
-    _authApi.baseUrl = nextAddress;
-    if (!changed) return;
-    _authApi.authToken = null;
-    AccountInfo? demoAccount;
-    try {
-      await _authApi.checkConnection();
-      if (_authApi.isDemoMode) {
-        demoAccount = const AccountInfo(
-          name: 'Demo Farmer',
-          phone: '',
-          email: '',
-        );
+      final token = preferences.getString('farmer_session_token');
+      final health = await _authApi.checkConnection();
+      if (_demoSelected) return;
+      _authEnabled = health['authEnabled'] == true;
+      if (token != null && _authEnabled) {
         try {
-          final farmer = await _authApi.getAccount();
-          demoAccount = AccountInfo(
-            name: farmer['name'] as String,
-            phone: farmer['phone'] as String? ?? '',
-            email: farmer['email'] as String? ?? '',
-          );
+          final session = await _authApi.restoreSession(token);
+          if (_demoSelected) return;
+          _setAccount(session['farmer'] as Map<String, dynamic>, token);
         } catch (_) {
-          // Keep demo navigation available while this backend is offline.
+          await preferences.remove('farmer_session_token');
         }
       }
-    } catch (_) {}
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.remove('farmer_auth_token');
-    if (!mounted) return;
-    setState(() {
-      _account = demoAccount;
-    });
-  }
-
-  Future<void> _signInWithQr() async {
-    final raw = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
-    );
-    if (raw == null) return;
-    final data = jsonDecode(raw) as Map<String, dynamic>;
-    final backendUrl = data['backend'] as String;
-    final backend = Uri.tryParse(backendUrl);
-    if ((data['type'] != 'peo-yame-mobile-login' &&
-            data['type'] != 'peo-yame-web-login') ||
-        backend == null ||
-        backend.host.isEmpty ||
-        data['challenge'] is! String)
-      throw Exception('This is not a valid Peo Yame sign-in QR code.');
-    await _connectBackend(backendUrl);
-    if (data['type'] == 'peo-yame-web-login') {
-      await _authApi.approveWebLoginQr(data['challenge'] as String);
-      return;
+    } catch (_) {
+      // Demo entry remains available when the backend cannot be reached.
+    } finally {
+      if (mounted) setState(() => _checkingBackend = false);
     }
-    final farmer = await _authApi.signInWithMobileQr(
-      challenge: data['challenge'] as String,
-    );
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString('farmer_auth_token', _authApi.authToken!);
-    if (!mounted) return;
-    setState(() {
-      _account = AccountInfo(
-        name: farmer['name'] as String,
-        phone: farmer['phone'] as String? ?? '',
-        email: farmer['email'] as String? ?? '',
-      );
-    });
   }
 
-  Future<void> _signInWithPhone() async {
-    final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => _PhoneSignInPage(api: _authApi)),
+  void _setAccount(Map<String, dynamic> farmer, String token) {
+    _authToken = token;
+    _authApi.authToken = token;
+    _account = AccountInfo(
+      name: farmer['name'] as String? ?? 'Farmer',
+      email: farmer['email'] as String? ?? '',
+      phone: farmer['phone'] as String? ?? '',
     );
-    if (result == null) return;
+  }
+
+  void _enterDemo() {
+    _demoSelected = true;
+    final previousToken = _authApi.authToken;
+    _authApi.authToken = null;
+    setState(() {
+      _authToken = null;
+      _account = _demoAccount;
+    });
+    unawaited(() async {
+      try {
+        await (await SharedPreferences.getInstance()).remove('farmer_session_token');
+      } catch (_) {}
+      if (previousToken != null) {
+        final api = ApiService(baseUrl: _authApi.baseUrl, authToken: previousToken);
+        try { await api.signOut(); } catch (_) {} finally { api.dispose(); }
+      }
+    }());
+  }
+
+  Future<void> _openAuth({required bool register}) async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => _FarmerAccessPage(
+          baseUrl: _authApi.baseUrl,
+          createAccountFirst: register,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _authApi.baseUrl = normalizeApiBaseUrl(result['baseUrl'] as String? ?? _authApi.baseUrl);
     final farmer = result['farmer'] as Map<String, dynamic>;
     final token = result['token'] as String;
-    _authApi.authToken = token;
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString('farmer_auth_token', token);
-    if (!mounted) return;
-    setState(() {
-      _account = AccountInfo(
-        name: farmer['name'] as String,
-        phone: farmer['phone'] as String,
-        email: farmer['email'] as String? ?? '',
-      );
-    });
+    await preferences.setString(apiBaseUrlPreferenceKey, _authApi.baseUrl);
+    await preferences.setString('farmer_session_token', token);
+    _demoSelected = false;
+    setState(() => _setAccount(farmer, token));
   }
 
   Future<void> _logout() async {
-    try {
-      await _authApi.logout();
-    } catch (_) {}
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.remove('farmer_auth_token');
-    if (mounted)
-      setState(() {
-        _account = null;
-      });
-  }
-
-  Future<void> _editProfile(String name, String phone, String email) async {
-    final farmer = await _authApi.updateAccount(
-      name: name,
-      phone: phone,
-      email: email,
-    );
-    if (!mounted) return;
-    setState(
-      () => _account = AccountInfo(
-        name: farmer['name'] as String,
-        phone: farmer['phone'] as String,
-        email: farmer['email'] as String? ?? '',
-      ),
-    );
-  }
-
-  Future<void> _refreshAccount() async {
-    try {
-      final farmer = await _authApi.getAccount();
-      if (!mounted ||
-          (_account?.name == farmer['name'] &&
-              _account?.phone == farmer['phone'] &&
-              _account?.email == (farmer['email'] as String? ?? ''))) {
-        return;
-      }
-      setState(
-        () => _account = AccountInfo(
-          name: farmer['name'] as String,
-          phone: farmer['phone'] as String,
-          email: farmer['email'] as String? ?? '',
-        ),
-      );
-    } catch (_) {
-      // Keep the current screen usable while the backend reconnects.
+    final token = _authToken;
+    if (token != null) {
+      try {
+        await ApiService(baseUrl: _authApi.baseUrl, authToken: token).signOut();
+      } catch (_) {}
+      try {
+        await (await SharedPreferences.getInstance()).remove('farmer_session_token');
+      } catch (_) {}
     }
+    if (!mounted) return;
+    setState(() {
+      _authToken = null;
+      _authApi.authToken = null;
+      _account = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingSession)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final account = _account;
-    if (account != null) {
-      return DashboardPage(
-        account: account,
-        isDemoMode: _authApi.isDemoMode,
-        onLogout: _logout,
-        onScanSignInQr: _signInWithQr,
-        onEditProfile: _editProfile,
-        onRefreshAccount: _refreshAccount,
-        onLoadAuthenticator: _authApi.getAuthenticatorStatus,
-        onSetupAuthenticator: _authApi.setupAuthenticator,
-        onEnableAuthenticator: _authApi.enableAuthenticator,
-        onDisableAuthenticator: _authApi.disableAuthenticator,
-        onBackendChanged: _backendChanged,
-        onLoadFarmerCrops: _authApi.getFarmerCrops,
-        onLoadFarmerSensors: _authApi.getFarmerSensors,
-        onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
-        onLoadCropOptions: _authApi.getCropOptions,
-        onLoadAvailableSensors: _authApi.getAvailableFarmerSensors,
-        onCreateCropSetup: _authApi.addFarmerCropWithSensors,
-      );
-    }
-    return _LoginSplash(
-      isDemoMode: _authApi.isDemoMode,
-      onScanSignInQr: _signInWithQr,
-      onSignInWithPhone: _signInWithPhone,
-      onEnterDemoMode: _enterDemoMode,
-    );
+    return account == null
+        ? _DemoSplash(
+            onEnterDemo: _enterDemo,
+            onSignIn: () => _openAuth(register: false),
+            onCreateAccount: () => _openAuth(register: true),
+            authEnabled: _authEnabled,
+            checkingBackend: _checkingBackend,
+          )
+        : DashboardPage(
+            account: account,
+            token: _authToken,
+            baseUrl: _authApi.baseUrl,
+            onLogout: _logout,
+          );
   }
 }
 
 class AccountInfo {
-  const AccountInfo({required this.name, required this.phone, this.email = ''});
+  const AccountInfo({required this.name, required this.email, required this.phone});
 
   final String name;
-  final String phone;
   final String email;
+  final String phone;
 }
 
-class _LoginSplash extends StatelessWidget {
-  const _LoginSplash({
-    required this.isDemoMode,
-    required this.onScanSignInQr,
-    required this.onSignInWithPhone,
-    required this.onEnterDemoMode,
+class _DemoSplash extends StatelessWidget {
+  const _DemoSplash({
+    required this.onEnterDemo,
+    required this.onSignIn,
+    required this.onCreateAccount,
+    required this.authEnabled,
+    required this.checkingBackend,
   });
 
-  final bool isDemoMode;
-  final Future<void> Function() onScanSignInQr;
-  final Future<void> Function() onSignInWithPhone;
-  final Future<void> Function() onEnterDemoMode;
+  final VoidCallback onEnterDemo;
+  final VoidCallback onSignIn;
+  final VoidCallback onCreateAccount;
+  final bool authEnabled;
+  final bool checkingBackend;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -372,132 +238,57 @@ class _LoginSplash extends StatelessWidget {
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+          padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 390),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _AuthBrandHeader(),
-                const SizedBox(height: 38),
-                const Icon(Icons.spa_outlined, size: 42, color: _forest),
+                Image.asset('assets/branding/peo-yame-128.png', width: 88, height: 88),
                 const SizedBox(height: 16),
-                Text(
-                  isDemoMode ? 'Welcome to Peo Yame' : 'Sign in securely',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  isDemoMode
-                      ? 'Open the shared demo using Mr Lesego Lefoko’s profile.'
-                      : 'Sign in with your phone number, or scan a one-time QR from your signed-in web account.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: Color(0xFF65776F),
-                  ),
-                ),
+                const Text('Peo Yame', textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _ink)),
+                const SizedBox(height: 8),
+                const Text('Storage monitoring for your harvest', textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF65776F))),
                 const SizedBox(height: 26),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (isDemoMode) ...[
-                          const Text(
-                            'Demo account',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text('Mr Lesego Lefoko'),
-                          const Text(
-                            'LLefoko@email.co.bw',
-                            style: TextStyle(color: Color(0xFF65776F)),
-                          ),
-                          const SizedBox(height: 12),
-                          _demoModeButton(context),
-                        ] else ...[
-                          const Text(
-                            'Connect your account',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          FilledButton.icon(
-                            onPressed: () async {
-                              try {
-                                await onScanSignInQr();
-                              } catch (error) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Could not sign in: $error',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.qr_code_scanner_rounded),
-                            label: const Text('Scan sign-in QR'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _forest,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(44),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              try {
-                                await onSignInWithPhone();
-                              } catch (error) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Could not sign in: $error',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.phone_android_rounded),
-                            label: const Text('Sign in with phone number'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _forest,
-                              minimumSize: const Size.fromHeight(44),
-                              side: const BorderSide(color: _forest),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _demoModeButton(context),
-                        ],
-                      ],
+                Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Shared demo profile', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    const Text('Mr Lesego Lefoko'),
+                    const Text('LLefoko@email.co.bw', style: TextStyle(color: Color(0xFF65776F))),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: onEnterDemo,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Demo mode'),
+                      style: FilledButton.styleFrom(backgroundColor: _forest,
+                        foregroundColor: Colors.white, minimumSize: const Size.fromHeight(48)),
                     ),
-                  ),
-                ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onSignIn,
+                      icon: const Icon(Icons.phone_android_rounded),
+                      label: const Text('Sign in with phone number'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    ),
+                    TextButton(
+                      onPressed: onCreateAccount,
+                      child: const Text('Create farmer account'),
+                    ),
+                    if (!authEnabled && !checkingBackend)
+                      const Text(
+                        'Phone sign-in is unavailable on this demo backend. You can still open Demo mode.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
+                      ),
+                  ],
+                ))),
                 const SizedBox(height: 12),
+                const Text('Demo access opens the dashboard directly. It does not verify a phone number or create an authenticated account.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF65776F))),
               ],
             ),
           ),
@@ -505,363 +296,248 @@ class _LoginSplash extends StatelessWidget {
       ),
     ),
   );
-
-  Widget _demoModeButton(BuildContext context) => OutlinedButton.icon(
-    onPressed: () async {
-      try {
-        await onEnterDemoMode();
-      } catch (error) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open demo mode: $error')),
-          );
-        }
-      }
-    },
-    icon: const Icon(Icons.play_arrow_rounded),
-    label: const Text('Demo mode'),
-    style: OutlinedButton.styleFrom(
-      foregroundColor: _forest,
-      minimumSize: const Size.fromHeight(44),
-      side: const BorderSide(color: _forest),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-    ),
-  );
 }
 
-class _PhoneSignInPage extends StatefulWidget {
-  const _PhoneSignInPage({required this.api});
+class _FarmerAccessPage extends StatefulWidget {
+  const _FarmerAccessPage({required this.baseUrl, required this.createAccountFirst});
 
-  final ApiService api;
+  final String baseUrl;
+  final bool createAccountFirst;
 
   @override
-  State<_PhoneSignInPage> createState() => _PhoneSignInPageState();
+  State<_FarmerAccessPage> createState() => _FarmerAccessPageState();
 }
 
-class _PhoneSignInPageState extends State<_PhoneSignInPage> {
-  final _phoneController = TextEditingController();
-  final _codeController = TextEditingController();
-  String _phone = '';
-  bool _codeRequested = false;
-  bool _authenticatorRequired = false;
-  bool _demoMode = false;
-  bool _busy = false;
+class _FarmerAccessPageState extends State<_FarmerAccessPage> {
+  final _formKey = GlobalKey<FormState>();
+  late final ApiService _api;
+  late final TextEditingController _baseUrl;
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  final _authenticatorCode = TextEditingController();
+  late bool _createAccount;
+  bool _authEnabled = false;
+  bool _checking = true;
+  bool _submitting = false;
+  bool _showPassword = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _createAccount = widget.createAccountFirst;
+    _baseUrl = TextEditingController(text: widget.baseUrl);
+    _api = ApiService(baseUrl: widget.baseUrl);
+    _checkBackend();
+  }
+
+  Future<void> _checkBackend() async {
+    try {
+      _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+      final health = await _api.checkConnection();
+      if (!mounted) return;
+      setState(() => _authEnabled = health['authEnabled'] == true);
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Enter the PC backend address and check that it is running.');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate() || _submitting) return;
+    setState(() { _submitting = true; _error = null; });
+    try {
+      _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+      final health = await _api.checkConnection();
+      if (health['authEnabled'] != true) {
+        throw Exception('Sign-in is disabled on this backend. Demo mode is still available.');
+      }
+      final result = _createAccount
+          ? await _api.registerFarmer(name: _name.text.trim(), phone: _phone.text.trim(), password: _password.text)
+          : await _api.signIn(phone: _phone.text.trim(), password: _password.text, authenticatorCode: _authenticatorCode.text.trim());
+      if (!mounted) return;
+      Navigator.of(context).pop({...result, 'baseUrl': _api.baseUrl});
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _scanSignInQr() async {
+    _api.baseUrl = normalizeApiBaseUrl(_baseUrl.text);
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _QrScannerPage(api: _api)),
+    );
+    if (result == null || !mounted) return;
+    Navigator.of(context).pop({...result, 'baseUrl': _api.baseUrl});
+  }
+
+  @override
   void dispose() {
-    _phoneController.dispose();
-    _codeController.dispose();
+    _baseUrl.dispose();
+    _name.dispose();
+    _phone.dispose();
+    _password.dispose();
+    _authenticatorCode.dispose();
+    _api.dispose();
     super.dispose();
   }
 
-  Future<void> _requestCode() async {
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      setState(() => _error = 'Enter the phone number on your farmer account.');
-      return;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(_createAccount ? 'Create farmer account' : 'Farmer sign in')),
+    body: SafeArea(child: ListView(padding: const EdgeInsets.all(20), children: [
+      const Text('Use your phone number and password.', style: TextStyle(color: Color(0xFF65776F))),
+      const SizedBox(height: 16),
+      TextField(
+        controller: _baseUrl,
+        keyboardType: TextInputType.url,
+        decoration: const InputDecoration(labelText: 'Backend address', hintText: '192.168.1.42:3000', helperText: 'Enter the address shown on the PC running Peo Yame.'),
+        onEditingComplete: _checkBackend,
+      ),
+      const SizedBox(height: 12),
+      if (_checking) const LinearProgressIndicator(),
+      if (!_authEnabled && !_checking)
+        const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('Account sign-in is not enabled on this backend. Demo mode remains available without verification.', style: TextStyle(color: Color(0xFF765D24)))),
+      Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (_createAccount) ...[
+          TextFormField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Your name'), validator: (value) => (value ?? '').trim().length < 2 ? 'Enter your name.' : null),
+          const SizedBox(height: 12),
+        ],
+        TextFormField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Botswana phone number', hintText: '+267 71 234 567', prefixIcon: Icon(Icons.phone_android_rounded)), validator: (value) => (value ?? '').replaceAll(RegExp(r'\D'), '').length < 8 ? 'Enter your 8-digit phone number.' : null),
+        const SizedBox(height: 12),
+        TextFormField(controller: _password, obscureText: !_showPassword, decoration: InputDecoration(labelText: 'Password', suffixIcon: IconButton(onPressed: () => setState(() => _showPassword = !_showPassword), icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility))), validator: (value) => (value ?? '').length < (_createAccount ? 10 : 1) ? (_createAccount ? 'Use at least 10 characters.' : 'Enter your password.') : null),
+        if (!_createAccount) ...[
+          const SizedBox(height: 12),
+          TextField(controller: _authenticatorCode, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'Authenticator code (if enabled)', counterText: ''),),
+        ],
+      ])),
+      if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: _red))),
+      const SizedBox(height: 16),
+      FilledButton(onPressed: _submitting ? null : _submit, style: FilledButton.styleFrom(backgroundColor: _forest, minimumSize: const Size.fromHeight(50)), child: _submitting ? const CircularProgressIndicator() : Text(_createAccount ? 'Create account' : 'Sign in')),
+      if (!_createAccount) ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: _submitting ? null : _scanSignInQr, icon: const Icon(Icons.qr_code_scanner_rounded), label: const Text('Scan sign-in QR code'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48))),
+      ],
+      TextButton(onPressed: () => setState(() { _createAccount = !_createAccount; _error = null; }), child: Text(_createAccount ? 'Already have an account? Sign in' : 'New farmer? Create an account')),
+    ])),
+  );
+}
+
+class _QrScannerPage extends StatefulWidget {
+  const _QrScannerPage({required this.api});
+  final ApiService api;
+
+  @override
+  State<_QrScannerPage> createState() => _QrScannerPageState();
+}
+
+class _QrScannerPageState extends State<_QrScannerPage> {
+  bool _busy = false;
+  String? _error;
+
+  Uri? _qrServerUri(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw const FormatException('This sign-in code has an invalid backend address.');
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final result = await widget.api.requestPhoneSignInCode(phone: phone);
-      if (!mounted) return;
-      setState(() {
-        _phone = result['phone'] as String? ?? phone;
-        _authenticatorRequired = result['authenticatorRequired'] == true;
-        _demoMode =
-            result['demoMode'] == true ||
-            result['delivery'] == 'demo-skip-available';
-        _codeRequested = true;
-        _codeController.clear();
-      });
-    } catch (error) {
-      if (mounted)
-        setState(
-          () => _error = error.toString().replaceFirst('Exception: ', ''),
-        );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    return uri.replace(path: '', query: null, fragment: null);
   }
 
-  Future<void> _finishSignIn(
-    Future<Map<String, dynamic>> Function() signIn,
-  ) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+  bool _isLoopback(String host) =>
+      host == 'localhost' || host == '127.0.0.1' || host == '::1';
+
+  Future<void> _handleCapture(BarcodeCapture capture) async {
+    if (_busy || capture.barcodes.isEmpty) return;
+    final value = capture.barcodes.first.rawValue;
+    final uri = value == null ? null : Uri.tryParse(value);
+    if (uri == null || uri.scheme != 'peoyame' || uri.pathSegments.isEmpty) {
+      setState(() => _error = 'This QR code is not a Peo Yame sign-in code.');
+      return;
+    }
+    setState(() { _busy = true; _error = null; });
     try {
-      final result = await signIn();
-      if (result['token'] is! String ||
-          result['farmer'] is! Map<String, dynamic>) {
-        throw const FormatException(
-          'The server returned an incomplete sign-in response.',
-        );
+      final challenge = uri.pathSegments.last;
+      if (uri.host == 'mobile-login') {
+        final qrServer = _qrServerUri(uri.queryParameters['server']);
+        if (qrServer != null &&
+            !_isLoopback(qrServer.host) &&
+            qrServer.toString() != widget.api.baseUrl) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Use the same Peo Yame backend?'),
+              content: Text('This sign-in code connects to ${qrServer.host}. Continue to use that backend on this phone.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Continue')),
+              ],
+            ),
+          );
+          if (confirmed != true) {
+            if (mounted) setState(() => _busy = false);
+            return;
+          }
+          widget.api.baseUrl = qrServer.toString();
+        }
+        final result = await widget.api.exchangeMobileLoginQr(challenge);
+        result['baseUrl'] = widget.api.baseUrl;
+        if (mounted) Navigator.of(context).pop(result);
+      } else if (uri.host == 'web-login') {
+        if (widget.api.authToken == null) throw Exception('Sign in on this phone first, then scan the browser code.');
+        final qrServer = _qrServerUri(uri.queryParameters['server']);
+        if (qrServer != null &&
+            !_isLoopback(qrServer.host) &&
+            qrServer.toString() != widget.api.baseUrl) {
+          throw Exception('This browser QR belongs to a different backend. Connect this phone to ${qrServer.host} first.');
+        }
+        await widget.api.approveWebLoginQr(challenge);
+        if (mounted) Navigator.of(context).pop({'approved': true});
+      } else {
+        throw Exception('This QR code is not a Peo Yame sign-in code.');
       }
-      if (mounted) Navigator.of(context).pop(result);
     } catch (error) {
-      if (mounted)
-        setState(
-          () => _error = error.toString().replaceFirst('Exception: ', ''),
-        );
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() { _busy = false; _error = error.toString().replaceFirst('Exception: ', ''); });
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Sign in with phone')),
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Icon(
-                      Icons.phone_android_rounded,
-                      size: 36,
-                      color: _forest,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _codeRequested
-                          ? 'Verify your number'
-                          : 'Enter your number',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _codeRequested
-                          ? _authenticatorRequired
-                                ? 'Enter the current code from your authenticator app.'
-                                : 'Enter the code sent to $_phone.'
-                          : 'Use the phone number linked to your farmer account.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF65776F),
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    if (!_codeRequested) ...[
-                      TextField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.telephoneNumber],
-                        decoration: const InputDecoration(
-                          labelText: 'Phone number with country code',
-                          hintText: '+267…',
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: (_) => _busy ? null : _requestCode(),
-                      ),
-                      const SizedBox(height: 14),
-                      FilledButton(
-                        onPressed: _busy ? null : _requestCode,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _forest,
-                          minimumSize: const Size.fromHeight(46),
-                        ),
-                        child: _busy
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Continue'),
-                      ),
-                    ] else ...[
-                      TextField(
-                        controller: _codeController,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.oneTimeCode],
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        maxLength: 6,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 22, letterSpacing: 8),
-                        decoration: InputDecoration(
-                          labelText: _authenticatorRequired
-                              ? 'Authenticator code'
-                              : '6-digit code',
-                          border: const OutlineInputBorder(),
-                          counterText: '',
-                        ),
-                        onSubmitted: (_) => _busy ? null : _verifyCode(),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _busy ? null : _verifyCode,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _forest,
-                          minimumSize: const Size.fromHeight(46),
-                        ),
-                        child: _busy
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Verify and sign in'),
-                      ),
-                      if (_demoMode && !_authenticatorRequired) ...[
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () => _finishSignIn(
-                                  () => widget.api.skipPhoneVerificationForDemo(
-                                    phone: _phone,
-                                  ),
-                                ),
-                          child: const Text('Skip verification (demo)'),
-                        ),
-                      ],
-                      TextButton(
-                        onPressed: _busy
-                            ? null
-                            : () => setState(() {
-                                _codeRequested = false;
-                                _error = null;
-                              }),
-                        child: const Text('Use a different phone number'),
-                      ),
-                    ],
-                    if (_demoMode && _codeRequested && !_authenticatorRequired)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Demo mode does not send SMS. You can continue with the demo verification option.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF65776F),
-                          ),
-                        ),
-                      ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red, fontSize: 13),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  Future<void> _verifyCode() async {
-    final code = _codeController.text.trim();
-    if (code.length != 6) {
-      setState(() => _error = 'Enter all six digits, then try again.');
-      return;
-    }
-    await _finishSignIn(
-      () => widget.api.signInWithPhoneCode(phone: _phone, code: code),
-    );
-  }
-}
-
-class _AuthBrandHeader extends StatelessWidget {
-  const _AuthBrandHeader();
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(7),
-        child: Image.asset(
-          'assets/branding/peo-yame-128.png',
-          width: 32,
-          height: 32,
-        ),
-      ),
-      const SizedBox(width: 8),
-      const Text(
-        'Peo Yame',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          color: _forest,
-        ),
-      ),
-      const Spacer(),
-    ],
+    appBar: AppBar(title: const Text('Scan sign-in QR code')),
+    body: Stack(children: [
+      MobileScanner(onDetect: _handleCapture),
+      Align(alignment: Alignment.bottomCenter, child: Container(width: double.infinity, padding: const EdgeInsets.all(18), color: Colors.black.withValues(alpha: .72), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Hold the QR code inside the frame', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        if (_busy) const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()),
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.white))),
+      ]))),
+    ]),
   );
 }
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
-    required this.isDemoMode,
+    required this.token,
+    required this.baseUrl,
     required this.onLogout,
-    required this.onScanSignInQr,
-    required this.onEditProfile,
-    required this.onRefreshAccount,
-    required this.onLoadAuthenticator,
-    required this.onSetupAuthenticator,
-    required this.onEnableAuthenticator,
-    required this.onDisableAuthenticator,
-    required this.onBackendChanged,
-    required this.onLoadFarmerCrops,
-    required this.onLoadFarmerSensors,
-    required this.onDeleteFarmerCrop,
-    required this.onLoadCropOptions,
-    required this.onLoadAvailableSensors,
-    required this.onCreateCropSetup,
     super.key,
   });
 
   final AccountInfo account;
-  final bool isDemoMode;
+  final String? token;
+  final String baseUrl;
   final VoidCallback onLogout;
-  final Future<void> Function() onScanSignInQr;
-  final Future<void> Function(String name, String phone, String email)
-  onEditProfile;
-  final Future<void> Function() onRefreshAccount;
-  final Future<Map<String, dynamic>> Function() onLoadAuthenticator;
-  final Future<Map<String, dynamic>> Function() onSetupAuthenticator;
-  final Future<void> Function(String code) onEnableAuthenticator;
-  final Future<void> Function(String code) onDisableAuthenticator;
-  final ValueChanged<String> onBackendChanged;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
-  final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<Threshold>> Function() onLoadCropOptions;
-  final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
-  final Future<void> Function({
-    required String commodity,
-    required String label,
-    required List<String> sensorCodes,
-  })
-  onCreateCropSetup;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -869,10 +545,24 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
-  Timer? _accountRefreshTimer;
+  late String _accountName;
+  late String _accountEmail;
+  late String _accountPhone;
   String _baseUrl = defaultApiBaseUrl;
   int _selectedTab = 0;
-  DateTime _sensorStartedAt = DateTime.now();
+  bool _showBackendAddress = false;
+  bool _authenticatorEnabled = false;
+  bool _loadingAuthenticator = false;
+  int _observedAccountRevision = 0;
+  String _cropGuideSearch = '';
+
+  List<Threshold> get _visibleCropGuides {
+    final query = _cropGuideSearch.trim().toLowerCase();
+    if (query.isEmpty) return _controller.crops;
+    return _controller.crops.where((crop) =>
+      '${crop.commodity} ${crop.cropGroup} ${crop.storageNote}'
+          .toLowerCase().contains(query)).toList();
+  }
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
     try {
@@ -923,13 +613,58 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _controller = DashboardController();
+    _accountName = widget.account.name;
+    _accountEmail = widget.account.email;
+    _accountPhone = widget.account.phone;
+    _baseUrl = widget.baseUrl;
+    _controller = DashboardController(
+      api: ApiService(baseUrl: widget.baseUrl, authToken: widget.token),
+    );
+    _controller.addListener(_handleDashboardUpdate);
+    _controller.demoMode = widget.token == null;
     _controller.loadCrops();
     _loadSavedAddress();
-    _accountRefreshTimer = Timer.periodic(
-      const Duration(seconds: 20),
-      (_) => widget.onRefreshAccount(),
-    );
+    if (widget.token != null) _refreshAuthenticatorStatus();
+  }
+
+  void _handleDashboardUpdate() {
+    if (widget.token == null ||
+        _observedAccountRevision == _controller.farmerAccountRevision) return;
+    _observedAccountRevision = _controller.farmerAccountRevision;
+    unawaited(_refreshFarmerProfile());
+    unawaited(_refreshAuthenticatorStatus());
+  }
+
+  Future<void> _refreshFarmerProfile() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final account = await api.getFarmerAccount();
+      if (!mounted) return;
+      setState(() {
+        _accountName = account['name'] as String? ?? _accountName;
+        _accountEmail = account['email'] as String? ?? '';
+        _accountPhone = account['phone'] as String? ?? _accountPhone;
+      });
+    } catch (_) {
+      // Keep the last server-confirmed profile visible while reconnecting.
+    } finally {
+      api.dispose();
+    }
+  }
+
+  Future<void> _refreshAuthenticatorStatus() async {
+    if (widget.token == null) return;
+    setState(() => _loadingAuthenticator = true);
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final enabled = await api.getAuthenticatorEnabled();
+      if (mounted) setState(() => _authenticatorEnabled = enabled);
+    } catch (_) {
+      // Keep the security controls usable if status lookup is temporarily unavailable.
+    } finally {
+      api.dispose();
+      if (mounted) setState(() => _loadingAuthenticator = false);
+    }
   }
 
   Future<void> _loadSavedAddress() async {
@@ -943,7 +678,151 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     _baseUrl = normalizeApiBaseUrl(address);
     _controller.setBaseUrl(_baseUrl);
-    _controller.startPolling();
+    _controller.startPolling(demoMode: widget.token == null);
+  }
+
+  Future<void> _scanBrowserLoginQr() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _QrScannerPage(api: api)),
+    );
+    api.dispose();
+    if (result != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Web sign-in approved. Return to the browser.')),
+      );
+    }
+  }
+
+  Future<void> _editProfile() async {
+    if (widget.token == null) return;
+    final nameController = TextEditingController(text: _accountName);
+    final emailController = TextEditingController(text: _accountEmail);
+    String? validationError;
+    final profile = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit profile'),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              maxLength: 80,
+              decoration: InputDecoration(labelText: 'Name', errorText: validationError),
+            ),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              maxLength: 254,
+              decoration: const InputDecoration(labelText: 'Email (optional)'),
+            ),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final value = nameController.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+                if (value.length < 2 || value.length > 80) {
+                  setDialogState(() => validationError = 'Enter a name between 2 and 80 characters.');
+                  return;
+                }
+                final email = emailController.text.trim();
+                if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                  setDialogState(() => validationError = 'Enter a valid email address or leave it blank.');
+                  return;
+                }
+                Navigator.pop(dialogContext, {'name': value, 'email': email});
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameController.dispose();
+    emailController.dispose();
+    if (profile == null || !mounted || (profile['name'] == _accountName && profile['email'] == _accountEmail)) return;
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final account = await api.updateFarmerProfile(name: profile['name']!, email: profile['email']!);
+      if (!mounted) return;
+      setState(() {
+        _accountName = account['name'] as String? ?? profile['name']!;
+        _accountEmail = account['email'] as String? ?? _accountEmail;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated.')));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update profile: ${error.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    } finally {
+      api.dispose();
+    }
+  }
+
+  Future<void> _setupAuthenticator() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      String? code;
+      if (_authenticatorEnabled) {
+        code = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) {
+            final codeController = TextEditingController();
+            return AlertDialog(
+              title: const Text('Turn off authenticator sign-in?'),
+              content: TextField(controller: codeController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'Current 6-digit code', counterText: '')),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, codeController.text.trim()), child: const Text('Turn off')),
+              ],
+            );
+          },
+        );
+        if (code == null || code.isEmpty) return;
+        await api.disableAuthenticator(code);
+        if (mounted) {
+          setState(() => _authenticatorEnabled = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is disabled.')));
+        }
+        return;
+      }
+      final setup = await api.setupAuthenticator();
+      if (!mounted) return;
+      code = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          final codeController = TextEditingController();
+          return AlertDialog(
+            title: const Text('Set up authenticator'),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Add this key in Google Authenticator or another TOTP app, then enter its current six-digit code.'),
+              const SizedBox(height: 12),
+              SelectableText(setup['secret'] as String, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+              const SizedBox(height: 12),
+              TextField(controller: codeController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit code', counterText: '')),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, codeController.text.trim()), child: const Text('Enable')),
+            ],
+          );
+        },
+      );
+      if (code == null || code.isEmpty) return;
+      await api.enableAuthenticator(code);
+      if (mounted) {
+        setState(() => _authenticatorEnabled = true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is enabled.')));
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      api.dispose();
+    }
   }
 
   Future<void> _editServerAddress() async {
@@ -965,21 +844,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
           actions: [
-            TextButton.icon(
-              onPressed: () async {
-                final scanned = await Navigator.of(dialogContext).push<String>(
-                  MaterialPageRoute<String>(
-                    builder: (_) => const _BackendQrScannerPage(),
-                  ),
-                );
-                if (scanned != null) {
-                  textController.text = scanned;
-                  setDialogState(() => validationMessage = '');
-                }
-              },
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: const Text('Scan QR code'),
-            ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
@@ -1013,7 +877,6 @@ class _DashboardPageState extends State<DashboardPage> {
       _baseUrl = address;
       _controller.setBaseUrl(address);
     });
-    widget.onBackendChanged(address);
     try {
       final preferences = await SharedPreferences.getInstance();
       await preferences.setString(apiBaseUrlPreferenceKey, address);
@@ -1028,153 +891,45 @@ class _DashboardPageState extends State<DashboardPage> {
     await _controller.refresh();
   }
 
-  Future<void> _editFarmerProfile() async {
-    final nameController = TextEditingController(text: widget.account.name);
-    final phoneController = TextEditingController(text: widget.account.phone);
-    final emailController = TextEditingController(text: widget.account.email);
-    final updatedProfile = await showDialog<(String, String, String)>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        scrollable: true,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        title: const Text('Edit farmer profile'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Column(
+  Future<void> _showSignInQr() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final challenge = await api.createMobileLoginQr(serverBaseUrl: _controller.baseUrl);
+      if (!mounted) return;
+      final qrData = challenge['qrCode'] as String;
+      final comma = qrData.indexOf(',');
+      if (!qrData.startsWith('data:image/') || comma < 0) {
+        throw const FormatException('The server returned an invalid sign-in QR code.');
+      }
+      final expiresAt = DateTime.parse(challenge['expiresAt'] as String).toLocal();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Sign in another phone'),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                maxLength: 80,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  alignLabelWithHint: true,
-                  labelText: 'Farmer name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+              Image.memory(base64Decode(qrData.substring(comma + 1)), width: 240, height: 240),
               const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'Email address',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  alignLabelWithHint: true,
-                  labelText: 'Phone number',
-                  hintText: '+26771234567',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+              const Text('Scan this one-time code with Peo Yame on the other phone.'),
+              const SizedBox(height: 8),
+              Text('Expires ${TimeOfDay.fromDateTime(expiresAt).format(dialogContext)}', style: const TextStyle(color: Color(0xFF65776F), fontSize: 12)),
             ],
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, (
-              nameController.text.trim(),
-              phoneController.text.trim(),
-              emailController.text.trim(),
-            )),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    nameController.dispose();
-    phoneController.dispose();
-    emailController.dispose();
-    if (updatedProfile == null || !mounted) return;
-    if (updatedProfile.$1.isEmpty || updatedProfile.$2.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter both your name and phone number.')),
-      );
-      return;
-    }
-    try {
-      await widget.onEditProfile(
-        updatedProfile.$1,
-        updatedProfile.$2,
-        updatedProfile.$3,
       );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update profile: $error')),
+          SnackBar(content: Text('Could not create a sign-in QR code: ${error.toString().replaceFirst('Exception: ', '')}')),
         );
       }
+    } finally {
+      api.dispose();
     }
-  }
-
-  Future<void> _openMyCrops() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => MyCropsScreen(
-          name: widget.account.name,
-          onLoadFarmerCrops: widget.onLoadFarmerCrops,
-          onLoadFarmerSensors: widget.onLoadFarmerSensors,
-          onDeleteFarmerCrop: widget.onDeleteFarmerCrop,
-          onLoadCropOptions: widget.onLoadCropOptions,
-          onLoadAvailableSensors: widget.onLoadAvailableSensors,
-          onCreateCropSetup: widget.onCreateCropSetup,
-          onDestinationSelected: _selectSection,
-        ),
-      ),
-    );
-  }
-
-  void _selectSection(int index) {
-    if (index == 2) {
-      setState(() => _selectedTab = 2);
-      _openMyCrops();
-    } else if (index == 4) {
-      setState(() => _selectedTab = 4);
-    } else {
-      setState(() => _selectedTab = index);
-    }
-  }
-
-  Future<void> _refreshSensors() async {
-    await _controller.refresh();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _controller.errorMessage == null
-              ? 'Demo sensor readings refreshed.'
-              : 'No readings yet. Check Wi-Fi and the monitor address.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _restartSensors() async {
-    setState(() => _sensorStartedAt = DateTime.now());
-    _controller.recordAction('Restarted demo sensor session');
-    await _controller.refresh();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Demo sensor session restarted. No physical sensor was restarted.',
-        ),
-      ),
-    );
   }
 
   Future<void> _addCrop() async {
@@ -1224,7 +979,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                   const Text(
-                    'Use values that keep the crop safe during storage.',
+                    'Enter the room-monitoring target band. Confirm guidance for the crop and its condition.',
                     style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
                   ),
                 ],
@@ -1279,6 +1034,7 @@ class _DashboardPageState extends State<DashboardPage> {
           minHumidity: double.parse(fields[3].text),
           maxHumidity: double.parse(fields[4].text),
         );
+        await _controller.setHarvest(fields[0].text.trim());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1305,7 +1061,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
-    _accountRefreshTimer?.cancel();
+    _controller.removeListener(_handleDashboardUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -1315,7 +1071,8 @@ class _DashboardPageState extends State<DashboardPage> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final connected = _controller.isBackendConnected;
+        final connected =
+            _controller.status != null && _controller.errorMessage == null;
         final status = _controller.status;
         return Scaffold(
           appBar: AppBar(
@@ -1331,33 +1088,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             actions: [
-              if (!widget.isDemoMode)
-                IconButton(
-                  onPressed: () async {
-                    try {
-                      await widget.onScanSignInQr();
-                      if (mounted)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Web sign-in approved.'),
-                          ),
-                        );
-                    } catch (error) {
-                      if (mounted)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Could not approve sign-in: $error'),
-                          ),
-                        );
-                    }
-                  },
-                  tooltip: 'Approve web sign-in QR',
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                ),
-              _ConnectionPill(
-                connected: connected,
-                known: _controller.hasConnectionStatus,
-              ),
+              _ConnectionPill(connected: connected),
               IconButton(
                 onPressed: _controller.refresh,
                 tooltip: 'Refresh',
@@ -1366,13 +1097,11 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(width: 8),
             ],
           ),
-          body: RefreshIndicator(
-            onRefresh: _controller.refresh,
-            child: _tabBody(status),
-          ),
+          body: _tabBody(status),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedTab,
-            onDestinationSelected: _selectSection,
+            onDestinationSelected: (index) =>
+                setState(() => _selectedTab = index),
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
@@ -1384,8 +1113,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 label: 'Trends',
               ),
               NavigationDestination(
-                icon: Icon(Icons.spa_outlined),
-                selectedIcon: Icon(Icons.spa_rounded),
+                icon: Icon(Icons.eco_outlined),
+                selectedIcon: Icon(Icons.eco_rounded),
                 label: 'My Crops',
               ),
               NavigationDestination(
@@ -1409,6 +1138,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final children = switch (_selectedTab) {
       0 => _homeContent(status),
       1 => _trendsContent(),
+      2 => _myCropsContent(status),
       3 => _alertsContent(status),
       _ => _settingsContent(status),
     };
@@ -1432,9 +1162,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
-      userName: widget.account.name,
-      isDemoMode: widget.isDemoMode,
-      onAccountTap: () => _selectSection(4),
+      userName: _accountName,
+      isDemo: widget.token == null,
       onLogout: widget.onLogout,
     ),
     const SizedBox(height: 16),
@@ -1540,7 +1269,6 @@ class _DashboardPageState extends State<DashboardPage> {
       points: _controller.trends,
       error: _controller.trendError,
       range: _controller.trendRange,
-      threshold: _controller.status?.threshold,
     ),
     const SizedBox(height: 18),
     const _SectionTitle(title: 'Recent readings'),
@@ -1564,14 +1292,99 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
   ];
 
+  List<Widget> _myCropsContent(StatusResponse? status) => [
+    const _SectionTitle(title: 'My Crops'),
+    const SizedBox(height: 4),
+    Text(
+      widget.token == null
+          ? 'Shared demo crop catalog · locations and sensor links are not saved to an account.'
+          : 'Crop monitoring guides and your saved storage locations.',
+      style: const TextStyle(color: Color(0xFF65776F), fontSize: 13),
+    ),
+    const SizedBox(height: 12),
+    if (widget.token != null) ...[
+      FarmerLocationsPanel(
+        baseUrl: _controller.baseUrl,
+        token: widget.token!,
+        crops: _controller.crops,
+        accountRevision: _controller.farmerAccountRevision,
+      ),
+      const SizedBox(height: 18),
+    ],
+    if (widget.token == null)
+      const _SimulationBanner(),
+    if (widget.token == null) ...[
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('Crop monitoring limits are shared with the dashboard. Add a crop to the catalog or choose one to monitor.'),
+              ),
+              IconButton(onPressed: _addCrop, tooltip: 'Add crop', icon: const Icon(Icons.add_circle_outline)),
+            ],
+          ),
+        ),
+      ),
+    ],
+    const SizedBox(height: 8),
+    TextField(
+      onChanged: (value) => setState(() => _cropGuideSearch = value),
+      decoration: const InputDecoration(
+        prefixIcon: Icon(Icons.search),
+        labelText: 'Search crop guides',
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 8),
+    if (_visibleCropGuides.isEmpty)
+      _EmptyCard(
+        icon: Icons.eco_outlined,
+        text: _controller.crops.isEmpty
+            ? 'Crop guides are unavailable while the backend is offline.'
+            : 'No crop guides match this search.',
+      )
+    else
+      ..._visibleCropGuides.map((crop) => Card(
+        child: ExpansionTile(
+          leading: const Icon(Icons.eco_outlined, color: _forest),
+          title: Text(crop.commodity, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('${crop.minTemp}–${crop.maxTemp} °C · ${crop.minHumidity}–${crop.maxHumidity}% RH'),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${crop.cropGroup}\nRoom target band: ${crop.minTemp}–${crop.maxTemp} °C and ${crop.minHumidity}–${crop.maxHumidity}% RH.${crop.safeMoisturePct == null ? '' : '\nGrain moisture guide: at or below ${crop.safeMoisturePct}%; measure separately with a moisture meter.'}\n${crop.storageNote}',
+                style: const TextStyle(fontSize: 13, height: 1.45),
+              ),
+            ),
+            if (status != null && status.threshold.commodity != crop.commodity)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _controller.setHarvest(crop.commodity),
+                  icon: const Icon(Icons.monitor_heart_outlined),
+                  label: const Text('Monitor this crop'),
+                ),
+              )
+            else if (status?.threshold.commodity == crop.commodity)
+              const Align(alignment: Alignment.centerRight, child: Chip(label: Text('Currently monitored'))),
+          ],
+        ),
+      )),
+    if (widget.token == null) ...[
+      const SizedBox(height: 10),
+      const _EmptyCard(icon: Icons.warehouse_outlined, text: 'No crop locations or linked physical sensors are saved in shared Demo mode.'),
+    ],
+  ];
+
   List<Widget> _alertsContent(StatusResponse? status) {
-    final knownCrop = _isKnownQualityCrop(status?.threshold.commodity);
     Alert? attentionAlert;
     for (final alert in _controller.alerts) {
-      if (knownCrop &&
-          alert.commodity?.toLowerCase() ==
-              status?.threshold.commodity.toLowerCase() &&
-          !alert.acknowledged) {
+      if (!alert.acknowledged) {
         attentionAlert = alert;
         break;
       }
@@ -1586,65 +1399,21 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       const SizedBox(height: 14),
       _CropQualityCard(status: status),
-      const SizedBox(height: 8),
+      const SizedBox(height: 16),
       if (attentionAlert != null) ...[
-        Card(
-          child: Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              leading: const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFF9E332B),
-              ),
-              title: const Text(
-                'Needs attention',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: const Text(
-                'Tap to view the current alert',
-                style: TextStyle(fontSize: 12),
-              ),
-              children: [
-                _AlertBreakdownCard(
-                  alert: attentionAlert,
-                  fallbackReading: _readingForAlert(attentionAlert, status),
-                  fallbackThreshold: status?.threshold,
-                ),
-              ],
-            ),
-          ),
-        ),
+        const _SectionTitle(title: 'Needs attention'),
         const SizedBox(height: 8),
-      ] else if (knownCrop && (status?.breached ?? false)) ...[
-        Card(
-          child: Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              leading: const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFF9E332B),
-              ),
-              title: const Text(
-                'Needs attention',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: const Text(
-                'Tap to view current storage conditions',
-                style: TextStyle(fontSize: 12),
-              ),
-              children: [
-                _StatusHero(
-                  status: status!,
-                  offline: _controller.errorMessage != null,
-                ),
-              ],
-            ),
-          ),
+        _AlertBreakdownCard(
+          alert: attentionAlert,
+          fallbackReading: _readingForAlert(attentionAlert, status),
+          fallbackThreshold: status?.threshold,
         ),
+        const SizedBox(height: 16),
+      ] else if (status?.breached ?? false) ...[
+        const _SectionTitle(title: 'Needs attention'),
         const SizedBox(height: 8),
+        _StatusHero(status: status!, offline: _controller.errorMessage != null),
+        const SizedBox(height: 16),
       ],
       _SectionTitle(
         title: 'Alert history',
@@ -1660,11 +1429,64 @@ class _DashboardPageState extends State<DashboardPage> {
         ..._controller.alerts.map(
           (alert) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _AlertTile(alert: alert),
+            child: _AlertTile(
+              alert: alert,
+              onAcknowledge: alert.acknowledged
+                  ? null
+                  : () => _controller.acknowledgeAlert(alert.id),
+            ),
           ),
         ),
       const SizedBox(height: 16),
+      const _SectionTitle(title: 'SMS dispatch log · simulation only'),
       const SizedBox(height: 8),
+      const Text(
+        'These entries are recorded locally by the demo backend. No text message is sent.',
+        style: TextStyle(color: Color(0xFF65776F), fontSize: 12),
+      ),
+      const SizedBox(height: 8),
+      if (_controller.smsLog.isEmpty)
+        const _EmptyCard(
+          icon: Icons.sms_outlined,
+          text: 'No simulated dispatch entries yet.',
+        )
+      else
+        ..._controller.smsLog.take(10).map((entry) => Card(
+          child: ListTile(
+            leading: const Icon(Icons.sms_outlined, color: _forest),
+            title: Text('${entry['body'] ?? 'Alert dispatch'}', maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text('${entry['status'] ?? 'logged'} · ${_formatDate('${entry['createdAt'] ?? ''}')}'),
+          ),
+        )),
+      const SizedBox(height: 16),
+      if (_controller.demoMode) ...[
+        Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.notifications_active_outlined,
+              color: _forest,
+            ),
+            title: const Text(
+              'Trigger demo breach',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: const Text(
+              'Preview different readings outside the configured range',
+              style: TextStyle(fontSize: 12),
+            ),
+            trailing: _controller.isTriggering
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _controller.isTriggering
+                ? null
+                : _controller.triggerDemoBreach,
+          ),
+        ),
+      ],
     ];
   }
 
@@ -1684,60 +1506,87 @@ class _DashboardPageState extends State<DashboardPage> {
       style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
-    if (widget.isDemoMode)
-      const DemoNotice(
-        text: 'Demo mode is ready to use. No account or sign-in is needed.',
-      )
-    else ...[
-      const _SectionTitle(title: 'Account information'),
-      const SizedBox(height: 8),
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            children: [
-              _AccountDetailRow(
-                icon: Icons.person_outline_rounded,
-                label: 'Name',
-                value: widget.account.name,
-              ),
+    const _SectionTitle(title: 'Profile'),
+    const SizedBox(height: 8),
+    Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          children: [
+            _AccountDetailRow(
+              icon: Icons.person_outline_rounded,
+              label: 'Name',
+              value: _accountName,
+            ),
+            const Divider(height: 1),
+            _AccountDetailRow(
+              icon: Icons.mail_outline_rounded,
+              label: _accountEmail == 'Demo profile'
+                  ? 'Profile'
+                  : 'Email',
+              value: _accountEmail,
+            ),
+            if (widget.token != null) ...[
               const Divider(height: 1),
               _AccountDetailRow(
                 icon: Icons.phone_outlined,
                 label: 'Number',
-                value: widget.account.phone,
-              ),
-              const Divider(height: 1),
-              _AccountDetailRow(
-                icon: Icons.email_outlined,
-                label: 'Email',
-                value: widget.account.email.isEmpty
-                    ? 'Not provided'
-                    : widget.account.email,
-              ),
-              const Divider(height: 1),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _editFarmerProfile,
-                  icon: const Icon(Icons.edit_outlined, size: 17),
-                  label: const Text('Edit full profile'),
-                ),
+                value: _accountPhone,
               ),
             ],
-          ),
+          ],
+        ),
+      ),
+    ),
+    if (widget.token != null) ...[
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: _editProfile,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit full profile'),
         ),
       ),
       const SizedBox(height: 16),
-      _AuthenticatorSettings(
-        onLoad: widget.onLoadAuthenticator,
-        onSetup: widget.onSetupAuthenticator,
-        onEnable: widget.onEnableAuthenticator,
-        onDisable: widget.onDisableAuthenticator,
+      const _SectionTitle(title: 'Security'),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: _loadingAuthenticator ? null : _setupAuthenticator,
+        icon: const Icon(Icons.security_rounded),
+        label: Text(_loadingAuthenticator
+            ? 'Checking authenticator…'
+            : _authenticatorEnabled
+                ? 'Turn off authenticator sign-in'
+                : 'Set up authenticator sign-in'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
       ),
       const SizedBox(height: 16),
     ],
-    const _SectionTitle(title: 'Hardware package'),
+    if (widget.token != null) ...[
+      const _SectionTitle(title: 'Accounts'),
+      const SizedBox(height: 8),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.qr_code_2_rounded, color: _forest),
+          title: const Text('Link another phone'),
+          subtitle: const Text('Show a one-time QR code to connect this backend and sign in on another Peo Yame phone.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _showSignInQr,
+        ),
+      ),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.qr_code_scanner_rounded, color: _forest),
+          title: const Text('Approve browser sign-in'),
+          subtitle: const Text('Scan a one-time code from the Peo Yame web sign-in page.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _scanBrowserLoginQr,
+        ),
+      ),
+    ],
+    const SizedBox(height: 16),
+    const _SectionTitle(title: 'Connection'),
     const SizedBox(height: 8),
     Card(
       child: Padding(
@@ -1754,7 +1603,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Demo sensor package',
+                        'Shared monitor service',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       Text(
@@ -1780,12 +1629,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Demo uptime  ${_formatUptime(DateTime.now().difference(_sensorStartedAt))}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'These are practice readings. No physical sensors are connected yet.',
+              'Dashboard readings are simulated. No physical sensor is connected.',
               style: TextStyle(color: Color(0xFF65776F), fontSize: 12),
             ),
             const SizedBox(height: 12),
@@ -1793,28 +1637,21 @@ class _DashboardPageState extends State<DashboardPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.router_outlined, color: _forest),
               title: const Text('Monitor connection address'),
-              subtitle: const Text(
-                'Address hidden · tap to change connection',
-                style: TextStyle(fontSize: 12),
+              subtitle: Text(
+                _showBackendAddress ? _baseUrl : 'Address hidden',
+                style: const TextStyle(fontSize: 12),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: IconButton(
+                tooltip: _showBackendAddress ? 'Hide address' : 'Show address',
+                onPressed: () =>
+                    setState(() => _showBackendAddress = !_showBackendAddress),
+                icon: Icon(
+                  _showBackendAddress
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
               onTap: _editServerAddress,
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _refreshSensors,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Refresh sensor'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _restartSensors,
-                  icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('Restart sensors'),
-                ),
-              ],
             ),
           ],
         ),
@@ -1851,47 +1688,17 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     ),
-    const SizedBox(height: 16),
-    const _SectionTitle(title: 'About'),
-    const SizedBox(height: 8),
-    const _SimulationBanner(),
-    const SizedBox(height: 8),
-    const Card(
-      child: ListTile(
-        leading: Icon(Icons.eco_outlined, color: _forest),
-        title: Text('Peo Yame'),
-        subtitle: Text(
-          'Storage Monitor · simulated readings',
-          style: TextStyle(fontSize: 12),
-        ),
-      ),
-    ),
-    const SizedBox(height: 14),
-    Card(
-      child: ListTile(
-        leading: const Icon(Icons.logout_rounded, color: _forest),
-        title: const Text('Log out'),
-        subtitle: const Text('Sign out of this farmer account'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: widget.onLogout,
-      ),
-    ),
   ];
 }
 
 class _ConnectionPill extends StatelessWidget {
-  const _ConnectionPill({required this.connected, required this.known});
+  const _ConnectionPill({required this.connected});
 
   final bool connected;
-  final bool known;
 
   @override
   Widget build(BuildContext context) {
-    final color = !known
-        ? const Color(0xFFDCE7DF)
-        : connected
-        ? const Color(0xFF8DE0AE)
-        : const Color(0xFFFFA5A5);
+    final color = connected ? const Color(0xFF8DE0AE) : const Color(0xFFFFA5A5);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
@@ -1904,230 +1711,13 @@ class _ConnectionPill extends StatelessWidget {
           Icon(Icons.circle, size: 8, color: color),
           const SizedBox(width: 6),
           Text(
-            !known
-                ? 'Connecting'
-                : connected
-                ? 'Connected'
-                : 'Offline',
+            connected ? 'Status' : 'Offline',
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
           ),
         ],
       ),
     );
   }
-}
-
-class _AuthenticatorSettings extends StatefulWidget {
-  const _AuthenticatorSettings({
-    required this.onLoad,
-    required this.onSetup,
-    required this.onEnable,
-    required this.onDisable,
-  });
-
-  final Future<Map<String, dynamic>> Function() onLoad;
-  final Future<Map<String, dynamic>> Function() onSetup;
-  final Future<void> Function(String code) onEnable;
-  final Future<void> Function(String code) onDisable;
-
-  @override
-  State<_AuthenticatorSettings> createState() => _AuthenticatorSettingsState();
-}
-
-class _AuthenticatorSettingsState extends State<_AuthenticatorSettings> {
-  final _codeController = TextEditingController();
-  bool _enabled = false;
-  bool _loading = true;
-  bool _working = false;
-  String? _secret;
-  String? _message;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStatus();
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadStatus() async {
-    try {
-      final result = await widget.onLoad();
-      if (mounted) setState(() => _enabled = result['enabled'] == true);
-    } catch (error) {
-      if (mounted)
-        setState(() => _message = 'Could not read sign-in settings: $error');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _startSetup() async {
-    setState(() {
-      _working = true;
-      _message = null;
-    });
-    try {
-      final result = await widget.onSetup();
-      if (mounted) setState(() => _secret = result['secret'] as String?);
-    } catch (error) {
-      if (mounted) setState(() => _message = '$error');
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  Future<void> _save(bool enable) async {
-    final code = _codeController.text.trim();
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      setState(
-        () => _message = 'Enter the current 6-digit authenticator code.',
-      );
-      return;
-    }
-    setState(() {
-      _working = true;
-      _message = null;
-    });
-    try {
-      if (enable) {
-        await widget.onEnable(code);
-        _secret = null;
-      } else {
-        await widget.onDisable(code);
-      }
-      _codeController.clear();
-      if (mounted)
-        setState(() {
-          _enabled = enable;
-          _message = enable
-              ? 'Authenticator sign-in is on.'
-              : 'Authenticator sign-in is off.';
-        });
-    } catch (error) {
-      if (mounted) setState(() => _message = '$error');
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const _SectionTitle(title: 'Two-step sign-in'),
-      const SizedBox(height: 8),
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.verified_user_outlined, color: _forest),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _loading
-                          ? 'Checking sign-in settings…'
-                          : _enabled
-                          ? 'Google Authenticator is on'
-                          : 'Google Authenticator is off',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  if (_loading || _working)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Use a rotating 6-digit code for future sign-ins. Existing PIN sign-in keeps working until setup is confirmed.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
-              ),
-              if (_secret != null) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'In Google Authenticator, choose Add account → Enter a setup key.',
-                  style: TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(
-                  _secret!,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: _secret!));
-                      if (mounted)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Setup key copied.')),
-                        );
-                    },
-                    icon: const Icon(Icons.copy_rounded, size: 17),
-                    label: const Text('Copy setup key'),
-                  ),
-                ),
-              ],
-              if (_secret != null || _enabled) ...[
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _codeController,
-                  keyboardType: TextInputType.number,
-                  autofillHints: const [AutofillHints.oneTimeCode],
-                  maxLength: 6,
-                  decoration: const InputDecoration(
-                    labelText: '6-digit authenticator code',
-                    border: OutlineInputBorder(),
-                    counterText: '',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: _working ? null : () => _save(!_enabled),
-                  child: Text(
-                    _enabled ? 'Turn off authenticator' : 'Confirm and turn on',
-                  ),
-                ),
-              ] else if (!_loading)
-                OutlinedButton.icon(
-                  onPressed: _working ? null : _startSetup,
-                  icon: const Icon(Icons.qr_code_2_rounded),
-                  label: const Text('Set up Google Authenticator'),
-                ),
-              if (_message != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _message!,
-                  style: TextStyle(
-                    color:
-                        _message!.contains('on.') || _message!.contains('off.')
-                        ? _forest
-                        : const Color(0xFF9E332B),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
 }
 
 class _AccountDetailRow extends StatelessWidget {
@@ -2175,66 +1765,31 @@ class _CropQualityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final estimate = _estimateCropQuality(status);
-    final isKnownCrop = _isKnownQualityCrop(status?.threshold.commodity);
-    final color = estimate == null
-        ? const Color(0xFF65776F)
-        : estimate >= 80
-        ? _forest
-        : estimate >= 55
-        ? const Color(0xFF8A6C27)
-        : const Color(0xFF9E332B);
-    final label = estimate == null
-        ? isKnownCrop
-              ? 'Waiting for readings'
-              : 'No estimate for this crop'
-        : estimate >= 80
-        ? 'Good storage conditions'
-        : estimate >= 55
-        ? 'Conditions need watching'
-        : 'Conditions may harm the crop';
-
+    final crop = status?.threshold;
+    final moisture = crop?.safeMoisturePct;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.spa_outlined, color: _forest),
-                const SizedBox(width: 9),
-                const Expanded(
-                  child: Text(
-                    'Estimated crop quality',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                Text(
-                  estimate == null ? '—' : '$estimate%',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+            const Text('Crop storage guide', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            if (crop == null)
+              const Text('Connect to a monitor to view the selected crop guide.')
+            else ...[
+              Text('${crop.cropGroup} · ${crop.commodity}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 5),
+              Text('Room target: ${crop.minTemp}–${crop.maxTemp} °C and ${crop.minHumidity}–${crop.maxHumidity}% RH.'),
+              if (moisture != null) ...[
+                const SizedBox(height: 5),
+                Text('Grain moisture guide: at or below $moisture%. Measure with a grain moisture meter; room humidity does not measure grain moisture.'),
               ],
-            ),
-            const SizedBox(height: 7),
-            Text(label, style: TextStyle(color: color, fontSize: 12)),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: estimate == null ? 0 : estimate / 100,
-              minHeight: 7,
-              borderRadius: BorderRadius.circular(8),
-              color: color,
-              backgroundColor: const Color(0xFFE8EEE8),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'A rough estimate for maize and sorghum from air temperature and humidity only. It does not measure grain moisture or inspect the crop.',
-              style: TextStyle(color: Color(0xFF65776F), fontSize: 11),
-            ),
+              if (crop.storageNote.isNotEmpty) ...[
+                const SizedBox(height: 7),
+                Text(crop.storageNote, style: const TextStyle(color: Color(0xFF65776F), fontSize: 11)),
+              ],
+            ],
           ],
         ),
       ),
@@ -2260,12 +1815,6 @@ class _AlertBreakdownCard extends StatelessWidget {
     final commodity = alert.commodity ?? threshold?.commodity ?? 'crop';
     final sentAt = DateTime.tryParse(alert.sentAt);
     final age = sentAt == null ? null : DateTime.now().difference(sentAt);
-    final risk = _estimateDegradationRisk(reading, threshold, age);
-    final riskColor = risk == 'High'
-        ? const Color(0xFF9E332B)
-        : risk == 'Moderate'
-        ? const Color(0xFF8A6C27)
-        : _forest;
 
     return Card(
       child: Padding(
@@ -2338,30 +1887,12 @@ class _AlertBreakdownCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: riskColor.withValues(alpha: .08),
+                color: const Color(0xFFFFF7E5),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Estimated degradation risk: $risk',
-                    style: TextStyle(
-                      color: riskColor,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Rough warning from the alert time and how far readings passed the safe range. Assumes moderately clean produce and that conditions continued. It is not a measured percentage of crop damage.',
-                    style: TextStyle(
-                      color: Color(0xFF53645B),
-                      fontSize: 11,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'This alert shows a reading outside the configured room target band. It does not predict crop quality or storage life.',
+                style: TextStyle(color: Color(0xFF624D1C), fontSize: 11, height: 1.35),
               ),
             ),
           ],
@@ -2400,60 +1931,19 @@ class _AlertReadingRow extends StatelessWidget {
         ),
       ),
       Text(
-        'Safe: $safeRange',
+        'Target: $safeRange',
         style: const TextStyle(color: Color(0xFF65776F), fontSize: 10),
       ),
     ],
   );
 }
 
-String _estimateDegradationRisk(
-  Reading? reading,
-  Threshold? threshold,
-  Duration? timeSinceAlert,
-) {
-  if (reading == null || threshold == null) return 'Unknown';
-
-  double relativeExcursion(double value, double minimum, double maximum) {
-    final difference = value < minimum
-        ? minimum - value
-        : value > maximum
-        ? value - maximum
-        : 0.0;
-    final width = (maximum - minimum).abs();
-    return width == 0 ? (difference == 0 ? 0 : 1) : difference / width;
-  }
-
-  final temperatureExcursion = relativeExcursion(
-    reading.temperature,
-    threshold.minTemp,
-    threshold.maxTemp,
-  );
-  final humidityExcursion = relativeExcursion(
-    reading.humidity,
-    threshold.minHumidity,
-    threshold.maxHumidity,
-  );
-  final largestExcursion = temperatureExcursion > humidityExcursion
-      ? temperatureExcursion
-      : humidityExcursion;
-  final duration = timeSinceAlert ?? Duration.zero;
-  if (duration >= const Duration(hours: 6) || largestExcursion >= .5) {
-    return 'High';
-  }
-  if (duration >= const Duration(hours: 1) || largestExcursion >= .15) {
-    return 'Moderate';
-  }
-  return 'Low';
-}
-
 String _alertReason(String commodity, Reading reading, Threshold threshold) {
   final isMaize = commodity.toLowerCase() == 'maize';
-  final isSorghum = commodity.toLowerCase() == 'sorghum';
   final reasons = <String>[];
   if (reading.temperature > threshold.maxTemp) {
     reasons.add(
-      (isMaize || isSorghum)
+      isMaize
           ? 'Warm grain can spoil faster, especially when the grain is damp.'
           : 'Warm storage can speed ripening and softening.',
     );
@@ -2480,48 +1970,6 @@ String _elapsedLabel(Duration duration) {
   return 'less than a minute';
 }
 
-int? _estimateCropQuality(StatusResponse? status) {
-  if (!_isKnownQualityCrop(status?.threshold.commodity)) return null;
-  final reading = status?.latest;
-  final threshold = status?.threshold;
-  if (reading == null || threshold == null) return null;
-
-  double score(double value, double minimum, double maximum) {
-    final distance = value < minimum
-        ? minimum - value
-        : value > maximum
-        ? value - maximum
-        : 0.0;
-    final range = (maximum - minimum).abs();
-    if (range == 0) return distance == 0 ? 100 : 0;
-    return (100 - (distance / range * 100)).clamp(0, 100).toDouble();
-  }
-
-  final temperatureScore = score(
-    reading.temperature,
-    threshold.minTemp,
-    threshold.maxTemp,
-  );
-  final humidityScore = score(
-    reading.humidity,
-    threshold.minHumidity,
-    threshold.maxHumidity,
-  );
-  return ((temperatureScore + humidityScore) / 2).round().clamp(0, 100).toInt();
-}
-
-bool _isKnownQualityCrop(String? commodity) =>
-    const {'maize', 'sorghum'}.contains(commodity?.trim().toLowerCase());
-
-String _formatUptime(Duration duration) {
-  final hours = duration.inHours;
-  final days = hours ~/ 24;
-  final remainingHours = hours % 24;
-  final minutes = duration.inMinutes % 60;
-  if (days > 0) return '${days}d ${remainingHours}h ${minutes}m';
-  return '${remainingHours}h ${minutes}m';
-}
-
 Rect? _sharePositionOrigin(BuildContext context) {
   final renderBox = context.findRenderObject() as RenderBox?;
   if (renderBox == null) return null;
@@ -2541,6 +1989,7 @@ class _BrandMark extends StatelessWidget {
       width: size,
       height: size,
       fit: BoxFit.cover,
+      semanticLabel: 'Peo Yame logo',
     ),
   );
 }
@@ -2576,14 +2025,12 @@ class _SimulationBanner extends StatelessWidget {
 class _FarmerGreeting extends StatelessWidget {
   const _FarmerGreeting({
     required this.userName,
-    required this.isDemoMode,
-    required this.onAccountTap,
+    required this.isDemo,
     required this.onLogout,
   });
 
   final String userName;
-  final bool isDemoMode;
-  final VoidCallback onAccountTap;
+  final bool isDemo;
   final VoidCallback onLogout;
 
   @override
@@ -2593,36 +2040,24 @@ class _FarmerGreeting extends StatelessWidget {
         PopupMenuButton<String>(
           tooltip: 'User menu',
           onSelected: (value) {
-            if (value == 'settings') onAccountTap();
             if (value == 'logout') onLogout();
           },
           itemBuilder: (context) => [
             PopupMenuItem<String>(
               enabled: false,
-              child: Text(userName, style: const TextStyle(color: _forest)),
+              child: Text('$userName${isDemo ? ' · Shared demo profile' : ''}', style: const TextStyle(color: _forest)),
             ),
             const PopupMenuDivider(),
-            const PopupMenuItem<String>(
-              value: 'settings',
+            PopupMenuItem<String>(
+              value: 'logout',
               child: Row(
                 children: [
-                  Icon(Icons.settings_outlined, size: 18),
-                  SizedBox(width: 10),
-                  Text('Settings'),
+                  const Icon(Icons.logout_rounded, size: 18),
+                  const SizedBox(width: 10),
+                  Text(isDemo ? 'Exit Demo mode' : 'Log out'),
                 ],
               ),
             ),
-            if (!isDemoMode)
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout_rounded, size: 18),
-                    SizedBox(width: 10),
-                    Text('Log out'),
-                  ],
-                ),
-              ),
           ],
           child: Container(
             width: 42,
@@ -2646,7 +2081,7 @@ class _FarmerGreeting extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                'Your harvest at a glance',
+                isDemo ? 'Shared Demo profile · simulated readings' : 'Your harvest at a glance',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: const Color(0xFF65776F)),
@@ -2714,7 +2149,7 @@ class _StatusHero extends StatelessWidget {
                             : 'Connection lost · last known'
                       : breached
                       ? 'Attention needed'
-                      : 'Conditions are safe',
+                      : 'Readings are within the target band',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -2861,7 +2296,7 @@ class _MetricCard extends StatelessWidget {
             _RiskGauge(value: current, min: min, max: max),
             const SizedBox(height: 6),
             Text(
-              'Safe ${_fmt(min)}–${_fmt(max)}',
+              'Target ${_fmt(min)}–${_fmt(max)}',
               style: const TextStyle(fontSize: 10, color: Color(0xFF65776F)),
             ),
           ],
@@ -2967,111 +2402,67 @@ class _HarvestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final latest = status.latest;
-    final days = latest == null ? null : _estimateDays(status);
     final cropOptions = <String>{
       status.threshold.commodity,
       ...crops.map((crop) => crop.commodity),
     };
-    if (cropOptions.length == 1) {
-      cropOptions.addAll(['Maize', 'Sorghum', 'Tomato']);
-    }
+    final moisture = status.threshold.safeMoisturePct;
+    final guidance = [
+      if (moisture != null)
+        'Grain moisture guide: ≤$moisture% (measure separately with a grain moisture meter).',
+      status.threshold.storageNote,
+    ].where((text) => text.isNotEmpty).join(' ');
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(15),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 43,
-              height: 43,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F3EA),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: const Icon(Icons.grass_rounded, color: _forest),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Harvest',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
-                  ),
-                  DropdownButton<String>(
-                    value: status.threshold.commodity,
-                    isDense: true,
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    onChanged: isChanging
-                        ? null
-                        : (crop) {
-                            if (crop != null) onChanged(crop);
-                          },
-                    items: cropOptions
-                        .map(
-                          (crop) =>
-                              DropdownMenuItem(value: crop, child: Text(crop)),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                const Text(
-                  'Storage estimate',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF65776F)),
+                Container(
+                  width: 43,
+                  height: 43,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F3EA),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(Icons.grass_rounded, color: _forest),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isChanging) ...[
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Crop in storage', style: TextStyle(fontSize: 11, color: Color(0xFF65776F))),
+                      DropdownButton<String>(
+                        value: status.threshold.commodity,
+                        isDense: true,
+                        isExpanded: true,
+                        underline: const SizedBox.shrink(),
+                        onChanged: isChanging
+                            ? null
+                            : (crop) { if (crop != null) onChanged(crop); },
+                        items: cropOptions.map((crop) => DropdownMenuItem(value: crop, child: Text(crop))).toList(),
                       ),
-                      const SizedBox(width: 6),
                     ],
-                    Text(
-                      days == null ? 'Awaiting data' : '~$days days',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+                if (isChanging) ...[
+                  const SizedBox(width: 8),
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
               ],
             ),
+            if (guidance.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              Text(guidance, style: const TextStyle(fontSize: 11, height: 1.35, color: Color(0xFF65776F))),
+            ],
           ],
         ),
       ),
     );
   }
-}
-
-int _estimateDays(StatusResponse status) {
-  final t = status.threshold;
-  final r = status.latest!;
-  final tempRisk =
-      ((r.temperature - (t.minTemp + t.maxTemp) / 2).abs() /
-              ((t.maxTemp - t.minTemp) / 2))
-          .clamp(0.0, 1.0);
-  final humidityRisk =
-      ((r.humidity - (t.minHumidity + t.maxHumidity) / 2).abs() /
-              ((t.maxHumidity - t.minHumidity) / 2))
-          .clamp(0.0, 1.0);
-  final risk = tempRisk > humidityRisk ? tempRisk : humidityRisk;
-  if (status.breached) return 7;
-  if (risk > .8) return 30;
-  if (risk > .55) return 60;
-  if (risk > .3) return 120;
-  return 180;
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -3268,13 +2659,11 @@ class _TrendCard extends StatelessWidget {
     required this.points,
     required this.error,
     required this.range,
-    required this.threshold,
   });
 
   final List<TrendPoint> points;
   final String? error;
   final String range;
-  final Threshold? threshold;
 
   @override
   Widget build(BuildContext context) {
@@ -3308,13 +2697,7 @@ class _TrendCard extends StatelessWidget {
                         ),
                       ),
                     )
-                  : CustomPaint(
-                      painter: _TrendPainter(
-                        points: sampled,
-                        bounds: points,
-                        threshold: threshold,
-                      ),
-                    ),
+                  : CustomPaint(painter: _TrendPainter(points: sampled)),
             ),
             const SizedBox(height: 4),
             Text(
@@ -3331,94 +2714,39 @@ class _TrendCard extends StatelessWidget {
 }
 
 class _TrendPainter extends CustomPainter {
-  const _TrendPainter({
-    required this.points,
-    required this.bounds,
-    required this.threshold,
-  });
+  const _TrendPainter({required this.points});
 
   final List<TrendPoint> points;
-  final List<TrendPoint> bounds;
-  final Threshold? threshold;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const leftInset = 34.0;
-    const rightInset = 34.0;
-    const verticalInset = 8.0;
+    const inset = 8.0;
     final chart = Rect.fromLTWH(
-      leftInset,
-      verticalInset,
-      size.width - leftInset - rightInset,
-      size.height - verticalInset * 2,
-    );
-    final temperatures = bounds.map((point) => point.temperature).toList();
-    final humidities = bounds.map((point) => point.humidity).toList();
-    final sampledTemperatures = points
-        .map((point) => point.temperature)
-        .toList();
-    final sampledHumidities = points.map((point) => point.humidity).toList();
-    final safeTempMin = threshold?.minTemp ?? 0;
-    final safeTempMax = threshold?.maxTemp ?? 40;
-    final safeHumidityMin = threshold?.minHumidity ?? 0;
-    final safeHumidityMax = threshold?.maxHumidity ?? 100;
-    final tempAxis = _metricAxis(
-      math
-          .min(safeTempMin, temperatures.reduce((a, b) => a < b ? a : b))
-          .toDouble(),
-      math
-          .max(safeTempMax, temperatures.reduce((a, b) => a > b ? a : b))
-          .toDouble(),
-    );
-    final humidityAxis = _metricAxis(
-      math
-          .min(safeHumidityMin, humidities.reduce((a, b) => a < b ? a : b))
-          .toDouble(),
-      math
-          .max(safeHumidityMax, humidities.reduce((a, b) => a > b ? a : b))
-          .toDouble(),
-      hardMin: 0,
-      hardMax: 100,
+      inset,
+      inset,
+      size.width - inset * 2,
+      size.height - inset * 2,
     );
     final gridPaint = Paint()
       ..color = const Color(0xFFE8EEE9)
       ..strokeWidth = 1;
-    final stepSize = (tempAxis.$2 - tempAxis.$1) / 4;
-    final humidityStepSize = (humidityAxis.$2 - humidityAxis.$1) / 4;
     for (var i = 0; i <= 4; i++) {
       final y = chart.top + chart.height * i / 4;
       canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), gridPaint);
-      final temperature = tempAxis.$2 - stepSize * i;
-      final humidity = humidityAxis.$2 - humidityStepSize * i;
-      _paintAxisLabel(
-        canvas,
-        '${temperature.toStringAsFixed(stepSize < 1 ? 1 : 0)}°',
-        Offset(0, y),
-        alignRight: true,
-      );
-      _paintAxisLabel(
-        canvas,
-        '${humidity.toStringAsFixed(humidityStepSize < 1 ? 1 : 0)}%',
-        Offset(chart.right + 4, y),
-      );
     }
     _drawBars(
       canvas,
       chart,
-      sampledTemperatures,
+      points.map((p) => p.temperature).toList(),
       const Color(0xFF25865C),
       seriesIndex: 0,
-      minimum: tempAxis.$1,
-      maximum: tempAxis.$2,
     );
     _drawBars(
       canvas,
       chart,
-      sampledHumidities,
+      points.map((p) => p.humidity).toList(),
       const Color(0xFF4E81CE),
       seriesIndex: 1,
-      minimum: humidityAxis.$1,
-      maximum: humidityAxis.$2,
     );
   }
 
@@ -3428,9 +2756,9 @@ class _TrendPainter extends CustomPainter {
     List<double> values,
     Color color, {
     required int seriesIndex,
-    required double minimum,
-    required double maximum,
   }) {
+    final minimum = values.reduce((a, b) => a < b ? a : b);
+    final maximum = values.reduce((a, b) => a > b ? a : b);
     final spread = maximum - minimum;
     final slotWidth = rect.width / values.length;
     final barWidth = (slotWidth * .32).clamp(2.0, 7.0).toDouble();
@@ -3438,10 +2766,8 @@ class _TrendPainter extends CustomPainter {
     final groupWidth = barWidth * 2 + gap;
     final paint = Paint()..color = color;
     for (var i = 0; i < values.length; i++) {
-      final normalized = spread == 0
-          ? .55
-          : ((values[i] - minimum) / spread).clamp(0.0, 1.0).toDouble();
-      final height = rect.height * normalized;
+      final normalized = spread == 0 ? .55 : (values[i] - minimum) / spread;
+      final height = rect.height * (.16 + normalized * .78);
       final x =
           rect.left +
           i * slotWidth +
@@ -3457,74 +2783,7 @@ class _TrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
-      oldDelegate.points != points ||
-      oldDelegate.bounds != bounds ||
-      oldDelegate.threshold?.commodity != threshold?.commodity ||
-      oldDelegate.threshold?.minTemp != threshold?.minTemp ||
-      oldDelegate.threshold?.maxTemp != threshold?.maxTemp ||
-      oldDelegate.threshold?.minHumidity != threshold?.minHumidity ||
-      oldDelegate.threshold?.maxHumidity != threshold?.maxHumidity;
-}
-
-(double, double, double) _metricAxis(
-  double minimum,
-  double maximum, {
-  double hardMin = double.negativeInfinity,
-  double hardMax = double.infinity,
-}) {
-  final span = math.max(maximum - minimum, 1.0).toDouble();
-  final rawStep = span * 1.4 / 4;
-  var magnitude = 1.0;
-  while (rawStep < magnitude) {
-    magnitude /= 10;
-  }
-  while (rawStep >= magnitude * 10) {
-    magnitude *= 10;
-  }
-  final normalized = rawStep / magnitude;
-  final step =
-      (magnitude *
-              (normalized <= 1
-                  ? 1
-                  : normalized <= 2
-                  ? 2
-                  : normalized <= 5
-                  ? 5
-                  : 10))
-          .toDouble();
-  var axisMin = math
-      .max(hardMin, ((minimum - span * .2) / step).floor() * step)
-      .toDouble();
-  var axisMax = math
-      .min(hardMax, ((maximum + span * .2) / step).ceil() * step)
-      .toDouble();
-  if (axisMax <= axisMin) {
-    axisMin = math.max(hardMin, minimum - 1).toDouble();
-    axisMax = math.min(hardMax, maximum + 1).toDouble();
-  }
-  return (axisMin, axisMax, step);
-}
-
-void _paintAxisLabel(
-  Canvas canvas,
-  String text,
-  Offset center, {
-  bool alignRight = false,
-}) {
-  final painter = TextPainter(
-    text: TextSpan(
-      text: text,
-      style: const TextStyle(fontSize: 8, color: Color(0xFF65776F)),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
-  painter.paint(
-    canvas,
-    Offset(
-      alignRight ? center.dx - painter.width : center.dx,
-      center.dy - painter.height / 2,
-    ),
-  );
+      oldDelegate.points != points;
 }
 
 List<TrendPoint> _samplePoints(List<TrendPoint> points, int maximum) {
@@ -3581,9 +2840,10 @@ class _CountPill extends StatelessWidget {
 }
 
 class _AlertTile extends StatelessWidget {
-  const _AlertTile({required this.alert});
+  const _AlertTile({required this.alert, required this.onAcknowledge});
 
   final Alert alert;
+  final VoidCallback? onAcknowledge;
 
   @override
   Widget build(BuildContext context) {
@@ -3610,9 +2870,16 @@ class _AlertTile extends StatelessWidget {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
         subtitle: Text(
-          _formatDate(alert.sentAt),
+          '${_formatDate(alert.sentAt)} · ${alert.acknowledged ? 'Reviewed' : 'Needs attention'}',
           style: const TextStyle(fontSize: 10),
         ),
+        trailing: onAcknowledge == null
+            ? null
+            : IconButton(
+                tooltip: 'Mark reviewed',
+                onPressed: onAcknowledge,
+                icon: const Icon(Icons.check_circle_outline),
+              ),
       ),
     );
   }
@@ -3650,7 +2917,7 @@ class _ReadingTile extends StatelessWidget {
           style: const TextStyle(fontSize: 10),
         ),
         trailing: Text(
-          breached ? 'Alert' : 'Safe',
+          breached ? 'Alert' : 'In range',
           style: TextStyle(
             fontSize: 10,
             color: breached ? const Color(0xFFAA4037) : _forest,
@@ -3769,189 +3036,4 @@ String _relativeTime(String raw) {
   if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
   if (difference.inHours < 24) return '${difference.inHours} hr ago';
   return '${difference.inDays} days ago';
-}
-
-class _AuthQrScannerPage extends StatefulWidget {
-  const _AuthQrScannerPage();
-  @override
-  State<_AuthQrScannerPage> createState() => _AuthQrScannerPageState();
-}
-
-class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
-  bool _finished = false;
-  late final MobileScannerController _scannerController =
-      MobileScannerController(formats: const [BarcodeFormat.qrCode]);
-  void _handleDetection(BarcodeCapture capture) {
-    if (_finished) return;
-    for (final barcode in capture.barcodes) {
-      final raw = barcode.rawValue;
-      if (raw == null) continue;
-      try {
-        final data = jsonDecode(raw) as Map<String, dynamic>;
-        final uri = Uri.parse(data['backend'] as String);
-        if (data['type'] == 'peo-yame-mobile-login' &&
-            (uri.scheme == 'http' || uri.scheme == 'https') &&
-            uri.hasAuthority &&
-            uri.userInfo.isEmpty &&
-            (uri.path.isEmpty || uri.path == '/') &&
-            !uri.hasQuery &&
-            !uri.hasFragment &&
-            RegExp(r'^[A-Za-z0-9_-]{40,}$').hasMatch('${data['challenge']}')) {
-          _finished = true;
-          Navigator.of(context).pop(raw);
-          return;
-        }
-      } catch (_) {}
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This is not a valid Peo Yame mobile sign-in QR code.'),
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _scannerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Scan mobile sign-in QR')),
-    body: Stack(
-      fit: StackFit.expand,
-      children: [
-        MobileScanner(
-          controller: _scannerController,
-          onDetect: _handleDetection,
-          errorBuilder: (context, error) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Allow camera access to scan the sign-in code. ${error.errorCode.message}',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-        const Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'Scan the one-time QR shown in Connect mobile app on the signed-in web app.',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _BackendQrScannerPage extends StatefulWidget {
-  const _BackendQrScannerPage();
-
-  @override
-  State<_BackendQrScannerPage> createState() => _BackendQrScannerPageState();
-}
-
-class _BackendQrScannerPageState extends State<_BackendQrScannerPage> {
-  bool _finished = false;
-  bool _showedInvalidCode = false;
-  late final MobileScannerController _scannerController =
-      MobileScannerController(formats: const [BarcodeFormat.qrCode]);
-
-  void _handleDetection(BarcodeCapture capture) {
-    if (_finished) return;
-    for (final barcode in capture.barcodes) {
-      final raw = barcode.rawValue;
-      if (raw == null) continue;
-      final uri = Uri.tryParse(raw.trim());
-      if (uri == null) continue;
-      final valid =
-          (uri.scheme == 'http' || uri.scheme == 'https') &&
-          uri.host.isNotEmpty &&
-          _isPrivateIpv4(uri.host) &&
-          uri.userInfo.isEmpty &&
-          (uri.path.isEmpty || uri.path == '/') &&
-          !uri.hasQuery &&
-          !uri.hasFragment;
-      if (valid) {
-        _finished = true;
-        final baseUrl = uri
-            .replace(path: '', query: '', fragment: '')
-            .toString();
-        Navigator.of(context).pop(
-          baseUrl.endsWith('/')
-              ? baseUrl.substring(0, baseUrl.length - 1)
-              : baseUrl,
-        );
-        return;
-      }
-      if (!_showedInvalidCode) {
-        _showedInvalidCode = true;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This QR code is not a Peo Yame backend address.'),
-          ),
-        );
-      }
-    }
-  }
-
-  bool _isPrivateIpv4(String host) {
-    return _isPrivateIpv4Address(host);
-  }
-
-  @override
-  void dispose() {
-    _scannerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Scan backend QR code'),
-      backgroundColor: _header,
-      foregroundColor: Colors.white,
-    ),
-    body: Stack(
-      fit: StackFit.expand,
-      children: [
-        MobileScanner(
-          controller: _scannerController,
-          onDetect: _handleDetection,
-          errorBuilder: (context, error) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Camera access is needed to scan the QR code. Allow camera access, or close this screen and enter the address manually. (${error.errorCode.message})',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-          ),
-        ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.68),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              'Point your camera at the QR code on the computer dashboard.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 13),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }

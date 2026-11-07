@@ -1,11 +1,5 @@
 # Android build evidence
 
-> Historical local build record for commit `ff9e76f`. The latest automated build evidence is GitHub Actions run `42360332399` for the current account and pairing changes; see [test report](TEST_REPORT.md).
-
-> This APK predates the November 7 Botswana crop-catalog changes and does not
-> contain the new fruit/vegetable profiles or crop setup guidance. Rebuild from
-> the current top-level source for those changes.
-
 **Date:** 6 November 2026  
 **Source:** `pauls-branch`, based on commit `ff9e76fdf2892de94a4e890df20ea76467c90e9c`; the Gradle memory adjustment is recorded in the accompanying source change.  
 **Target:** root Flutter application (`lib/`), not the older nested `flutter_application_1/` app.

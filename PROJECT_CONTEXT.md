@@ -1,18 +1,15 @@
 # Project Context: Low-Cost IoT-Based Post-Harvest Storage Monitoring System
 
-> **Current implementation (7 Nov 2026):** This is a Flutter + Node/Express
-> local-network demonstration. SQLite stores crop/settings/reading data and
-> farmer accounts, email/password hashes, hashed sessions, crop locations and
-> sensor assignments. Alerts, simulated SMS entries, incidents, and short-lived
-> sign-in challenges are in memory; action history is JSONL. Farmer account
-> routes are authenticated, but global monitoring and sensor-ingestion APIs
-> remain unscoped. Mobile sign-in uses a one-use QR issued after web sign-in;
-> demo web verification can be skipped and does not disclose a PIN. Readings
-> are simulated; no physical sensor or SMS service is connected. See
-> [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-> [docs/HANDOFF.md](docs/HANDOFF.md), and [docs/TEST_REPORT.md](docs/TEST_REPORT.md)
-> for current behavior and verification. The proposal sections below describe
-> research intent, not implemented capabilities.
+> **Current implementation (24 Oct 2026):** This is a Flutter + Node/Express
+> local-network demonstration. SQLite stores crop settings, app settings, and
+> readings; alerts, SMS log entries, and incidents are in memory, and the
+> action log is JSONL. Readings are simulated. There is no physical sensor,
+> real SMS dispatch, authenticated server session, or account-owned device
+> registry. The phone/OTP, Accounts, and My Crops screens use local demo state
+> and fixed sample sensor rows. See [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md),
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and
+> [docs/TEST_REPORT.md](docs/TEST_REPORT.md) for inspection evidence and gaps.
+> Sections below describe research intent unless explicitly marked current.
 
 > Import this file into Antigravity (drop it in your project root, or `@`
 > reference it in your first prompt) so the agent has full context without
@@ -27,21 +24,19 @@ spoilage occurs. Built for a university Research Capstone Project
 with unreliable internet connectivity — this is why GSM/SMS alerting is a
 first-class requirement, not an optional extra.
 
-## Current status (7 Nov 2026)
+## Current status (24 Oct 2026)
 
 - [x] Responsive HTML/JavaScript dashboard and Flutter mobile client use the demo API.
-- [x] Web farmer accounts use phone verification in the demo, optional email/password credentials, and optional Google Authenticator. Demo PINs are not returned; a demo-only skip is available.
-- [x] Mobile sign-in uses one-use QR pairing created by an already signed-in web account. Farmer accounts and crop assignments share data through the same backend.
-- [x] SQLite persists crop profiles, app settings, readings, farmer accounts, password hashes, bearer-session hashes, farmer crop locations and sensor assignments; action history is JSONL.
+- [x] Local demo phone/OTP journey and Accounts/My Crops screens are present in both clients; these are not authentication or live sensor features.
+- [x] SQLite persists crop settings, app settings, and readings; action history is JSONL.
 - [x] Simulated readings, threshold alerts, trend views, exports, and demo breach controls are available.
-- [x] Mobile navigation has five tabs, with My Crops centered; backend polling runs every 20 seconds and tolerates two missed refreshes before reporting offline.
 - [ ] ESP32/DHT22 sensor ingestion and GSM/SMS delivery are not connected.
-- [ ] Global readings, status, alert, and sensor-ingestion APIs are not account-scoped; assigned sensor IDs are not authenticated device identities.
+- [ ] Authenticated farmer accounts, account-scoped readings, and a live multi-sensor registry are not implemented.
 - [ ] Thresholds and sample sensor readings are illustrative; no calibration, field pilot, or validated spoilage model is established.
 
-**If you are an agent reading this:** do not assume hardware integration is
-done. Check `backend/server.js` to distinguish generated readings from sensor
-POSTs; an accepted sensor-style payload does not authenticate a physical device.
+**If you are an agent reading this: do not assume the hardware integration
+is done. Always check `backend/server.js` for whether `generateReading()`
+is still a mock function before assuming live data is flowing.**
 
 ## Research target architecture (not the current runtime)
 

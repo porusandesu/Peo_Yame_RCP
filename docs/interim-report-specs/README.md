@@ -1,25 +1,6 @@
 # Peo Yame Interim Report Specification Pack
 
-> **Current runtime update (7 Nov 2026):** Demo authentication was removed in
-> the current worktree. Web and mobile open the shared Demo Farmer directly;
-> demo verification and sign-in endpoints are disabled. Production auth and
-> QR SSO remain available. The dated flow and screen descriptions below are
-> historical requirements and should not be presented as current demo flows.
-
-> **Snapshot notice (7 Nov 2026):** These specifications were drafted from an
-> October prototype and retain historical flow/schema descriptions. The live
-> application now has SQLite-backed farmer accounts and assignments,
-> email/password web sign-in, demo-only phone-verification skip (historical), authenticated
-> one-use QR pairing in both web-to-mobile and phone-to-web directions, and a five-tab Flutter navigation with My
-> Crops centered. Use the repository [README](../../README.md),
-> [architecture](../ARCHITECTURE.md), [handoff](../HANDOFF.md), and
-> [test report](../TEST_REPORT.md) for current runtime behavior. The backend
-> now also seeds a Botswana crop catalog for grains, pulses, oilseeds, fruits
-> and vegetables, with storage guidance; its sources and current verification
-> boundary are in [the crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md).
-> That document includes a proposed low-literacy farmer workflow, not a
-> field-tested result. The documents
-> in this folder are planning/reporting artifacts, not a current user guide.
+> **Current build status (2026-11-07, `pauls-branch`):** The Flutter and web clients open directly into session-free Demo mode as Mr Lesego Lefoko (`LLefoko@email.co.bw`). They do not currently show phone login or OTP screens. Phone-number account login and backend-backed, bidirectional QR single sign-on are requested future work, not implemented functionality. References below to interactive OTP/demo-profile screens describe an earlier revision or Figma design intent. The current crop package and CI evidence are documented in [the handoff](../HANDOFF.md), [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md), and [verification record](../TEST_REPORT.md).
 
 This folder contains six detailed Markdown documents to support product, design, technical implementation and evidence planning for the Peo Yame C7-RCP-23 capstone.
 
@@ -43,6 +24,6 @@ This folder contains six detailed Markdown documents to support product, design,
 
 ## Source and claim boundary
 
-These documents use the supplied C7-RCP-23 Interim Report student guide, project context notes, top-level Flutter/Express source, repository README/audit material, the provided [Figma mobile-app design](https://www.figma.com/design/xc2ErOTLftSvxz2ZlVQHcU/Peo-Yame-%E2%80%94-Storage-Monitor-Mobile-App?node-id=0-1) and the user-provided [Figma AI added-screen screenshot](figma-ai-added-screens-2026-10-24.png). Older implementation statements in this pack are historical. Current crop profiles are stored in SQLite and seeded with crop group, room ranges and storage notes; see the linked Botswana package. Farmer authentication and crop assignments are backend-backed, but sensor assignment is metadata and the readings remain synthetic unless a device submits them. No physical sensor calibration, actual SMS delivery, field usability study or validated spoilage model is established by these specifications.
+These documents use the supplied C7-RCP-23 Interim Report student guide, project context notes, top-level Flutter/Express source, repository README/audit material, the provided [Figma mobile-app design](https://www.figma.com/design/xc2ErOTLftSvxz2ZlVQHcU/Peo-Yame-%E2%80%94-Storage-Monitor-Mobile-App?node-id=0-1) and the user-provided [Figma AI added-screen screenshot](figma-ai-added-screens-2026-10-24.png). The phone/OTP screens described in the design sections are historical UI or target design intent; they are not present in the current demo. Both clients now offer direct session-free demo entry. Current backend/database.js creates SQLite tables for crops, app_settings and readings, while alerts, SMS log and incidents in backend/server.js remain in memory; action history uses JSONL. There is no phone-authentication or QR SSO service. The sensor/account rows are local sample data. No physical sensor calibration, actual SMS delivery or field pilot is established by these specifications.
 
 These are planning and reporting artifacts. A requirement, security control, test plan or target schema is not proof it has been implemented or verified. Attach evidence from the submitted revision and describe limitations honestly.

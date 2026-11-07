@@ -9,9 +9,7 @@ function reportStartupFailure(error) {
   failureReported = true;
 
   const code = error && typeof error === "object" ? error.code : undefined;
-  const detail = error && typeof error === "object" && error.stack
-    ? error.stack
-    : String(error);
+  const detail = error && typeof error === "object" && error.stack ? error.stack : String(error);
   const port = Number(error && typeof error === "object" ? error.port : undefined) || Number(process.env.PORT) || 3000;
   const friendly = code === "EADDRINUSE"
     ? `Port ${port} is already in use. Close the other storage monitor window and try again.`

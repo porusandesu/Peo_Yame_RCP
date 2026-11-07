@@ -1,107 +1,40 @@
-# Current implemented architecture
+# Current implementation architecture
 
-This describes the top-level checkout on branch `exe-work`. The research
-proposal and older design documents describe planned work and are not runtime
-evidence. Check `git log` and [HANDOFF.md](HANDOFF.md) for the latest verified
-revision.
+**Revision under development:** `pauls-branch`, based on `65d308c`.
+
+## Runtime pieces
+
+- `backend/server.js` provides the Express API and serves the web dashboard from `backend/public/index.html`.
+- `backend/database.js` stores crop definitions, selected crop, and readings in SQLite through the system `sqlite3` command-line tool. The database path can be set with `DATABASE_PATH`.
+- `lib/` contains the Flutter Android client. Both clients call the same backend for readings, trends, crop selection, alerts, and exports.
+- `.github/workflows/android-build.yml` runs Flutter widget tests and analysis, builds a debug APK, and runs backend checks and tests on GitHub-hosted runners.
+
+## Demo entry and data
+
+Both clients show a **Demo mode** button and open the home page directly with the shared display profile Mr Lesego Lefoko (`LLefoko@email.co.bw`). The profile is presentation data. Demo mode does not verify a phone, create an account, or issue a session token.
+
+The backend simulates readings outside production mode. Sensor readings, synthetic history, alerts, and alert logs must be distinguished from real hardware and delivered messages. No physical sensor or SMS provider is connected. The activity log is a separate JSONL file. The one selected crop and all monitoring readings are global to the backend, not separated by authenticated farmer or storage site.
+
+The crop starter package has 24 grain, pulse, oilseed, vegetable, and fruit profiles. It includes room temperature/relative-humidity target bands, short handling notes, and grain moisture guidance where available. These are indicative starter references; they do not model variety, maturity, storage duration, ventilation, packaging, or actual produce moisture.
+
+## Known boundaries
+
+- There is no production login, phone verification, account provisioning, QR single sign-on, or API authorization in this revision. These must be designed and tested before adding an auth UI. No SMS capability is assumed.
+- The API uses plain HTTP by default. Keep the demo on a controlled local network; do not expose it publicly.
+- Crop choice is process-global. Multiple stores or crop lots cannot yet have independent thresholds or histories.
+- A reading inside a configured target band means only that the room reading was within that band at that time. It does not prove crop safety, quality, remaining shelf life, or absence of spoilage.
+- Alert, incident, and SMS-log behavior remains a simulation; no text message is sent.
+- Custom crop limits are user-entered values. The built-in catalog notes source caveats, but does not claim locally validated spoilage thresholds.
+
+## Intended data flow
 
 ```mermaid
 flowchart LR
-  simulator[Development reading simulator] --> api[Express API]
-  sensor[Optional HTTP sensor simulator] --> api
-  api --> sqlite[(SQLite: crops, settings, readings, farmers, sessions, assignments)]
-  api --> volatile[(Process memory: alerts, SMS log, incidents, auth challenges)]
-  api --> actionlog[(JSONL action history)]
+  sim[Demo reading generator or sensor POST] --> api[Express API]
+  api --> db[(SQLite crop and reading data)]
   api --> web[Web dashboard]
-  api --> mobile[Flutter app]
+  api --> app[Flutter Android app]
+  api --> logs[Local action log]
 ```
 
-## Components
-
-- `backend/server.js` serves the JSON API and static dashboard. Demo mode
-  generates readings and publishes updates through server-sent events.
-- `backend/database.js` uses the `sqlite3` CLI. SQLite persists crop profiles,
-  active-crop settings, readings, farmer accounts, password hashes, sessions,
-  farmer crop locations, and assigned sensor IDs. Crop profiles include a
-  crop group, room-temperature/RH alert ranges, optional safe grain moisture
-  guidance and a storage note. Existing databases are migrated on startup for
-  crop metadata and prior account columns.
-- Alert records, acknowledgement state, simulated SMS entries, incidents,
-  OTP challenges, mobile QR challenges, rate-limit counters, and live event
-  state are process memory and are lost on restart. Dashboard actions are
-  appended to `backend/data/actions.jsonl`.
-- `backend/public/index.html` is the browser client. `lib/` contains the
-  Flutter client, `ApiService`, models and `DashboardController`.
-
-## Authentication and mobile pairing
-
-- Demo mode shows a one-tap **Demo mode** entry in both clients. It opens the
-  shared built-in farmer, **Mr Lesego Lefoko** (`LLefoko@email.co.bw`). Demo
-  does not issue or require session tokens, display login/verification forms,
-  or expose password/OTP/QR authentication endpoints. Crop locations and
-  sensor assignments belong to the shared farmer.
-- Production mode retains phone verification, password credentials and
-  authenticator/QR routes. Phone verification requires an SMS provider.
-- An account without credentials can add an email/password after phone
-  verification. Passwords are scrypt hashes with per-account random salts.
-  Email/password sign-in is available from the web login page. Existing
-  accounts can use phone/Google Authenticator sign-in where configured.
-- In production, the web dashboard issues a random one-use mobile pairing
-  challenge after web authentication. Mobile exchanges it for its own
-  seven-day session. A signed-in phone can also approve a one-use web login QR.
-  Both challenge directions expire in two minutes.
-- Sign-in QR pairing works in both directions through the same backend: a web
-  account can issue a phone login QR, and a signed-in phone can scan/approve a
-  web login QR. Challenges are single-use and expire after two minutes.
-- Session tokens are random bearer values; SQLite stores their SHA-256 hashes.
-  Password hashes and session hashes are not returned by API responses.
-
-## Data and synchronization boundaries
-
-- The browser dashboard and mobile app share farmer accounts and farmer crop
-  assignments when pointed at the same backend database. Separate backend
-  instances have separate accounts and data.
-- Farmer profile, crop-location and sensor-assignment endpoints require a
-  valid session. The monitor's active crop, status, readings, alerts, and
-  sensor-ingestion routes remain global rather than farmer-scoped.
-- Sensor assignment is account metadata. Available sensor IDs are inferred
-  from recent `site` values submitted to the readings API; device identity is
-  not authenticated.
-- Recent reading history and crop settings persist in SQLite. Alert/SMS and
-  incident history are in memory. Trend history combines retained readings
-  with clearly marked seeded synthetic history.
-
-## Mobile behavior
-
-The bottom tabs are Overview, Trends, My Crops, Alerts, and Settings, with My
-Crops in the center. Status refreshes every 20 seconds; the dashboard keeps
-the last connection state through two missed refreshes and reports offline
-after three consecutive failures. The event stream also triggers refreshes.
-
-Alerts and crop-quality estimates use configured limits. The mobile estimate
-is shown only for Maize and Sorghum and uses ambient temperature and relative
-humidity; it is a rough heuristic, not an inspection, grain-moisture reading,
-spoilage classifier, or shelf-life forecast. Crop limits are illustrative.
-
-The shared crop catalog is seeded by `backend/database.js` and grouped for
-selection in web and mobile farmer crop setup. It includes Botswana-relevant
-dry grains, pulses, oilseeds, vegetables and fruits. Farmer setup shows the
-selected profile's room target and storage note; grain moisture is displayed
-separately and is not inferred from RH. See
-[the crop package](BOTSWANA_CROP_STORAGE_PACKAGE.md) for its sources, limits
-and the proposed low-literacy workflow.
-
-## Runtime and security boundaries
-
-- The default backend uses plain HTTP. Demo mode binds to loopback and detected
-  private IPv4 interfaces; production defaults to loopback unless `HOST` is
-  explicitly configured.
-- Production disables the demo reading simulator. Phone verification returns
-  an error until SMS delivery is configured. Demo authentication routes are
-  unavailable; demo requests use the shared demo farmer without a session.
-- Global monitoring APIs are not account-scoped. Do not expose this prototype
-  to untrusted networks or use it as production identity or sensor security.
-- No physical sensor, carrier SMS, field pilot, calibrated threshold, or
-  validated crop-quality model is included.
-
-For startup and deployment settings, see [backend/DEPLOYMENT.md](../backend/DEPLOYMENT.md).
+See [HANDOFF.md](HANDOFF.md), [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md), and [TEST_REPORT.md](TEST_REPORT.md) for current build status, data sources, and verification evidence.

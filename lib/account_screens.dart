@@ -1,1015 +1,496 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart' hide Threshold;
 
+import 'api_service.dart';
 import 'models.dart';
 
 const _forest = Color(0xFF176B4A);
-const _ink = Color(0xFF172923);
-const _canvas = Color(0xFFF8FAF8);
 const _muted = Color(0xFF65776F);
-const _border = Color(0xFFE2EAE4);
-const _paleGreen = Color(0xFFE2F1E6);
-const _amberBg = Color(0xFFFFF5DF);
-const _amberBorder = Color(0xFFF1DDA7);
-const _amberInk = Color(0xFF765D24);
-const _red = Color(0xFFB84036);
 
-class AccountsScreen extends StatelessWidget {
-  const AccountsScreen({
-    required this.name,
-    required this.phone,
-    required this.onEditProfile,
-    required this.onLoadFarmerCrops,
-    required this.onLoadFarmerSensors,
-    required this.onDeleteFarmerCrop,
-    required this.onLoadCropOptions,
-    required this.onLoadAvailableSensors,
-    required this.onCreateCropSetup,
-    required this.onLogout,
-    required this.onDestinationSelected,
+class FarmerLocationsPanel extends StatefulWidget {
+  const FarmerLocationsPanel({
+    required this.baseUrl,
+    required this.token,
+    required this.crops,
+    required this.accountRevision,
     super.key,
   });
 
-  final String name;
-  final String phone;
-  final Future<void> Function(String name, String phone) onEditProfile;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
-  final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<Threshold>> Function() onLoadCropOptions;
-  final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
-  final Future<void> Function({
-    required String commodity,
-    required String label,
-    required List<String> sensorCodes,
-  })
-  onCreateCropSetup;
-  final VoidCallback onLogout;
-  final ValueChanged<int> onDestinationSelected;
-
-  void _openCrops(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MyCropsScreen(
-          name: name,
-          onLoadFarmerCrops: onLoadFarmerCrops,
-          onLoadFarmerSensors: onLoadFarmerSensors,
-          onDeleteFarmerCrop: onDeleteFarmerCrop,
-          onLoadCropOptions: onLoadCropOptions,
-          onLoadAvailableSensors: onLoadAvailableSensors,
-          onCreateCropSetup: onCreateCropSetup,
-          onDestinationSelected: onDestinationSelected,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _editAccount(BuildContext context) async {
-    final nameController = TextEditingController(text: name);
-    final phoneController = TextEditingController(text: phone);
-    final updatedProfile = await showDialog<(String, String)>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        scrollable: true,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        title: const Text('Edit profile'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                maxLength: 80,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  alignLabelWithHint: true,
-                  labelText: 'Farmer name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  alignLabelWithHint: true,
-                  labelText: 'Phone number',
-                  hintText: '+26771234567',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, (
-              nameController.text.trim(),
-              phoneController.text.trim(),
-            )),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    nameController.dispose();
-    phoneController.dispose();
-    if (updatedProfile == null || !context.mounted) return;
-    if (updatedProfile.$1.isEmpty || updatedProfile.$2.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter both your name and phone number.')),
-      );
-      return;
-    }
-    try {
-      await onEditProfile(updatedProfile.$1, updatedProfile.$2);
-      if (context.mounted) Navigator.of(context).pop();
-    } catch (error) {
-      if (context.mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update account: $error')),
-        );
-    }
-  }
+  final String baseUrl;
+  final String token;
+  final List<Threshold> crops;
+  final int accountRevision;
 
   @override
-  Widget build(BuildContext context) {
-    return _DesignShell(
-      title: 'Settings',
-      action: TextButton(
-        onPressed: () => _editAccount(context),
-        child: const Text('Edit'),
-      ),
-      onBack: () {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        onDestinationSelected(0);
-      },
-      selectedDestination: 4,
-      onDestinationSelected: onDestinationSelected,
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _Avatar(
-                      initial: name.isEmpty ? 'F' : name[0].toUpperCase(),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            phone,
-                            style: const TextStyle(fontSize: 12, color: _muted),
-                          ),
-                          const SizedBox(height: 3),
-                          const Text(
-                            'Farmer account · verified by one-time PIN',
-                            style: TextStyle(fontSize: 11, color: _muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Crop locations and sensor assignments are saved to this backend.',
-                    style: TextStyle(fontSize: 11, color: _muted),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const _SectionHeading('Your crops & sensors'),
-        const SizedBox(height: 8),
-        _ActionCard(
-          icon: Icons.spa_outlined,
-          title: 'My Crops',
-          subtitle: 'Saved field and storage locations',
-          onTap: () => _openCrops(context),
-        ),
-        const SizedBox(height: 8),
-        _ActionCard(
-          icon: Icons.sensors_outlined,
-          title: 'Manage linked sensors',
-          subtitle: 'View the sensor IDs assigned to each crop',
-          onTap: () => _openCrops(context),
-        ),
-        const SizedBox(height: 8),
-        _ActionCard(
-          icon: Icons.add_circle_outline,
-          title: 'Link a sensor',
-          subtitle: 'Choose connected sensors while setting up a crop',
-          onTap: () => _openCrops(context),
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: TextButton.icon(
-            onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded, size: 17),
-            label: const Text('Sign out'),
-            style: TextButton.styleFrom(foregroundColor: _forest),
-          ),
-        ),
-        const SizedBox(height: 4),
-        const DemoNotice(
-          text:
-              'Sensors appear in setup after the backend receives a sensor reading. Device identity is currently based on the submitted sensor ID.',
-        ),
-      ],
-    );
+  State<FarmerLocationsPanel> createState() => _FarmerLocationsPanelState();
+}
+
+class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
+  late ApiService _api;
+  List<Map<String, dynamic>> _sites = const [];
+  List<Map<String, dynamic>> _sensors = const [];
+  List<Map<String, dynamic>> _available = const [];
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  int _loadRevision = 0;
+  String _query = '';
+
+  List<Map<String, dynamic>> get _filteredSites {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _sites;
+    return _sites.where((site) {
+      final id = site['id'];
+      final linkedIds = _sensors.where((sensor) => sensor['siteId'] == id)
+          .map((sensor) => sensor['sensorId']).join(' ');
+      return '${site['commodity']} ${site['label']} $linkedIds'
+          .toLowerCase().contains(query);
+    }).toList();
   }
-}
 
-class MyCropsScreen extends StatefulWidget {
-  const MyCropsScreen({
-    required this.name,
-    required this.onLoadFarmerCrops,
-    required this.onLoadFarmerSensors,
-    required this.onDeleteFarmerCrop,
-    required this.onLoadCropOptions,
-    required this.onLoadAvailableSensors,
-    required this.onCreateCropSetup,
-    required this.onDestinationSelected,
-    super.key,
-  });
-
-  final String name;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
-  final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
-  final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<Threshold>> Function() onLoadCropOptions;
-  final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
-  final Future<void> Function({
-    required String commodity,
-    required String label,
-    required List<String> sensorCodes,
-  })
-  onCreateCropSetup;
-  final ValueChanged<int> onDestinationSelected;
-
-  @override
-  State<MyCropsScreen> createState() => _MyCropsScreenState();
-}
-
-class _MyCropsScreenState extends State<MyCropsScreen> {
-  final _searchController = TextEditingController();
-  List<Map<String, dynamic>>? _farmerCrops;
-  List<Map<String, dynamic>> _farmerSensors = const [];
-  String? _loadError;
-  Timer? _refreshTimer;
-  bool _loadingCrops = false;
+  List<Map<String, dynamic>> get _filteredSensors {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _sensors;
+    return _sensors.where((sensor) =>
+      '${sensor['sensorId']} ${_sensorDescription(sensor)}'
+          .toLowerCase().contains(query)).toList();
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadFarmerCrops();
-    _refreshTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _loadFarmerCrops(),
-    );
+    _api = ApiService(baseUrl: widget.baseUrl, authToken: widget.token);
+    _load();
   }
 
-  Future<void> _loadFarmerCrops() async {
-    if (_loadingCrops) return;
-    _loadingCrops = true;
-    try {
-      final crops = await widget.onLoadFarmerCrops();
-      final sensors = await widget.onLoadFarmerSensors();
-      if (mounted)
-        setState(() {
-          _farmerCrops = crops;
-          _farmerSensors = sensors;
-          _loadError = null;
-        });
-    } catch (error) {
-      if (mounted)
-        setState(() {
-          _farmerCrops = [];
-          _loadError = '$error';
-        });
-    } finally {
-      _loadingCrops = false;
+  @override
+  void didUpdateWidget(covariant FarmerLocationsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.baseUrl != widget.baseUrl ||
+        oldWidget.token != widget.token ||
+        oldWidget.accountRevision != widget.accountRevision) {
+      final backendChanged =
+          oldWidget.baseUrl != widget.baseUrl ||
+          oldWidget.token != widget.token;
+      if (backendChanged) {
+        _api.dispose();
+        _api = ApiService(baseUrl: widget.baseUrl, authToken: widget.token);
+      }
+      _loadRevision++;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
     }
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
-    _searchController.dispose();
+    _api.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_farmerCrops == null) {
-      return _DesignShell(
-        title: 'My Crops',
-        action: const SizedBox.shrink(),
-        onBack: () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          widget.onDestinationSelected(0);
-        },
-        selectedDestination: 2,
-        onDestinationSelected: widget.onDestinationSelected,
-        children: const [
-          Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(),
-            ),
-          ),
-        ],
-      );
+  Future<void> _load() async {
+    final revision = ++_loadRevision;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        _api.getFarmerCrops(),
+        _api.getFarmerSensors(),
+        _api.getAvailableFarmerSensors(),
+      ]);
+      if (!mounted || revision != _loadRevision) return;
+      setState(() {
+        _sites = results[0];
+        _sensors = results[1];
+        _available = results[2];
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || revision != _loadRevision) return;
+      setState(() {
+        _loading = false;
+        _error = _message(error);
+      });
     }
-    return _buildAccountCrops();
   }
 
-  Widget _buildAccountCrops() {
-    final query = _searchController.text.trim().toLowerCase();
-    final crops = _farmerCrops!
-        .where(
-          (crop) => '${crop['commodity']} ${crop['label']}'
-              .toLowerCase()
-              .contains(query),
-        )
-        .toList();
-    return _DesignShell(
-      title: 'My Crops',
-      action: IconButton(
-        onPressed: _loadFarmerCrops,
-        tooltip: 'Refresh crops',
-        icon: const Icon(Icons.refresh, size: 20),
-      ),
-      onBack: () {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        widget.onDestinationSelected(0);
-      },
-      selectedDestination: 2,
-      onDestinationSelected: widget.onDestinationSelected,
-      children: [
-        _AccountScopeBanner(name: widget.name),
-        const SizedBox(height: 10),
-        if (_loadError != null)
-          DemoNotice(text: 'Could not load crop locations: $_loadError'),
-        FilledButton.icon(
-          onPressed: _showAddCropSetup,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Add crop and connect sensors'),
-          style: FilledButton.styleFrom(backgroundColor: _forest),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _searchController,
-          onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            hintText: 'Search crop or field name',
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (crops.isEmpty)
-          _farmerCrops!.isEmpty ? const _EmptyCrops() : const _EmptySearch()
-        else
-          for (final crop in crops)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    const Icon(Icons.spa_outlined, color: _forest),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${crop['commodity']} · ${crop['label']}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            '${crop['sensorCount'] ?? 0} linked sensors',
-                            style: const TextStyle(fontSize: 11, color: _muted),
-                          ),
-                          if (_farmerSensors
-                              .where(
-                                (sensor) =>
-                                    sensor['farmerCropId'] == crop['id'],
-                              )
-                              .isNotEmpty)
-                            Text(
-                              'IDs: ${_farmerSensors.where((sensor) => sensor['farmerCropId'] == crop['id']).map((sensor) => sensor['sensorCode']).join(', ')}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: _muted,
-                              ),
-                            ),
-                        ],
+  String _message(Object error) =>
+      error.toString().replaceFirst('Exception: ', '');
+
+  Future<void> _addLocation() async {
+    var catalog = widget.crops;
+    if (catalog.isEmpty) {
+      try {
+        catalog = await _api.getCrops();
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not load crop catalog: ${_message(error)}'),
+            ),
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted || catalog.isEmpty) return;
+    var commodity = catalog.first.commodity;
+    String? labelError;
+    final labelController = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add crop location'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: commodity,
+                decoration: const InputDecoration(labelText: 'Crop'),
+                items: catalog
+                    .map(
+                      (crop) => DropdownMenuItem(
+                        value: crop.commodity,
+                        child: Text(crop.commodity),
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _deleteCrop(crop),
-                      icon: const Icon(Icons.delete_outline, size: 17),
-                      label: const Text('Delete'),
-                      style: TextButton.styleFrom(foregroundColor: _red),
-                    ),
-                  ],
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => commodity = value);
+                },
+              ),
+              TextField(
+                controller: labelController,
+                autofocus: true,
+                maxLength: 80,
+                decoration: InputDecoration(
+                  labelText: 'Location name',
+                  hintText: 'e.g. Main store',
+                  errorText: labelError,
                 ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
             ),
-      ],
+            FilledButton(
+              onPressed: () {
+                final label = labelController.text.trim();
+                if (label.length < 2) {
+                  setDialogState(
+                    () => labelError = 'Enter at least 2 characters.',
+                  );
+                  return;
+                }
+                labelError = null;
+                Navigator.pop(dialogContext, label);
+              },
+              child: const Text('Save location'),
+            ),
+          ],
+        ),
+      ),
+    );
+    labelController.dispose();
+    if (result == null || !mounted) return;
+    await _perform(
+      () => _api.addFarmerCrop(commodity: commodity, label: result),
     );
   }
 
-  Future<void> _deleteCrop(Map<String, dynamic> crop) async {
+  Future<void> _linkSensor() async {
+    if (_available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No unlinked sensors with real readings are available yet.',
+          ),
+        ),
+      );
+      return;
+    }
+    String sensorId = _available.first['sensorId'] as String;
+    int? siteId;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Link a sensor'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: sensorId,
+                decoration: const InputDecoration(labelText: 'Detected sensor'),
+                items: _available.map((sensor) {
+                  final id = sensor['sensorId'] as String;
+                  return DropdownMenuItem(value: id, child: Text(id));
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => sensorId = value);
+                },
+              ),
+              DropdownButtonFormField<int?>(
+                value: siteId,
+                hint: const Text('No location yet'),
+                decoration: const InputDecoration(labelText: 'Crop location'),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('No location yet'),
+                  ),
+                  ..._sites.map(
+                    (site) => DropdownMenuItem<int?>(
+                      value: site['id'] as int,
+                      child: Text(site['label'] as String),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setDialogState(() => siteId = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, sensorId),
+              child: const Text('Link sensor'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _perform(
+      () => _api.linkFarmerSensor(sensorId: result, siteId: siteId),
+    );
+  }
+
+  Future<void> _deleteSite(Map<String, dynamic> site) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Delete crop location?'),
         content: Text(
-          'Delete ${crop['commodity']} · ${crop['label']} and unlink its sensors?',
+          'Remove ${site['label']} from this account? Linked sensors will be unassigned.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
+    final id = site['id'] as int;
+    await _perform(() => _api.deleteFarmerCrop(id));
+  }
+
+  Future<void> _unlinkSensor(String sensorId) async {
+    await _perform(() => _api.unlinkFarmerSensor(sensorId));
+  }
+
+  Future<void> _perform(Future<void> Function() action) async {
+    setState(() => _saving = true);
     try {
-      await widget.onDeleteFarmerCrop((crop['id'] as num).toInt());
-      await _loadFarmerCrops();
+      await action();
+      if (!mounted) return;
+      await _load();
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete crop: $error')),
-        );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_message(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  Future<void> _showAddCropSetup() async {
-    try {
-      final crops = await widget.onLoadCropOptions();
-      final sensors = await widget.onLoadAvailableSensors();
-      if (!mounted) return;
-      if (crops.isEmpty)
-        throw Exception('No crops are configured in the backend yet.');
-      final labelController = TextEditingController();
-      var commodity = crops.first.commodity;
-      Threshold selectedCrop() =>
-          crops.firstWhere((crop) => crop.commodity == commodity);
-      var errorMessage = '';
-      final selectedSensors = <String>{};
-      final created = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => AlertDialog(
-            title: const Text('Set up a crop and its sensors'),
-            content: SizedBox(
-              width: 430,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: commodity,
-                      decoration: const InputDecoration(labelText: 'Crop'),
-                      items: crops
-                          .map<DropdownMenuItem<String>>(
-                            (crop) => DropdownMenuItem(
-                              value: crop.commodity,
-                              child: Text(
-                                '${crop.commodity} · ${crop.cropGroup}',
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null)
-                          setDialogState(() => commodity = value);
-                      },
-                    ),
-                    if (selectedCrop().safeMoisturePct != null ||
-                        selectedCrop().storageNote.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          '${selectedCrop().cropGroup} room target: ${selectedCrop().minTemp.toStringAsFixed(0)}–${selectedCrop().maxTemp.toStringAsFixed(0)} °C and ${selectedCrop().minHumidity.toStringAsFixed(0)}–${selectedCrop().maxHumidity.toStringAsFixed(0)}% RH. ${selectedCrop().safeMoisturePct == null ? '' : 'Grain moisture target: ≤${selectedCrop().safeMoisturePct!.toStringAsFixed(1)}% (measure with a grain moisture meter). '}${selectedCrop().storageNote}',
-                          style: const TextStyle(fontSize: 12, color: _muted),
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: labelController,
-                      maxLength: 80,
-                      decoration: const InputDecoration(
-                        labelText: 'Field or storage name',
-                        hintText: 'For example: North store',
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: Text(
-                        selectedSensors.isEmpty
-                            ? 'Choose connected backend sensors'
-                            : '${selectedSensors.length} sensor${selectedSensors.length == 1 ? '' : 's'} selected',
-                      ),
-                      subtitle: Text(
-                        selectedSensors.isEmpty
-                            ? 'Select one or more sensor IDs'
-                            : selectedSensors.join(', '),
-                      ),
-                      children: [
-                        if (sensors.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: DemoNotice(
-                              text:
-                                  'No sensor has sent a reading to this backend yet. Once a sensor sends a reading, its ID appears here automatically.',
-                            ),
-                          ),
-                        for (final sensor in sensors)
-                          Builder(
-                            builder: (context) {
-                              final code = sensor['sensorCode'] as String;
-                              final connected = sensor['connected'] == true;
-                              final lastSeen = DateTime.tryParse(
-                                '${sensor['lastSeen']}',
-                              )?.toLocal();
-                              return CheckboxListTile(
-                                dense: true,
-                                value: selectedSensors.contains(code),
-                                onChanged: connected
-                                    ? (selected) => setDialogState(() {
-                                        if (selected == true) {
-                                          selectedSensors.add(code);
-                                        } else {
-                                          selectedSensors.remove(code);
-                                        }
-                                      })
-                                    : null,
-                                title: Text(
-                                  code,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  connected
-                                      ? 'Connected · last reading ${lastSeen == null ? 'recently' : _relativeSensorTime(lastSeen)}'
-                                      : 'Offline · reconnect this sensor to assign it',
-                                ),
-                                secondary: Icon(
-                                  connected
-                                      ? Icons.sensors_rounded
-                                      : Icons.sensors_off_rounded,
-                                  color: connected ? _forest : _muted,
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                    if (errorMessage.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        errorMessage,
-                        style: const TextStyle(color: _red, fontSize: 12),
-                      ),
-                    ],
-                  ],
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const _AccountSectionTitle('Your crops & sensors'),
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_sites.length} crop locations · ${_sensors.length} linked sensors',
                 ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (labelController.text.trim().isEmpty) {
-                    setDialogState(
-                      () => errorMessage =
-                          'Enter a name for this field or storage.',
-                    );
-                    return;
-                  }
-                  if (selectedSensors.isEmpty) {
-                    setDialogState(
-                      () => errorMessage =
-                          'Choose at least one connected sensor.',
-                    );
-                    return;
-                  }
-                  Navigator.pop(dialogContext, true);
-                },
-                child: const Text('Save crop setup'),
+              IconButton(
+                onPressed: _loading || _saving ? null : _load,
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh),
               ),
             ],
           ),
         ),
-      );
-      if (created == true && mounted) {
-        await widget.onCreateCropSetup(
-          commodity: commodity,
-          label: labelController.text.trim(),
-          sensorCodes: selectedSensors.toList(),
-        );
-        await _loadFarmerCrops();
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Crop location and sensor assignments saved.'),
-            ),
-          );
-      }
-      labelController.dispose();
-    } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not set up crop and sensors: $error')),
-        );
-    }
-  }
-}
-
-String _relativeSensorTime(DateTime timestamp) {
-  final age = DateTime.now().difference(timestamp);
-  if (age.inSeconds < 60) return 'just now';
-  if (age.inMinutes < 60) return '${age.inMinutes} min ago';
-  return '${age.inHours} hr ago';
-}
-
-class _DesignShell extends StatelessWidget {
-  const _DesignShell({
-    required this.title,
-    required this.action,
-    required this.onBack,
-    required this.selectedDestination,
-    required this.onDestinationSelected,
-    required this.children,
-  });
-
-  final String title;
-  final Widget action;
-  final VoidCallback onBack;
-  final int selectedDestination;
-  final ValueChanged<int> onDestinationSelected;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: _canvas,
-    body: SafeArea(
-      child: Column(
-        children: [
-          const _BrandHeader(),
-          SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: onBack,
-                  tooltip: 'Back',
-                  icon: const Icon(Icons.chevron_left, size: 24),
-                ),
-                Expanded(
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _ink,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 72,
-                  child: Align(alignment: Alignment.centerRight, child: action),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              children: children,
-            ),
-          ),
-        ],
       ),
-    ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: selectedDestination,
-      onDestinationSelected: (index) {
-        if (index == selectedDestination) return;
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        onDestinationSelected(index);
-      },
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          label: 'Overview',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.show_chart_rounded),
-          label: 'Trends',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.spa_outlined),
-          label: 'My Crops',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.notifications_none_rounded),
-          label: 'Alerts',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          label: 'Settings',
+      if (_error != null) ...[
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'Could not load account locations: $_error',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
         ),
       ],
-    ),
-  );
-}
-
-class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    height: 44,
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    color: _canvas,
-    child: Row(
-      children: [
-        Container(
-          width: 22,
-          height: 22,
-          decoration: const BoxDecoration(
-            color: _paleGreen,
-            shape: BoxShape.circle,
+      if (_loading)
+        const Padding(
+          padding: EdgeInsets.all(18),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      if (!_loading && _error == null) ...[
+        TextField(
+          onChanged: (value) => setState(() => _query = value),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            labelText: 'Search crop, location or sensor ID',
+            border: OutlineInputBorder(),
           ),
-          child: ClipOval(
-            child: Image.asset(
-              'assets/branding/peo-yame-128.png',
-              width: 22,
-              height: 22,
-              fit: BoxFit.cover,
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: _saving ? null : _addLocation,
+          icon: const Icon(Icons.add),
+          label: const Text('Add crop location'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _saving ? null : _linkSensor,
+          icon: const Icon(Icons.sensors_outlined),
+          label: const Text('Link a detected sensor'),
+        ),
+        const SizedBox(height: 8),
+        if (_sites.isEmpty && _sensors.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Text(
+                'No crop locations or linked sensors yet. Sensor IDs appear here only after the backend receives real sensor readings.',
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          'Peo Yame',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: _forest,
+        if (_filteredSites.isEmpty && _sites.isNotEmpty)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No crop locations or sensors match this search.'),
           ),
-        ),
-        const Spacer(),
-      ],
-    ),
-  );
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.initial});
-  final String initial;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 52,
-    height: 52,
-    alignment: Alignment.center,
-    decoration: const BoxDecoration(color: _paleGreen, shape: BoxShape.circle),
-    child: Text(
-      initial,
-      style: const TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        color: _forest,
-      ),
-    ),
-  );
-}
-
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    label,
-    style: const TextStyle(
-      fontSize: 15,
-      fontWeight: FontWeight.w800,
-      color: _ink,
-    ),
-  );
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: _forest, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
+        ..._filteredSites.map((site) {
+          final siteId = site['id'] as int;
+          final linked = _sensors
+              .where((sensor) => sensor['siteId'] == siteId)
+              .toList();
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _ink,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.eco_outlined, color: _forest),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${site['label']} · ${site['commodity']}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _saving ? null : () => _deleteSite(site),
+                        tooltip: 'Delete crop location',
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
                   Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 11, color: _muted),
+                    '${linked.length} linked sensor${linked.length == 1 ? '' : 's'}',
+                    style: const TextStyle(color: _muted),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: _muted, size: 19),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _AccountScopeBanner extends StatelessWidget {
-  const _AccountScopeBanner({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-    decoration: BoxDecoration(
-      color: _paleGreen,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Row(
-      children: [
-        Icon(Icons.person_outline_rounded, size: 17, color: _forest),
-        SizedBox(width: 9),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$name’s account · 2 crops · 4 sensors',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
+          );
+        }),
+        if (_filteredSensors.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const _AccountSectionTitle('Linked sensors'),
+          const SizedBox(height: 8),
+          ..._filteredSensors.map((sensor) {
+            final id = sensor['sensorId'] as String;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const Icon(Icons.sensors, color: _forest),
+                title: Text(id),
+                subtitle: Text(_sensorDescription(sensor)),
+                trailing: IconButton(
+                  onPressed: _saving ? null : () => _unlinkSensor(id),
+                  tooltip: 'Unlink sensor',
+                  icon: const Icon(Icons.link_off),
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
-                '3 online · 1 offline · 1 needs attention',
-                style: TextStyle(fontSize: 9, color: _muted),
-              ),
-            ],
+            );
+          }),
+        ],
+        if (_available.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${_available.length} unlinked sensor${_available.length == 1 ? '' : 's'} with readings available.',
+            style: const TextStyle(color: _muted, fontSize: 12),
           ),
-        ),
+        ],
       ],
-    ),
+    ],
   );
+
+  String _sensorDescription(Map<String, dynamic> sensor) {
+    final location =
+        sensor['siteLabel'] as String? ?? 'No crop location assigned';
+    final lastSeen = sensor['lastSeen'] as String?;
+    if (lastSeen == null) return location;
+    final parsed = DateTime.tryParse(lastSeen)?.toLocal();
+    return '$location · last reading ${parsed?.toString() ?? lastSeen}';
+  }
 }
 
-class DemoNotice extends StatelessWidget {
-  const DemoNotice({required this.text});
-  final String text;
+class _AccountSectionTitle extends StatelessWidget {
+  const _AccountSectionTitle(this.title);
+  final String title;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-    decoration: BoxDecoration(
-      color: _amberBg,
-      border: Border.all(color: _amberBorder),
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.info_outline_rounded, size: 14, color: _amberInk),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 10,
-              height: 1.25,
-              color: _amberInk,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _EmptySearch extends StatelessWidget {
-  const _EmptySearch();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(26),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: _border),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: const Column(
-      children: [
-        Icon(Icons.search_off_rounded, color: _muted),
-        SizedBox(height: 8),
-        Text(
-          'No sensors match this search.',
-          style: TextStyle(fontSize: 12, color: _muted),
-        ),
-      ],
-    ),
-  );
-}
-
-class _EmptyCrops extends StatelessWidget {
-  const _EmptyCrops();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.all(24),
-    child: Column(
-      children: [
-        Icon(Icons.spa_outlined, color: _muted),
-        SizedBox(height: 8),
-        Text(
-          'No crop locations yet. Add a crop and connect at least one backend sensor.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: _muted),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => Text(
+    title,
+    style: Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
   );
 }

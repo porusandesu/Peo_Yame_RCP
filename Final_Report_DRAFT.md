@@ -1,7 +1,5 @@
 # FINAL PROJECT REPORT
 
-> **Implementation status note (7 November 2026):** This report draft contains implementation claims from an earlier prototype revision. Before submission, reconcile authentication, mobile pairing, persistence, navigation, tests and deployment claims with the current [architecture](docs/ARCHITECTURE.md), [test report](docs/TEST_REPORT.md), and [handoff](docs/HANDOFF.md). Treat historical screenshots and study text as dated evidence, not current behavior.
-
 ## Development of a Low-Cost IoT-Based Post-Harvest Storage Monitoring and Spoilage-Risk Alert System: A Case Study of [TODO: Cooperative/Aggregator name]
 
 **Research Capstone Project (C7-RCP-23) | Level 7 | Semester 7**

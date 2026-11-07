@@ -1,10 +1,6 @@
 # Technical Requirements Document (TRD)
 
-> **Current runtime update (7 Nov 2026):** Demo API calls use the shared Demo
-> Farmer without a session. Authentication endpoints are disabled in demo mode;
-> production authentication and QR SSO remain available.
-
-> **Historical planning snapshot (24 October 2026).** Route and authentication status here predates the current implementation. For current contracts and verified behavior, see the [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md).
+> **Revision status (2026-11-07):** Current phone/web entry is direct session-free Demo mode. Phone login and bidirectional backend QR SSO are requested future work. OTP descriptions are historical design context, not current code. See [current handoff](../HANDOFF.md).
 
 **System:** Peo Yame low-cost storage-monitoring prototype
 **Document purpose:** Technical baseline, interface contracts and report traceability
@@ -12,14 +8,6 @@
 **Related documents:** `01-product-requirements-document.md`, `03-app-flow-and-user-flows.md`, `05-backend-schema-security-and-threat-model.md`, `06-implementation-plan.md`.
 
 > **Implementation truth:** The inspected current `backend/database.js` creates SQLite `crops`, `app_settings` and `readings` tables; `backend/server.js` still keeps alerts, SMS log and incidents in memory and action history in JSONL. This is a mixed persistence design. The login screen has no server authentication. HTTP/CORS configuration is demo-oriented. Physical sensors and real SMS are absent.
-
-> **Later schema update (7 November 2026):** The crop table now also has
-> `crop_group`, nullable `safe_moisture_pct` and `storage_note` fields, added to
-> existing databases at startup. The built-in catalog covers grains, pulses,
-> oilseeds, fruits and vegetables. Storage ranges are starter guidance, and
-> grain moisture is separate from room RH. See the current
-> [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md); the October endpoint and
-> implementation descriptions below are historical where they conflict.
 
 ## 1. Technical objectives
 
@@ -48,7 +36,7 @@ flowchart LR
 
 Clients should treat the backend as the source of truth for current state and alert determination. The mobile client currently uses server-sent events plus periodic refresh; the web dashboard uses API polling/updates as implemented in its HTML/JS. Confirm exact interval behavior from current source before claiming quantitative latency.
 
-**Figma-driven frontend increment:** the supplied design adds phone-number login, six-digit OTP verification, farmer Accounts and a My Crops collection with multiple assigned sensors, search and status filters. These screens now exist in Flutter with local demo state and fixed sensor fixtures. No authentication provider, OTP verification, SMS transport, farmer-account ownership or live sensor registry is established by current backend code. Treat the endpoints and model below as future requirements, not current routes.
+**Figma-driven design context:** the supplied design includes phone-number login, six-digit OTP verification, farmer Accounts and My Crops. Current client code instead enters the dashboard directly in session-free Demo mode; Accounts/My Crops use fixed sample fixtures. No authentication provider, OTP verification, SMS transport, farmer-account ownership or live sensor registry exists. Treat the endpoints and model below as future requirements, not current routes.
 
 ## 3. Current technology baseline
 
@@ -59,7 +47,7 @@ Clients should treat the backend as the source of truth for current state and al
 | Cross-origin | `cors` package, configurable origins; default permissive in development | `server.js` | Do not expose on untrusted network; tighten before deployment |
 | Database | SQLite accessed through native `sqlite3` command-line invocation from Node | `database.js` | Operational database availability/locking/backup behavior needs verification; JSON values are quoted manually, not parameter bindings |
 | Web frontend | Static HTML/CSS/JavaScript served by Express | `backend/public/index.html` | Same-origin when served by Express; remote cross-origin config depends on CORS |
-| Mobile frontend | Flutter/Dart top-level `lib/` | `lib/main.dart`, `lib/account_screens.dart`, `api_service.dart`, `dashboard_controller.dart` | Includes local phone/OTP demo flow and Accounts/My Crops sample screens; no backend auth/device data; API is plain HTTP in current demo config |
+| Mobile frontend | Flutter/Dart top-level `lib/` | `lib/main.dart`, `lib/account_screens.dart`, `api_service.dart`, `dashboard_controller.dart` | Includes direct session-free Demo entry and Accounts/My Crops sample screens; no backend auth/device data; API is plain HTTP in current demo config |
 | Reading generator | In-process timer (development/demo) and optional `simulate-sensor.js` | `server.js`, simulator script | Synthetic data only; no sensor fidelity/calibration evidence |
 | Event channel | Server-Sent Events `/api/events`, with client refresh fallback | server and Flutter API/controller | Reconnect/offline behavior needs measured tests |
 | Exports | CSV readings and Markdown action log | Express routes and clients | Review privacy, injection/escaping and record scope |

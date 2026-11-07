@@ -1,10 +1,6 @@
 # Product Requirements Document (PRD)
 
-> **Current runtime update (7 Nov 2026):** Demo mode opens directly without
-> authentication; the historical login requirements below are not current demo
-> behavior. Production auth and QR SSO remain available.
-
-> **Historical planning snapshot (24 October 2026).** Its implementation-status passages predate the current account, email/password, persistent session and signed-in QR pairing work. Use the current [README](../../README.md), [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md) for implementation claims; retain this file for requirements history.
+> **Revision status (2026-11-07):** Current clients enter session-free Demo mode directly; the old local phone/OTP UI described in this requirements pack has been removed. Phone-number login and backend QR SSO are requested but not implemented. See [current handoff](../HANDOFF.md).
 
 **Product:** Peo Yame — low-cost post-harvest storage monitoring prototype
 **Project:** Development of a Low-Cost IoT-Based Post-Harvest Storage Monitoring and Spoilage-Risk Alert System for Small Agricultural Aggregators in Botswana
@@ -15,20 +11,11 @@
 
 > **Claim boundary:** Peo Yame in the current repository is a software prototype that demonstrates simulated readings, crop-bound comparisons, a web dashboard, a Flutter client, and local data handling. It is not connected to physical sensors and does not send real SMS. A threshold breach is not proof of spoilage, a validated risk probability, or loss prevention. Clearly mark verified behavior, simulated behavior, future scope, and unverified items in all reports.
 
-> **Later implementation update (7 November 2026):** The backend now seeds a
-> Botswana crop catalog for grains, pulses, oilseeds, vegetables and fruits.
-> Web and mobile crop setup show the selected profile's storage guidance.
-> These researched starter values are not validated operating thresholds. The
-> low-literacy workflow in the [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md)
-> is a recommendation that needs farmer evaluation. Earlier implementation
-> status text in this October planning snapshot is superseded by the current
-> [handoff](../HANDOFF.md) and [architecture](../ARCHITECTURE.md).
-
 ## 1. Executive summary
 
 Peo Yame is intended to help a small agricultural aggregator notice temperature and relative-humidity conditions outside selected crop limits in a storage setting. The project context prioritizes low cost, SMS-first alerting for weak-connectivity conditions, understandable presentation for non-technical staff, retained records, and future commodity extensibility. The capstone prototype uses simulated input so the team can develop and demonstrate the core information flow without claiming unavailable hardware.
 
-The current artefact consists of a Node.js/Express service, a SQLite data layer for crop profiles/readings, a responsive browser dashboard, and a Flutter mobile client. The Flutter build now includes Figma-inspired phone-login/OTP demo screens and Accounts/My Crops screens with fixed sample profile/sensor fixtures. Those screens do not connect to authentication, SMS or a live sensor registry. The backend creates alerts and SMS-like log entries in process memory; a separate JSONL file retains dashboard actions. There is no implemented user authentication, real SMS provider, calibrated sensor, field pilot, or validated spoilage model.
+The current artefact consists of a Node.js/Express service, a SQLite data layer for crop profiles/readings, a responsive browser dashboard, and a Flutter mobile client. Both clients provide direct Demo mode using a fixed display profile; Accounts/My Crops views use sample fixtures. The backend creates alerts and SMS-like log entries in process memory; a separate JSONL file retains dashboard actions. There is no implemented user authentication, QR SSO, real SMS provider, calibrated sensor, field pilot, or validated spoilage model.
 
 ## 2. Problem, opportunity and context
 
@@ -69,7 +56,7 @@ Demonstrate a simple, low-cost monitoring workflow that can:
 - No machine-learning prediction or validated shelf-life estimate. Any existing heuristic estimate must be labeled as a demo heuristic and excluded from operational claims. Confirm scope against approved proposal; project notes say predictive forecasting is out of scope.
 - No claim that a reading proves spoilage, contamination, avoided loss, or causal impact.
 - No multi-site deployment, cloud operation, public production release, or commercial service unless the proposal/supervisor explicitly revises scope.
-- No production identity/account system in the current phone-login/OTP demo. The six-digit sample PIN advances a local demo profile; it is not verified by a server.
+- No production identity/account system exists. Current Demo mode is session-free; phone login and QR SSO are pending.
 - Accounts and My Crops now have interactive Flutter screens, but profile totals, crop groups, sensor rows, freshness labels and filters are sample UI data, not records from authenticated farmer accounts or physical devices.
 
 ## 4. Users and stakeholders
@@ -119,15 +106,15 @@ Status meanings: **Implemented (source observed)** means behavior exists in insp
 | FR-06 | On configured bound breach, the system shall create an alert linked to the triggering reading and show it to the operator. | Must | Implemented in runtime logic; alert storage currently in-memory | Known breach produces alert with crop, reading, limits, time and acknowledgement state; restart limitation is recorded |
 | FR-07 | The system shall record simulated SMS dispatch intent/status without claiming carrier delivery. | Must for demo | Partial; `status: logged` in memory; no gateway | Breach creates a log entry explicitly labeled simulated/not sent; documentation and UI avoid “delivered” language |
 | FR-08 | The user shall be able to acknowledge a visible alert. | Should | Route exists; verify UI behavior | Acknowledgement state changes and is visible; unknown IDs return not found |
-| FR-09 | The user shall select a saved crop profile and see its limits. | Must | Implemented for seeded grains, pulses, oilseeds, vegetables and fruit; global monitor selection is not farmer/site scoped | Selection updates active threshold and clients; values match API; limits labeled illustrative |
+| FR-09 | The user shall select a saved crop profile and see its limits. | Must | Implemented; current profiles include Maize/Tomato; global state | Selection updates active threshold and clients; values match API; limits labeled illustrative |
 | FR-10 | An authorized administrator shall be able to create a crop profile with valid bounds. | Could / confirm scope | API route exists without auth; unsafe for deployment | Valid limits save; invalid/duplicate names and invalid ranges receive safe errors; unauthorized request denied after auth scope implemented |
 | FR-11 | The user shall export readings and activity evidence. | Should | CSV and Markdown routes exist | Export opens with expected fields; sensitive data excluded; CSV formula handling and escaping reviewed |
 | FR-12 | The client shall explain connection/loading/error states. | Must | Partial; API error handling exists; verify visual states | Offline/backend unavailable state is distinct from a safe reading; retry path is clear |
 | FR-13 | The demo shall distinguish synthetic history and generated readings from actual sensor measurements. | Must | Partial; source metadata exists; UI labels must be checked | User can identify simulated data before acting; exports preserve source label |
 | FR-14 | The project shall retain required research evidence through restart. | Must for final research evidence | Partial; readings/crops/settings use SQLite, alert/incident memory limitation | Restart procedure demonstrates exactly which record classes persist; any non-persistent classes are reported or made durable |
 | FR-15 | The system shall authenticate users and sensor devices before protected operations. | Future security requirement | Not implemented; login is visual/client-only | Protected routes deny anonymous requests; credentials are not stored in plaintext; identity and role are enforced server-side |
-| FR-16 | The sign-in flow shall accept a farmer’s registered Botswana phone number and request a one-time PIN. | UI demo implemented; backend planned | Phone form navigates to a local OTP screen; no OTP endpoint/provider and no SMS is sent | Current UI acceptance: phone entry reaches OTP mock and demo disclosure is visible. Target: registered number starts an expiring, rate-limited challenge |
-| FR-17 | The OTP flow shall verify a six-digit PIN and support safe resend/change-number paths. | UI demo implemented; real verification planned | Six fields are prefilled with a sample PIN; any six digits advance locally; resend is a notice only | Current UI acceptance: edit PIN, change number, back and resend notice work. Target: server rejects incorrect/expired/reused PIN, applies limits, and never logs PIN |
+| FR-16 | The sign-in flow shall accept a farmer’s registered Botswana phone number and authenticate through a backend session. | Planned; not implemented | Current clients use direct session-free Demo mode; no phone-auth endpoint exists | Target: registered number can establish an expiring, revocable backend session; no pretend PIN flow |
+| FR-17 | A linked phone and web session shall support one-time QR single sign-on in either direction. | Planned; not implemented | No QR challenge, token exchange, or linked-device session exists | Target: single-use short-lived challenge, server-validated session exchange, expiry/replay/unauthorized-device tests |
 | FR-18 | An authenticated farmer shall be able to view their account and linked crop/sensor totals. | UI mock implemented; account service planned | Accounts page renders demo profile and example counts; no authenticated ownership model exists | Current UI acceptance: account page opens and sign-out returns to demo login. Target: counts derive from authorized records and session revokes on sign-out |
 | FR-19 | A farmer shall browse crops grouped with assigned sensors, including search and All/Attention/Offline filters. | UI mock implemented; data/API planned | My Crops groups four static sensor fixtures under Maize/Sorghum; search and filters operate locally; backend still uses one global crop | Current UI acceptance: groups/search/filters render demo fixtures and disclose simulation. Target: account-scoped real device values and actual freshness |
 | FR-20 | An authorized farmer/operator shall link another sensor to their account and assign it to a crop. | Visual action implemented; pairing planned | Link/Add actions show a “not connected” demo notice; no registry/pairing exists | Target: authenticated proof-of-possession, owner authorization, duplicate/revoked-device rejection and audit trail |

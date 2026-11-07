@@ -7,17 +7,23 @@
   "scripts": {
     "start": "node server.js",
     "demo": "node server.js",
-    "test": "node --test",
-    "check": "node --check server.js && node --check database.js",
     "simulate:sensor": "node simulate-sensor.js",
+    "check": "node --check server.js && node --check database.js && node --check farmer_auth.js && node --check authenticator.js && node --check runtime_paths.js && node --check launcher.js",
+    "test": "node --test",
     "build:windows": "pwsh -ExecutionPolicy Bypass -File ./build-windows.ps1"
   },
-  "dependencies": {
-    "express": "^4.19.2",
-    "cors": "^2.8.5"
-  },
   "pkg": {
-    "targets": ["node18-win-x64"],
-    "assets": ["public/**/*", "vendor/sqlite3.exe"]
+    "targets": [
+      "node18-win-x64"
+    ],
+    "assets": [
+      "public/**/*",
+      "vendor/sqlite3.exe"
+    ]
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4"
   }
 }
