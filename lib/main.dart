@@ -545,6 +545,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late final DashboardController _controller;
+  late String _accountName;
+  late String _accountEmail;
+  late String _accountPhone;
   String _baseUrl = defaultApiBaseUrl;
   int _selectedTab = 0;
   bool _showBackendAddress = false;
@@ -599,6 +602,9 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    _accountName = widget.account.name;
+    _accountEmail = widget.account.email;
+    _accountPhone = widget.account.phone;
     _baseUrl = widget.baseUrl;
     _controller = DashboardController(
       api: ApiService(baseUrl: widget.baseUrl, authToken: widget.token),
@@ -632,6 +638,60 @@ class _DashboardPageState extends State<DashboardPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Web sign-in approved. Return to the browser.')),
       );
+    }
+  }
+
+  Future<void> _editProfile() async {
+    if (widget.token == null) return;
+    final nameController = TextEditingController(text: _accountName);
+    String? validationError;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit profile'),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            maxLength: 80,
+            decoration: InputDecoration(labelText: 'Name', errorText: validationError),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final value = nameController.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+                if (value.length < 2 || value.length > 80) {
+                  setDialogState(() => validationError = 'Enter a name between 2 and 80 characters.');
+                  return;
+                }
+                Navigator.pop(dialogContext, value);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameController.dispose();
+    if (name == null || !mounted || name == _accountName) return;
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final account = await api.updateFarmerName(name);
+      if (!mounted) return;
+      setState(() {
+        _accountName = account['name'] as String? ?? name;
+        _accountEmail = account['email'] as String? ?? _accountEmail;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated.')));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update profile: ${error.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    } finally {
+      api.dispose();
     }
   }
 
@@ -740,9 +800,9 @@ class _DashboardPageState extends State<DashboardPage> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => AccountsScreen(
-          name: widget.account.name,
-          email: widget.account.email,
-          phone: widget.account.phone,
+          name: _accountName,
+          email: _accountEmail,
+          phone: _accountPhone,
           isDemo: widget.token == null,
           onLogout: () {
             Navigator.of(context).popUntil((route) => route.isFirst);
@@ -756,6 +816,7 @@ class _DashboardPageState extends State<DashboardPage> {
           onManageLocations: widget.token == null ? null : () {
             if (mounted) setState(() => _selectedTab = 2);
           },
+          onEditProfile: widget.token == null ? null : _editProfile,
         ),
       ),
     );
@@ -1068,7 +1129,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
-      userName: widget.account.name,
+      userName: _accountName,
       isDemo: widget.token == null,
       onAccountTap: _openAccounts,
       onLogout: widget.onLogout,
@@ -1388,22 +1449,22 @@ class _DashboardPageState extends State<DashboardPage> {
             _AccountDetailRow(
               icon: Icons.person_outline_rounded,
               label: 'Name',
-              value: widget.account.name,
+              value: _accountName,
             ),
             const Divider(height: 1),
             _AccountDetailRow(
               icon: Icons.mail_outline_rounded,
-              label: widget.account.email == 'Demo profile'
+              label: _accountEmail == 'Demo profile'
                   ? 'Profile'
                   : 'Email',
-              value: widget.account.email,
+              value: _accountEmail,
             ),
             if (widget.token != null) ...[
               const Divider(height: 1),
               _AccountDetailRow(
                 icon: Icons.phone_outlined,
                 label: 'Number',
-                value: widget.account.phone,
+                value: _accountPhone,
               ),
             ],
           ],
@@ -1411,6 +1472,15 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     ),
     if (widget.token != null) ...[
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: _editProfile,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit full profile'),
+        ),
+      ),
       const SizedBox(height: 10),
       OutlinedButton.icon(
         onPressed: _setupAuthenticator,

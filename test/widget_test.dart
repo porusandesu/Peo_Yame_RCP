@@ -52,6 +52,7 @@ void main() {
     var showQrRequested = false;
     var scanRequested = false;
     var locationsRequested = false;
+    var profileEditRequested = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
@@ -69,6 +70,7 @@ void main() {
                     onShowSignInQr: () => showQrRequested = true,
                     onScanSignInQr: () => scanRequested = true,
                     onManageLocations: () => locationsRequested = true,
+                    onEditProfile: () => profileEditRequested = true,
                   ),
                 ),
               ),
@@ -85,6 +87,12 @@ void main() {
     await tester.tap(find.text('Manage linked sensors'));
     await tester.pumpAndSettle();
     expect(locationsRequested, isTrue);
+    await tester.tap(find.text('Open account'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Edit profile'));
+    await tester.tap(find.text('Edit profile'));
+    await tester.pumpAndSettle();
+    expect(profileEditRequested, isTrue);
     await tester.tap(find.text('Open account'));
     await tester.pumpAndSettle();
 

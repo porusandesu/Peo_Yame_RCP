@@ -125,6 +125,16 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> updateFarmerName(String name) async {
+    final response = await _client.patch(
+      _uri('/api/account'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'name': name}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> setupAuthenticator() async {
     final response = await _client.post(
       _uri('/api/account/authenticator/setup'),

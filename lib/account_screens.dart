@@ -17,6 +17,7 @@ class AccountsScreen extends StatelessWidget {
     required this.onShowSignInQr,
     required this.onScanSignInQr,
     required this.onManageLocations,
+    required this.onEditProfile,
     super.key,
   });
 
@@ -29,10 +30,16 @@ class AccountsScreen extends StatelessWidget {
   final VoidCallback? onShowSignInQr;
   final VoidCallback? onScanSignInQr;
   final VoidCallback? onManageLocations;
+  final VoidCallback? onEditProfile;
 
   void _openLocations(BuildContext context) {
     Navigator.of(context).pop();
     onManageLocations?.call();
+  }
+
+  void _editProfile(BuildContext context) {
+    Navigator.of(context).pop();
+    onEditProfile?.call();
   }
 
   @override
@@ -87,6 +94,19 @@ class AccountsScreen extends StatelessWidget {
             ),
           ),
         ),
+        if (!isDemo) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onEditProfile == null
+                  ? null
+                  : () => _editProfile(context),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit profile'),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         Card(
           child: ListTile(
