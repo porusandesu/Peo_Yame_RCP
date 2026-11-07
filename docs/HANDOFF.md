@@ -11,7 +11,7 @@ hidden. Production auth remains available.
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest reviewed code: current `exe-work` HEAD; see `git log --oneline` for its hash and documentation follow-ups.
+- Latest pushed code: `ac56dd6` on `exe-work`; CI run 45 passed. See `git log --oneline` for the full history.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -102,11 +102,14 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
   retry timer; the reconnect timer is now cancelled on controller disposal.
 - The expanded GitHub Actions workflow adds Flutter widget tests and analysis,
   backend syntax/integration checks, Android APK build/artifact upload, and
-  Windows backend tests/package. Run [42370867151](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42370867151)
-  passed Ubuntu backend tests and Flutter widget/analyzer checks. Its Windows
-  integration test initially found that the runner lacked SQLite on PATH; the
-  workflow now installs the pinned SQLite CLI before testing. A follow-up run
-  is pending.
+  Windows backend tests/package. Run [42371103365](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42371103365)
+  passed all three jobs: Flutter tests/analysis and Android debug APK, Ubuntu
+  backend syntax/integration tests, and Windows backend tests plus packaging.
+  Windows CI now installs the pinned SQLite CLI before integration tests.
+- Run 45 uploaded the Android debug APK and Windows backend ZIP as Actions
+  artifacts. They are available from the run page for 14 and 30 days,
+  respectively. The local APK is at
+  `build/app/outputs/flutter-apk/app-debug.apk`.
 
 - [ANDROID_BUILD_2026-11-06.md](ANDROID_BUILD_2026-11-06.md) records a successful
   root Flutter release APK build (52.8 MB) and SHA-256
@@ -123,13 +126,11 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 
 ## Suggested continuation
 
-1. Review the GitHub Actions run after pushing; fix any platform-specific build
-   or Windows packaging failures and rerun the affected job.
-2. Exercise production phone/email and bidirectional QR SSO on an Android
+1. Exercise production phone/email and bidirectional QR SSO on an Android
    emulator and browser; demo mode intentionally bypasses those screens.
-3. Verify the crop package on a real existing database and evaluate the
+2. Verify the crop package on a real existing database and evaluate the
    low-literacy workflow with Botswana farmers before claiming usability.
-4. Keep the prototype on a controlled local network. Plain HTTP and unscoped
+3. Keep the prototype on a controlled local network. Plain HTTP and unscoped
    global monitor APIs are not intended for exposure.
 
 ## Project documentation

@@ -19,13 +19,14 @@
 | Backend tests | Pass | Five checks cover authenticator codes, existing-database crop migration, demo mode HTTP integration, crop catalog groups, tokenless crop CRUD, disabled auth endpoints and dashboard inline JavaScript syntax. |
 | Backend syntax | Pass | `npm run check` validates server and database JavaScript. |
 | Diff whitespace | Pass | `git diff --check`. |
-| GitHub Actions run 44 | Partial | Ubuntu backend tests and Flutter tests/analysis passed. Windows revealed its SQLite CLI was unavailable; the workflow now provisions it before running integration tests. Android build and follow-up run are pending. |
+| GitHub Actions run 45 | Pass | Flutter tests/analysis and Android debug APK; Ubuntu backend syntax/integration tests; Windows backend integration tests and packaged app build. [Run details and artifacts](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42371103365). |
 
 During validation, the HTTP smoke test exposed an SQLite CLI output-buffer
 overflow when startup loaded trend history for the expanded crop catalog. The
 buffer is now 32 MB. The widget test exposed an event-stream retry timer that
 survived widget disposal; the timer is now cancellable and disposal is covered
-by the passing widget test.
+by the passing widget test. Run 44 first exposed a missing SQLite CLI on the
+Windows runner. Run 45 provisions it and all three jobs pass.
 
 ## Later unverified crop-package edits
 
