@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Threshold;
 
 import 'api_service.dart';
 import 'models.dart';
@@ -310,7 +310,7 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
                 controller: labelController,
                 autofocus: true,
                 maxLength: 80,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Location name',
                   hintText: 'e.g. Main store',
                   errorText: labelError,
