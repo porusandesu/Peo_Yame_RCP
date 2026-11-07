@@ -23,13 +23,19 @@ void main() {
 
     expect(find.text('Mr Lesego Lefoko'), findsOneWidget);
     expect(find.textContaining('Shared Demo profile'), findsOneWidget);
-    expect(find.text('Readings will appear here when the monitor connects.'), findsOneWidget);
+    expect(
+      find.text('Readings will appear here when the monitor connects.'),
+      findsOneWidget,
+    );
     expect(find.text('My Crops'), findsOneWidget);
 
     await tester.tap(find.text('My Crops'));
     await tester.pump();
     expect(find.textContaining('Shared demo crop catalog'), findsOneWidget);
-    expect(find.textContaining('No crop locations or linked physical sensors'), findsOneWidget);
+    expect(
+      find.textContaining('No crop locations or linked physical sensors'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Alerts').last);
     await tester.pump(const Duration(milliseconds: 500));
@@ -45,18 +51,42 @@ void main() {
   ) async {
     var showQrRequested = false;
     var scanRequested = false;
-    await tester.pumpWidget(MaterialApp(
-      home: AccountsScreen(
-        name: 'Lesego Farmer',
-        email: 'lesego@example.test',
-        phone: '+26771234567',
-        isDemo: false,
-        onLogout: () {},
-        onDestinationSelected: (_) {},
-        onShowSignInQr: () => showQrRequested = true,
-        onScanSignInQr: () => scanRequested = true,
+    var locationsRequested = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => AccountsScreen(
+                    name: 'Lesego Farmer',
+                    email: 'lesego@example.test',
+                    phone: '+26771234567',
+                    isDemo: false,
+                    onLogout: () {},
+                    onDestinationSelected: (_) {},
+                    onShowSignInQr: () => showQrRequested = true,
+                    onScanSignInQr: () => scanRequested = true,
+                    onManageLocations: () => locationsRequested = true,
+                  ),
+                ),
+              ),
+              child: const Text('Open account'),
+            ),
+          ),
+        ),
       ),
-    ));
+    );
+
+    await tester.tap(find.text('Open account'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Manage linked sensors'));
+    await tester.tap(find.text('Manage linked sensors'));
+    await tester.pumpAndSettle();
+    expect(locationsRequested, isTrue);
+    await tester.tap(find.text('Open account'));
+    await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('Show sign-in QR code'));
     await tester.tap(find.text('Show sign-in QR code'));

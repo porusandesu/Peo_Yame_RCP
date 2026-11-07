@@ -753,6 +753,9 @@ class _DashboardPageState extends State<DashboardPage> {
           },
           onShowSignInQr: widget.token == null ? null : _showSignInQr,
           onScanSignInQr: widget.token == null ? null : _scanBrowserLoginQr,
+          onManageLocations: widget.token == null ? null : () {
+            if (mounted) setState(() => _selectedTab = 2);
+          },
         ),
       ),
     );
@@ -1206,6 +1209,15 @@ class _DashboardPageState extends State<DashboardPage> {
       style: const TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 12),
+    if (widget.token != null) ...[
+      FarmerLocationsPanel(
+        baseUrl: _controller.baseUrl,
+        token: widget.token!,
+        crops: _controller.crops,
+        accountRevision: _controller.farmerAccountRevision,
+      ),
+      const SizedBox(height: 18),
+    ],
     if (widget.token == null)
       const _SimulationBanner(),
     if (widget.token == null) ...[

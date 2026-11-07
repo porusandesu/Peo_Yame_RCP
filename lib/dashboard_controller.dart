@@ -45,6 +45,7 @@ class DashboardController extends ChangeNotifier {
   Completer<void>? _eventDisconnect;
   bool _disposed = false;
   bool _connectingEvents = false;
+  int farmerAccountRevision = 0;
   int _refreshGeneration = 0;
   bool _refreshInFlight = false;
   bool _refreshQueued = false;
@@ -95,6 +96,10 @@ class DashboardController extends ChangeNotifier {
             (event) {
               if (_disposed) return;
               if (event['type'] == 'crops') unawaited(loadCrops());
+              if (event['type'] == 'account') {
+                farmerAccountRevision++;
+                notifyListeners();
+              }
               unawaited(_refresh());
             },
             onError: (Object _, StackTrace __) {

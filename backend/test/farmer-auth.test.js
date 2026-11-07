@@ -226,6 +226,21 @@ test("phone account registration, password login, session restore, logout, and d
     headers: { authorization: `Bearer ${otherFarmer.token}` },
   });
   assert.equal(foreignDelete.status, 404);
+  const unlinkSensor = await fetch(`${base}/api/farmer/sensors/sensor-001`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${created.token}` },
+  });
+  assert.equal(unlinkSensor.status, 200);
+  const deleteOwnSite = await fetch(`${base}/api/farmer/crops/${site.id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${created.token}` },
+  });
+  assert.equal(deleteOwnSite.status, 200);
+  assert.deepEqual(await webSessionSites(base, created.token), []);
+  const unlinkedAvailable = await fetch(`${base}/api/farmer/available-sensors`, {
+    headers: { authorization: `Bearer ${created.token}` },
+  });
+  assert.ok((await unlinkedAvailable.json()).some((sensor) => sensor.sensorId === "sensor-001"));
 
   const badLogin = await fetch(`${base}/api/auth/login`, {
     method: "POST",

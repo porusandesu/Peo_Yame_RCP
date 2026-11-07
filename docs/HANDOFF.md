@@ -3,7 +3,7 @@
 **Updated:** 2026-11-07 (Africa/Gaborone)
 **Repository:** `/home/porusandesu/Documents/storage_monitor_flutter`
 **Active branch:** `pauls-branch`
-**HEAD:** `8c60742` (`Enable Demo controls immediately on entry`)
+**HEAD before current work:** `7538d60` (`Record verified sync and account QR flows`)
 **Remote:** `origin/pauls-branch` is at the same commit.
 **Reference inventory:** `exe-work` at `c8926b7`; merge base with this branch is `65d308c`.
 **Current state:** Demo parity, brand restoration, backend auth, web flows, and Windows package changes are committed and pushed. The latest GitHub Actions run passed. Remaining parity gaps and limits are listed below; physical-device and live-sensor end-to-end behavior are not verified.
@@ -68,7 +68,7 @@ Do these in order, updating this handoff as tasks finish:
 ### 3. Finish mobile feature parity
 
 - Five destinations now appear in this order: **Overview, Trends, My Crops, Alerts, Settings**, with **My Crops in the center**. Demo catalog and crop selection use shared APIs; the Flutter widget test and APK build pass in run `42388143703`.
-- Mobile farmer-owned site creation/deletion and sensor discovery/assignment/unlink still need implementation. Keep these separate from Demo's shared catalog.
+- Mobile farmer-owned site creation/deletion and real-sensor discovery/assignment/unlink are implemented in the current unverified increment. They remain separate from Demo's shared catalog; do not expose fabricated sensors.
 - Existing scanner exchanges phone QR while signed out and approves browser QR only from authenticated phone. Verify backend URL/token preservation and scanner/client disposal. Add reverse mobile QR flow if needed by UX.
 - Hook profile edit/settings to backend (or remove nonfunctional buttons). Sign-out should revoke session and clear saved token even if server unreachable.
 - Check phone UI for Botswana formatting, errors, password validation, loading, keyboard behavior, saved backend address, app lifecycle, camera permission/denial and QR expiry. Demo must work even if backend check times out.
@@ -124,3 +124,7 @@ The application changes are committed at `8c60742`; the documentation update is 
 ## 2026-11-07 sync and Accounts QR follow-up
 
 The user asked that web/mobile reflect the same backend data at the same time and that Accounts expose a sign-in QR. The clients already use one backend and listen to its SSE update stream; the mobile controller keeps polling as a fallback. This follow-up names selection, alert-review and account changes in the stream, makes the browser reload owner-scoped account data on those events, and adds integration assertions for two simultaneous clients receiving matching update IDs and snapshots. The mobile Accounts screen now offers a one-use QR for another phone and a scanner action to approve browser sign-in. QR payloads can carry a validated backend origin, and the scanner confirms a backend switch before exchanging a mobile sign-in code. CI run [42391735676](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42391735676) passed on commit `5a61725`; backend/Linux and Windows integration checks, Flutter tests/analysis, Android APK and Windows package jobs all passed. Device camera/visual checks and the documented mobile crop/sensor management gap remain.
+
+## 2026-11-07 mobile crop and sensor management
+
+The mobile My Crops view now loads farmer-owned storage locations, adds a crop/location from the shared catalog, and deletes a location with confirmation. It lists linked sensor IDs and their last reading timestamps, links only IDs detected from actual backend sensor readings to an owned location, and supports unlinking. The Accounts page routes My Crops and Manage linked sensors to this panel. Mobile reloads owner data on `account` SSE updates; polling remains the dashboard fallback. Backend tests now cover owned deletion, unlink, and sensor rediscovery after unlink; Flutter coverage exercises Accounts navigation. This increment is pending GitHub Actions. Physical sensor connectivity and device-level visuals remain unverified.
