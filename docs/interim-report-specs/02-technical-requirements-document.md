@@ -1,5 +1,7 @@
 # Technical Requirements Document (TRD)
 
+> **Historical planning snapshot (24 October 2026).** Route and authentication status here predates the current implementation. For current contracts and verified behavior, see the [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md).
+
 **System:** Peo Yame low-cost storage-monitoring prototype
 **Document purpose:** Technical baseline, interface contracts and report traceability
 **Status:** Working specification based on the top-level checkout inspected 24 October 2026. The code is authoritative for current behavior; older architecture/audit notes may describe a previous revision.

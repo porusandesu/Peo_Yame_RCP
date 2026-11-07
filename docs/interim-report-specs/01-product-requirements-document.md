@@ -1,5 +1,7 @@
 # Product Requirements Document (PRD)
 
+> **Historical planning snapshot (24 October 2026).** Its implementation-status passages predate the current account, email/password, persistent session and signed-in QR pairing work. Use the current [README](../../README.md), [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md) for implementation claims; retain this file for requirements history.
+
 **Product:** Peo Yame — low-cost post-harvest storage monitoring prototype
 **Project:** Development of a Low-Cost IoT-Based Post-Harvest Storage Monitoring and Spoilage-Risk Alert System for Small Agricultural Aggregators in Botswana
 **Module:** C7-RCP-23 Research Capstone Project

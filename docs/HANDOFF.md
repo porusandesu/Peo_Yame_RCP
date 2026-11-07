@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `e2161c6` — `Improve farmer sign-in and center mobile crops tab`.
+- Latest committed revision reviewed: `1c85d58` — `Record farmer sign-in validation in handoff`.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -16,14 +16,14 @@ farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
 for the recent commit history and current local work.
 
-Commit `e2161c6` centers **My Crops** in the five-tab mobile
+Code commit `e2161c6` centers **My Crops** in the five-tab mobile
 navigation, makes refresh compact, and tolerates two missed 20-second backend
 polls before showing offline. Mobile sign-in is QR-only: the one-use,
 two-minute pairing QR is issued only by an authenticated web account. The
 signed-out mobile page does not accept a phone/PIN or ask the user to configure
 a backend address.
 
-The web login follow-up adds email/password sign-in, password setup after phone
+The same code commit adds web email/password sign-in, password setup after phone
 verification for accounts without credentials, and a demo-only skip for phone
 verification and credential setup. Passwords use Node's scrypt with random
 salts; the demo PIN is no longer returned to the browser. The login page's
@@ -83,13 +83,13 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 
 ## Suggested continuation
 
-1. Exercise signed-out mobile backend pairing, farmer registration and OTP on
-   an emulator and physical phone; then verify that profile and crop changes
-   appear in both clients while connected to the same backend.
-2. Verify the OTP flow in the browser and the tray menu on Windows after the
-   current edits pass GitHub Actions.
-3. Keep the prototype on a controlled demo network: it uses plain HTTP and
-   local demo OTP behavior.
+1. Exercise the complete browser login, demo skip, credential setup, and
+   email/password flows in an interactive browser.
+2. Exercise QR pairing on an Android emulator and physical phone; verify that
+   profile and crop assignments sync between clients on the same backend.
+3. Exercise the packaged Windows tray menu interactively.
+4. Keep the prototype on a controlled local network. Plain HTTP and unscoped
+   global monitor APIs are not intended for exposure.
 
 ## Project documentation
 

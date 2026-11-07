@@ -1,5 +1,7 @@
 # Backend Schema, Security Design and Threat Model
 
+> **Historical planning snapshot (24 October 2026).** Its schema and authentication inventory predates farmer accounts, password hashes, persisted session hashes and signed-in one-use QR pairing. Use the current [architecture](../ARCHITECTURE.md) and [risk register](../RISK_REGISTER.md) for live implementation/security claims.
+
 **System:** Peo Yame low-cost storage-monitoring prototype
 **Status:** Current SQLite schema transcribed from backend/database.js; volatile entities from backend/server.js. Future tables and controls are proposals, not present implementation.
 **Reviewed:** 24 October 2026.

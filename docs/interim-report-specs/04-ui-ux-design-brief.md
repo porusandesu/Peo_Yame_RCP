@@ -1,5 +1,7 @@
 # UI/UX Design Brief
 
+> **Historical planning snapshot (24 October 2026).** Current account and navigation behavior has changed since this design brief. Refer to the [current walkthrough](../../walkthrough.md) and [README](../../README.md) before using it to describe the shipped UI.
+
 **Product:** Peo Yame storage monitoring web and Flutter mobile prototype
 **Audience:** Small agricultural aggregator staff, project demonstrators and evaluators
 **Purpose:** Document current visual language and screen behavior for Interim Report 2

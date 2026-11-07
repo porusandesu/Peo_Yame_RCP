@@ -1,5 +1,7 @@
 # App Flow and User Flows
 
+> **Historical planning snapshot (24 October 2026).** The OTP/account flow descriptions below predate the current implementation. Mobile now signs in by scanning a one-use QR issued from an authenticated web account; web supports phone verification and email/password. See the [current walkthrough](../../walkthrough.md) and [architecture](../ARCHITECTURE.md).
+
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Describe current user journeys and target flows for Interim Report 2 design/evaluation
 **Status:** Current screen names and actions were inspected in the top-level Flutter app. Flow diagrams are explanatory specifications, not proof that every path was tested.

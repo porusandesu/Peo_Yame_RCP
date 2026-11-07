@@ -1,5 +1,7 @@
 # Implementation Plan — Front End and Back End
 
+> **Historical planning snapshot (24 October 2026).** Tasks and implementation status reflect an earlier checkout. Reconcile completion claims with current code and the [test report](../TEST_REPORT.md); keep this file as planning history.
+
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Turn requirements into a staged, demonstrable plan for Interim Report 2.
 **Status:** Working plan aligned to the current top-level Flutter/Express checkout. Dates and owners must be agreed by Group 3 and reconciled with the official schedule. A task is not complete merely because code exists; collect run evidence.

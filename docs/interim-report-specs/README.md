@@ -1,5 +1,15 @@
 # Peo Yame Interim Report Specification Pack
 
+> **Snapshot notice (7 Nov 2026):** These specifications were drafted from an
+> October prototype and retain historical flow/schema descriptions. The live
+> application now has SQLite-backed farmer accounts and assignments,
+> email/password web sign-in, demo-only phone-verification skip, authenticated
+> one-use web-to-mobile QR pairing, and a five-tab Flutter navigation with My
+> Crops centered. Use the repository [README](../../README.md),
+> [architecture](../ARCHITECTURE.md), [handoff](../HANDOFF.md), and
+> [test report](../TEST_REPORT.md) for current runtime behavior. The documents
+> in this folder are planning/reporting artifacts, not a current user guide.
+
 This folder contains six detailed Markdown documents to support product, design, technical implementation and evidence planning for the Peo Yame C7-RCP-23 capstone.
 
 ## Documents

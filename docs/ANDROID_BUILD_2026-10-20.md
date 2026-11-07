@@ -1,5 +1,7 @@
 # Android release build evidence
 
+> Historical evidence for the nested `flutter_application_1` project from 20 October 2026. It does not describe or validate the current top-level Flutter application; see the [current test report](TEST_REPORT.md).
+
 **Date:** 20 October 2026
 **Project:** `flutter_application_1` on branch `pauls-branch`
 **Flutter:** 3.47.7
