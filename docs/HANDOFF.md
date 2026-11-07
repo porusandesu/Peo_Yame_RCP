@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `e64fd93` — `Add Windows backend tray controls and clarify OTP feedback`.
+- Latest committed revision reviewed: `633e9af` — `Update handoff with tray and OTP validation`.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -15,6 +15,28 @@ The committed application includes QR pairing and cross-device account refresh,
 farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
 for the recent commit history and current local work.
+
+Uncommitted follow-up work now centers **My Crops** in the five-tab mobile
+navigation, makes refresh compact, and tolerates two missed 20-second backend
+polls before showing offline. Mobile sign-in is QR-only: the one-use,
+two-minute pairing QR is issued only by an authenticated web account. The
+signed-out mobile page does not accept a phone/PIN or ask the user to configure
+a backend address.
+
+The web login follow-up adds email/password sign-in, password setup after phone
+verification for accounts without credentials, and a demo-only skip for phone
+verification and credential setup. Passwords use Node's scrypt with random
+salts; the demo PIN is no longer returned to the browser. The login page's
+**Sign in with QR code** section explains mobile pairing; the actual QR remains
+behind the signed-in web session. Email is part of farmer account records and
+is migrated for existing databases. See the latest section in
+[changes-2026-11-07.md](changes-2026-11-07.md) for validation status.
+
+The latest local checks passed the Flutter widget test, backend authenticator
+test, JavaScript syntax checks (including the web page's inline script), and an
+isolated backend flow covering demo skip, credential setup and password login.
+`dart analyze lib` reports no errors and 14 style/context lint infos.
+The login flow has not been exercised in an interactive browser.
 
 Commit `e64fd93` adds a Windows notification-area menu with web panel launch,
 backend restart and shutdown, and application exit actions. OTP verification
@@ -32,11 +54,9 @@ exercised interactively on devices.
 
 Account records, crop locations, sensor assignments, and sessions live in the
 backend SQLite database. Web and mobile clients see the same data when they use
-the same running backend and sign into the same phone-number account. Separate
-backend instances have separate databases. The mobile default URL
-`http://10.0.2.2:3000` is for an Android emulator; on a phone, pair from the web
-app's **Connect mobile app** window or enter the reachable backend address on
-the signed-out screen.
+the same running backend. Separate backend instances have separate databases.
+For physical phones, create the QR in **Connect mobile app** after signing into
+the web app. The Android emulator default URL is `http://10.0.2.2:3000`.
 
 Recent project notes describe Windows backend packaging, mobile QR pairing and
 sign-in, farmer accounts and crop sensor assignments, app reconnect handling,

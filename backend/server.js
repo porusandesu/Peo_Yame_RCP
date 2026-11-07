@@ -16,6 +16,7 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("node:crypto");
+const { promisify } = require("node:util");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -43,10 +44,27 @@ const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
 const otpChallenges = new Map();
+const mobileLoginChallenges = new Map();
 const authenticatorFailures = new Map();
+const passwordFailures = new Map();
+const scryptAsync = promisify(crypto.scrypt);
 
 function sessionHash(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+function publicFarmer(farmer) {
+  return {
+    id: farmer.id,
+    name: farmer.name,
+    phone: farmer.phone,
+    email: farmer.email || "",
+    passwordEnabled: Boolean(farmer.passwordEnabled),
+  };
+}
+function createSession(farmer) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  cropDatabase.createFarmerSession(sessionHash(token), farmer.id, Date.now() + 7 * 24 * 60 * 60 * 1000);
+  return { token, expiresInSeconds: 604800, farmer: publicFarmer(farmer) };
 }
 
 function normalizePhone(value) {
@@ -62,14 +80,44 @@ function farmerFromRequest(req) {
 }
 function requireFarmer(req, res, next) {
   req.farmer = farmerFromRequest(req);
-  if (!req.farmer) return res.status(401).json({ error: "Sign in with your phone and one-time PIN to continue." });
+  if (!req.farmer) return res.status(401).json({ error: "Sign in to your farmer account to continue." });
   next();
 }
+
+app.post("/api/account/mobile-login-qr", requireFarmer, (req, res) => {
+  const now = Date.now();
+  for (const [challenge, entry] of mobileLoginChallenges) {
+    if (entry.expiresAt <= now || entry.accountId === req.farmer.id) {
+      mobileLoginChallenges.delete(challenge);
+    }
+  }
+  const challenge = crypto.randomBytes(32).toString("base64url");
+  mobileLoginChallenges.set(challenge, {
+    accountId: req.farmer.id,
+    expiresAt: now + 2 * 60 * 1000,
+  });
+  res.json({ challenge, expiresInSeconds: 120 });
+});
+
+app.post("/api/auth/mobile-qr", (req, res) => {
+  const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
+  const entry = mobileLoginChallenges.get(challenge);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    mobileLoginChallenges.delete(challenge);
+    return res.status(401).json({ error: "This sign-in QR expired or was already used. Create a new QR from your signed-in web account." });
+  }
+  mobileLoginChallenges.delete(challenge);
+  const farmer = cropDatabase.findFarmerById(entry.accountId);
+  if (!farmer) return res.status(404).json({ error: "The farmer account for this QR was not found." });
+  res.json(createSession(farmer));
+});
 
 app.post("/api/auth/request-otp", (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().slice(0, 254) : "";
   if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address or leave it blank." });
   const farmer = cropDatabase.findFarmer(phone);
   if (farmer?.authenticatorEnabled) return res.json({ sent: true, phone, authenticatorRequired: true, expiresInSeconds: 30 });
   if (!isDemoMode) return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
@@ -77,10 +125,8 @@ app.post("/api/auth/request-otp", (req, res) => {
   const previous = otpChallenges.get(phone);
   if (previous && Date.now() - previous.createdAt < 30000) return res.status(429).json({ error: "Please wait 30 seconds before requesting another PIN." });
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-  otpChallenges.set(phone, { hash: crypto.createHash("sha256").update(code).digest("hex"), name, createdAt: Date.now(), attempts: 0 });
-  const payload = { sent: true, phone, expiresInSeconds: 300, delivery: "demo" };
-  if (isDemoMode) payload.demoCode = code;
-  res.json(payload);
+  otpChallenges.set(phone, { hash: crypto.createHash("sha256").update(code).digest("hex"), name, email, createdAt: Date.now(), attempts: 0 });
+  res.json({ sent: true, phone, expiresInSeconds: 300, delivery: isDemoMode ? "demo-skip-available" : "sms" });
 });
 
 app.post("/api/auth/verify-otp", (req, res) => {
@@ -111,12 +157,73 @@ app.post("/api/auth/verify-otp", (req, res) => {
     if (!/^\d{6}$/.test(code) || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(challenge.hash))) {
       return res.status(401).json({ error: "That PIN is incorrect. Check it and try again." });
     }
-    if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name);
+    if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name, challenge.email);
     otpChallenges.delete(phone);
   }
-  const token = crypto.randomBytes(32).toString("base64url");
-  cropDatabase.createFarmerSession(sessionHash(token), farmer.id, Date.now() + 7 * 24 * 60 * 60 * 1000);
-  res.json({ token, expiresInSeconds: 604800, farmer });
+  res.json(createSession(farmer));
+});
+
+app.post("/api/auth/demo/skip-verification", (req, res) => {
+  if (!isDemoMode) return res.status(404).json({ error: "Demo verification is unavailable." });
+  const phone = normalizePhone(req.body?.phone);
+  const challenge = otpChallenges.get(phone);
+  if (!challenge || Date.now() - challenge.createdAt > 300000 || challenge.attempts >= 5) {
+    otpChallenges.delete(phone);
+    return res.status(401).json({ error: "The demo sign-in expired. Start again." });
+  }
+  let farmer = cropDatabase.findFarmer(phone);
+  if (farmer?.authenticatorEnabled) return res.status(401).json({ error: "Use your authenticator code to verify this account." });
+  if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name, challenge.email);
+  otpChallenges.delete(phone);
+  res.json(createSession(farmer));
+});
+
+app.post("/api/auth/password", async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  for (const [entryKey, entry] of passwordFailures) {
+    if (Date.now() - entry.startedAt >= 300000) passwordFailures.delete(entryKey);
+  }
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length > 128) {
+    return res.status(401).json({ error: "Email or password is incorrect." });
+  }
+  const key = crypto.createHash("sha256").update(email).digest("hex");
+  const failures = passwordFailures.get(key);
+  if (failures && Date.now() - failures.startedAt < 300000 && failures.count >= 5) {
+    return res.status(429).json({ error: "Too many sign-in attempts. Wait five minutes and try again." });
+  }
+  const farmer = cropDatabase.findFarmerByEmail(email);
+  const candidate = farmer && password
+    ? await scryptAsync(password, farmer.passwordSalt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })
+    : Buffer.alloc(64);
+  const expected = farmer ? Buffer.from(farmer.passwordHash, "hex") : Buffer.alloc(64);
+  if (!farmer || !password || candidate.length !== expected.length || !crypto.timingSafeEqual(candidate, expected)) {
+    const next = failures && Date.now() - failures.startedAt < 300000 ? failures : { startedAt: Date.now(), count: 0 };
+    next.count++;
+    passwordFailures.set(key, next);
+    return res.status(401).json({ error: "Email or password is incorrect." });
+  }
+  passwordFailures.delete(key);
+  res.json(createSession(farmer));
+});
+
+app.put("/api/account/credentials", requireFarmer, async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+  if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({ error: "Use a password between 8 and 128 characters." });
+  }
+  const existing = cropDatabase.findFarmerByEmailAddress(email);
+  if (existing && existing.id !== req.farmer.id) {
+    return res.status(409).json({ error: "That email address is already linked to another account." });
+  }
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = (await scryptAsync(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })).toString("hex");
+  const farmer = cropDatabase.updateFarmerCredentials(req.farmer.id, email, salt, hash);
+  res.json(publicFarmer(farmer));
 });
 
 app.get("/api/account/authenticator", requireFarmer, (req, res) => {
@@ -161,10 +268,14 @@ app.post("/api/auth/logout", requireFarmer, (req, res) => {
 app.patch("/api/account", requireFarmer, (req, res) => {
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const phone = normalizePhone(req.body?.phone ?? req.farmer.phone);
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : req.farmer.email || "";
   if (!name || name.length > 80) return res.status(400).json({ error: "Enter a name up to 80 characters." });
   if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
+  if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return res.status(400).json({ error: "Enter a valid email address or leave it blank." });
+  const emailOwner = email ? cropDatabase.findFarmerByEmailAddress(email) : null;
+  if (emailOwner && emailOwner.id !== req.farmer.id) return res.status(409).json({ error: "That email address is already linked to another account." });
   try {
-    const farmer = cropDatabase.updateFarmerAccount(req.farmer.id, name, phone);
+    const farmer = cropDatabase.updateFarmerAccount(req.farmer.id, name, phone, email);
     if (!farmer) return res.status(404).json({ error: "Farmer account was not found." });
     broadcastUpdate("farmer-account");
     return res.json(farmer);

@@ -19,9 +19,6 @@ const _header = Color(0xFF10251F);
 const _canvas = Color(0xFFF3F7F3);
 const _ink = Color(0xFF172923);
 
-String _normalizePhone(Object? value) =>
-    value is String ? value.replaceAll(RegExp(r'[\s().-]'), '') : '';
-
 bool _isPrivateIpv4Address(String host) {
   final parts = host.split('.').map(int.tryParse).toList();
   if (parts.length != 4 ||
@@ -99,10 +96,6 @@ class _AppGate extends StatefulWidget {
 class _AppGateState extends State<_AppGate> {
   final ApiService _authApi = ApiService();
   AccountInfo? _account;
-  String? _pendingPhone;
-  String _pendingFarmerName = '';
-  String? _pendingDemoCode;
-  bool _authenticatorRequired = false;
   bool _loadingSession = true;
 
   @override
@@ -123,6 +116,7 @@ class _AppGateState extends State<_AppGate> {
         _account = AccountInfo(
           name: farmer['name'] as String,
           phone: farmer['phone'] as String,
+          email: farmer['email'] as String? ?? '',
         );
       }
     } catch (_) {
@@ -130,26 +124,6 @@ class _AppGateState extends State<_AppGate> {
     }
     if (mounted) setState(() => _loadingSession = false);
   }
-
-  void _requestCode(
-    DemoSignInRequest request,
-    String? demoCode, {
-    bool authenticatorRequired = false,
-  }) {
-    setState(() {
-      _pendingPhone = request.phone;
-      _pendingFarmerName = request.name;
-      _pendingDemoCode = demoCode;
-      _authenticatorRequired = authenticatorRequired;
-    });
-  }
-
-  void _backToLogin() => setState(() {
-    _pendingPhone = null;
-    _pendingFarmerName = '';
-    _pendingDemoCode = null;
-    _authenticatorRequired = false;
-  });
 
   Future<void> _connectBackend(String address) async {
     final previousAddress = _authApi.baseUrl;
@@ -171,90 +145,6 @@ class _AppGateState extends State<_AppGate> {
     }
   }
 
-  Future<void> _configureBackendFromLogin() async {
-    final controller = TextEditingController();
-    var validationMessage = '';
-    final address = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Connect to your monitor'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              hintText: '192.168.1.42:3000',
-              helperText:
-                  'Use the address shown in the web app’s Connect mobile app window.',
-              errorText: validationMessage.isEmpty ? null : validationMessage,
-            ),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: () async {
-                final scanned = await Navigator.of(dialogContext).push<String>(
-                  MaterialPageRoute<String>(
-                    builder: (_) => const _BackendQrScannerPage(),
-                  ),
-                );
-                if (scanned != null) {
-                  controller.text = scanned;
-                  setDialogState(() => validationMessage = '');
-                }
-              },
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: const Text('Scan QR code'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = normalizeApiBaseUrl(controller.text);
-                final uri = Uri.tryParse(value);
-                if (uri == null ||
-                    uri.host.isEmpty ||
-                    !['http', 'https'].contains(uri.scheme) ||
-                    (uri.path.isNotEmpty && uri.path != '/') ||
-                    uri.hasQuery ||
-                    uri.hasFragment) {
-                  setDialogState(() {
-                    validationMessage =
-                        'Enter a server address such as 192.168.1.42:3000.';
-                  });
-                  return;
-                }
-                Navigator.pop(dialogContext, value);
-              },
-              child: const Text('Connect'),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    if (address == null || !mounted) return;
-    try {
-      await _connectBackend(address);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Connected to the monitor. Sign in or create your farmer account.',
-            ),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    }
-  }
-
   Future<void> _backendChanged(String address) async {
     final nextAddress = normalizeApiBaseUrl(address);
     final changed = _authApi.baseUrl != nextAddress;
@@ -266,16 +156,27 @@ class _AppGateState extends State<_AppGate> {
     if (!mounted) return;
     setState(() {
       _account = null;
-      _pendingPhone = null;
-      _pendingFarmerName = '';
-      _pendingDemoCode = null;
-      _authenticatorRequired = false;
     });
   }
 
-  Future<void> _continueDemo(String code) async {
-    final phone = _pendingPhone ?? '';
-    final farmer = await _authApi.verifyOtp(phone: phone, code: code);
+  Future<void> _signInWithQr() async {
+    final raw = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
+    );
+    if (raw == null) return;
+    final data = jsonDecode(raw) as Map<String, dynamic>;
+    final backendUrl = data['backend'] as String;
+    final backend = Uri.tryParse(backendUrl);
+    if (data['type'] != 'peo-yame-mobile-login' ||
+        backend == null ||
+        backend.host.isEmpty ||
+        data['challenge'] is! String) {
+      throw Exception('This is not a valid mobile sign-in QR code.');
+    }
+    await _connectBackend(backendUrl);
+    final farmer = await _authApi.signInWithMobileQr(
+      challenge: data['challenge'] as String,
+    );
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('farmer_auth_token', _authApi.authToken!);
     if (!mounted) return;
@@ -283,11 +184,8 @@ class _AppGateState extends State<_AppGate> {
       _account = AccountInfo(
         name: farmer['name'] as String,
         phone: farmer['phone'] as String,
+        email: farmer['email'] as String? ?? '',
       );
-      _pendingPhone = null;
-      _pendingFarmerName = '';
-      _pendingDemoCode = null;
-      _authenticatorRequired = false;
     });
   }
 
@@ -300,20 +198,21 @@ class _AppGateState extends State<_AppGate> {
     if (mounted)
       setState(() {
         _account = null;
-        _pendingPhone = null;
-        _pendingFarmerName = '';
-        _pendingDemoCode = null;
-        _authenticatorRequired = false;
       });
   }
 
-  Future<void> _editProfile(String name, String phone) async {
-    final farmer = await _authApi.updateAccount(name: name, phone: phone);
+  Future<void> _editProfile(String name, String phone, String email) async {
+    final farmer = await _authApi.updateAccount(
+      name: name,
+      phone: phone,
+      email: email,
+    );
     if (!mounted) return;
     setState(
       () => _account = AccountInfo(
         name: farmer['name'] as String,
         phone: farmer['phone'] as String,
+        email: farmer['email'] as String? ?? '',
       ),
     );
   }
@@ -323,13 +222,15 @@ class _AppGateState extends State<_AppGate> {
       final farmer = await _authApi.getAccount();
       if (!mounted ||
           (_account?.name == farmer['name'] &&
-              _account?.phone == farmer['phone'])) {
+              _account?.phone == farmer['phone'] &&
+              _account?.email == (farmer['email'] as String? ?? ''))) {
         return;
       }
       setState(
         () => _account = AccountInfo(
           name: farmer['name'] as String,
           phone: farmer['phone'] as String,
+          email: farmer['email'] as String? ?? '',
         ),
       );
     } catch (_) {
@@ -361,207 +262,22 @@ class _AppGateState extends State<_AppGate> {
         onCreateCropSetup: _authApi.addFarmerCropWithSensors,
       );
     }
-    final pendingPhone = _pendingPhone;
-    if (pendingPhone != null) {
-      return OtpVerificationPage(
-        phone: pendingPhone,
-        demoCode: _pendingDemoCode,
-        authenticatorRequired: _authenticatorRequired,
-        onBack: _backToLogin,
-        onContinue: _continueDemo,
-        onResend: () async {
-          final result = await _authApi.requestOtp(
-            phone: pendingPhone,
-            name: _pendingFarmerName,
-          );
-          final code = result['demoCode'] as String?;
-          if (mounted) {
-            setState(() {
-              _pendingDemoCode = code;
-              _authenticatorRequired = result['authenticatorRequired'] == true;
-            });
-          }
-          return code;
-        },
-        onScanQr: () async {
-          final raw = await Navigator.of(context).push<String>(
-            MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
-          );
-          if (raw == null) return;
-          final data = jsonDecode(raw) as Map<String, dynamic>;
-          if (data['type'] != 'peo-yame-auth' ||
-              _normalizePhone(data['phone']) != _normalizePhone(pendingPhone) ||
-              data['backend'] is! String ||
-              data['code'] is! String)
-            throw Exception(
-              'This sign-in QR code is invalid or for a different phone.',
-            );
-          final backend = Uri.tryParse(data['backend'] as String);
-          if (backend == null ||
-              backend.host.isEmpty ||
-              !['http', 'https'].contains(backend.scheme))
-            throw Exception('The sign-in QR has an invalid backend address.');
-          await _connectBackend(data['backend'] as String);
-          await _continueDemo(data['code'] as String);
-        },
-      );
-    }
-    return _LoginSplash(
-      onScanSignInQr: () async {
-        final raw = await Navigator.of(context).push<String>(
-          MaterialPageRoute(builder: (_) => const _AuthQrScannerPage()),
-        );
-        if (raw == null) return;
-        final data = jsonDecode(raw) as Map<String, dynamic>;
-        final backend = Uri.tryParse(data['backend'] as String? ?? '');
-        if (data['type'] != 'peo-yame-auth' ||
-            backend == null ||
-            backend.host.isEmpty ||
-            data['phone'] is! String ||
-            data['code'] is! String)
-          throw Exception('This is not a valid sign-in QR code.');
-        await _connectBackend(data['backend'] as String);
-        _pendingPhone = data['phone'] as String;
-        _pendingFarmerName = '';
-        try {
-          await _continueDemo(data['code'] as String);
-        } catch (_) {
-          _pendingPhone = null;
-          _pendingFarmerName = '';
-          rethrow;
-        }
-      },
-      onConfigureBackend: _configureBackendFromLogin,
-      onContinue: (request) async {
-        try {
-          _authApi.baseUrl = normalizeApiBaseUrl(
-            (await SharedPreferences.getInstance()).getString(
-                  apiBaseUrlPreferenceKey,
-                ) ??
-                defaultApiBaseUrl,
-          );
-          final result = await _authApi.requestOtp(
-            phone: request.phone,
-            name: request.name,
-          );
-          _requestCode(
-            DemoSignInRequest(
-              name: request.name,
-              phone: result['phone'] as String,
-            ),
-            result['demoCode'] as String?,
-            authenticatorRequired: result['authenticatorRequired'] == true,
-          );
-        } catch (error) {
-          if (context.mounted)
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('$error')));
-        }
-      },
-    );
+    return _LoginSplash(onScanSignInQr: _signInWithQr);
   }
-}
-
-class DemoSignInRequest {
-  const DemoSignInRequest({required this.name, required this.phone});
-
-  final String name;
-  final String phone;
 }
 
 class AccountInfo {
-  const AccountInfo({required this.name, required this.phone});
+  const AccountInfo({required this.name, required this.phone, this.email = ''});
 
   final String name;
   final String phone;
+  final String email;
 }
 
-class _LoginSplash extends StatefulWidget {
-  const _LoginSplash({
-    required this.onContinue,
-    required this.onScanSignInQr,
-    required this.onConfigureBackend,
-  });
+class _LoginSplash extends StatelessWidget {
+  const _LoginSplash({required this.onScanSignInQr});
 
-  final Future<void> Function(DemoSignInRequest) onContinue;
   final Future<void> Function() onScanSignInQr;
-  final Future<void> Function() onConfigureBackend;
-
-  @override
-  State<_LoginSplash> createState() => _LoginSplashState();
-}
-
-class _LoginSplashState extends State<_LoginSplash> {
-  final _phoneController = TextEditingController(text: '71234567');
-  final _nameController = TextEditingController();
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  String get _phone => _phoneController.text;
-
-  String _formatPhone(String digits) {
-    if (digits.length <= 3) return digits;
-    return '${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}';
-  }
-
-  void _submit({String name = ''}) {
-    if (_phone.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enter the 8-digit phone number linked to your demo profile.',
-          ),
-        ),
-      );
-      return;
-    }
-    widget.onContinue(
-      DemoSignInRequest(name: name, phone: '+267 ${_formatPhone(_phone)}'),
-    );
-  }
-
-  Future<void> _createAccount() async {
-    _nameController.clear();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Create a demo profile'),
-        content: TextField(
-          controller: _nameController,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Farmer name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, _nameController.text.trim()),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || name == null) return;
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a name to continue with the demo profile.'),
-        ),
-      );
-      return;
-    }
-    _submit(name: name);
-  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -580,7 +296,7 @@ class _LoginSplashState extends State<_LoginSplash> {
                 const Icon(Icons.spa_outlined, size: 42, color: _forest),
                 const SizedBox(height: 16),
                 const Text(
-                  'Welcome back',
+                  'Sign in securely',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 23,
@@ -590,7 +306,7 @@ class _LoginSplashState extends State<_LoginSplash> {
                 ),
                 const SizedBox(height: 7),
                 const Text(
-                  'Your harvest, your sensors.\nAll in one place.',
+                  'Open the web app while signed in, choose “Connect mobile app”, then scan its QR code.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
@@ -606,446 +322,29 @@ class _LoginSplashState extends State<_LoginSplash> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const Text(
-                          'Log in to your account',
+                          'Connect your account',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(height: 13),
-                        const Text(
-                          'Mobile number',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF465A50),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(8),
-                          ],
-                          decoration: InputDecoration(
-                            prefixText: '+267  |  ',
-                            hintText: '71 234 567',
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAF8),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 13,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(11),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE6ECE7),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(11),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE6ECE7),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        const Text(
-                          'Use the number linked to your farmer account.',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Color(0xFF65776F),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                         FilledButton.icon(
-                          onPressed: () => _submit(),
-                          iconAlignment: IconAlignment.end,
-                          icon: const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 16,
-                          ),
-                          label: const Text('Continue with OTP'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _forest,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(44),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                          ),
-                        ),
-                        TextButton.icon(
                           onPressed: () async {
                             try {
-                              await widget.onScanSignInQr();
+                              await onScanSignInQr();
                             } catch (error) {
-                              if (mounted)
+                              if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Could not sign in: $error'),
                                   ),
                                 );
+                              }
                             }
                           },
-                          icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
                           label: const Text('Scan sign-in QR'),
-                        ),
-                        TextButton.icon(
-                          onPressed: widget.onConfigureBackend,
-                          icon: const Icon(Icons.router_outlined, size: 17),
-                          label: const Text('Connect to web backend'),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Sign in with a one-time PIN.\nNo password to remember.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 10,
-                            height: 1.4,
-                            color: Color(0xFF65776F),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: _createAccount,
-                  child: const Text(
-                    'New farmer? Create an account',
-                    style: TextStyle(
-                      color: _forest,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const _AuthDemoNotice(
-                  text:
-                      'A temporary PIN from the local backend appears on the next screen. Text-message delivery is not configured.',
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text(
-                    'Need help signing in? Get support',
-                    style: TextStyle(color: _forest, fontSize: 10),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class OtpVerificationPage extends StatefulWidget {
-  const OtpVerificationPage({
-    required this.phone,
-    required this.demoCode,
-    required this.authenticatorRequired,
-    required this.onBack,
-    required this.onContinue,
-    required this.onResend,
-    required this.onScanQr,
-    super.key,
-  });
-
-  final String phone;
-  final String? demoCode;
-  final bool authenticatorRequired;
-  final VoidCallback onBack;
-  final Future<void> Function(String code) onContinue;
-  final Future<String?> Function() onResend;
-  final Future<void> Function() onScanQr;
-
-  @override
-  State<OtpVerificationPage> createState() => _OtpVerificationPageState();
-}
-
-class _OtpVerificationPageState extends State<OtpVerificationPage> {
-  late final List<TextEditingController> _controllers;
-  late final List<FocusNode> _focusNodes;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(6, (_) => TextEditingController());
-    _focusNodes = List.generate(6, (_) => FocusNode());
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    for (final focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
-    super.dispose();
-  }
-
-  void _showDemoMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _verify() async {
-    final code = _controllers.map((controller) => controller.text).join();
-    try {
-      await widget.onContinue(code);
-    } catch (error) {
-      _showDemoMessage('$error');
-    }
-  }
-
-  void _fillDemoCode() {
-    final code = widget.demoCode;
-    if (code == null || code.length != 6) return;
-    for (var index = 0; index < _controllers.length; index++) {
-      _controllers[index].text = code[index];
-    }
-    setState(() {});
-  }
-
-  Future<void> _resendPin() async {
-    try {
-      final code = await widget.onResend();
-      for (final controller in _controllers) {
-        controller.clear();
-      }
-      if (!mounted) return;
-      setState(() {});
-      _showDemoMessage(
-        code == null
-            ? 'A new PIN was requested.'
-            : 'A new local demo PIN was issued above.',
-      );
-    } catch (error) {
-      _showDemoMessage('$error');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF8FAF8),
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 390),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _AuthBrandHeader(),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: widget.onBack,
-                    icon: const Icon(Icons.chevron_left, size: 17),
-                    label: const Text('Back to login'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _forest,
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Icon(
-                  Icons.verified_user_outlined,
-                  size: 38,
-                  color: _forest,
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  widget.authenticatorRequired
-                      ? 'Google Authenticator'
-                      : 'Verify your number',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  widget.authenticatorRequired
-                      ? 'Open Google Authenticator and enter its current 6-digit code for'
-                      : 'Enter the 6-digit one-time PIN for',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.phone,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
-                  ),
-                ),
-                if (widget.demoCode != null) ...[
-                  const SizedBox(height: 8),
-                  Card(
-                    color: const Color(0xFFEAF5EC),
-                    child: ListTile(
-                      leading: const Icon(Icons.pin_outlined, color: _forest),
-                      title: const Text('Your local demo PIN'),
-                      subtitle: Text(
-                        widget.demoCode!,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          letterSpacing: 4,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      trailing: TextButton(
-                        onPressed: _fillDemoCode,
-                        child: const Text('Fill'),
-                      ),
-                    ),
-                  ),
-                ],
-                TextButton(
-                  onPressed: widget.onBack,
-                  child: const Text(
-                    'Change number',
-                    style: TextStyle(color: _forest, fontSize: 11),
-                  ),
-                ),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          widget.authenticatorRequired
-                              ? 'Authenticator code'
-                              : 'One-time PIN',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            6,
-                            (index) => SizedBox(
-                              width: 39,
-                              height: 44,
-                              child: TextField(
-                                controller: _controllers[index],
-                                focusNode: _focusNodes[index],
-                                keyboardType: TextInputType.number,
-                                autofillHints: index == 0
-                                    ? const [AutofillHints.oneTimeCode]
-                                    : null,
-                                textAlign: TextAlign.center,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                decoration: InputDecoration(
-                                  counterText: '',
-                                  filled: true,
-                                  fillColor: const Color(0xFFF8FAF8),
-                                  contentPadding: EdgeInsets.zero,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(9),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFE6ECE7),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(9),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFE6ECE7),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(9),
-                                    borderSide: const BorderSide(
-                                      color: _forest,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value.length > 1) {
-                                    final digits = value.replaceAll(
-                                      RegExp(r'\D'),
-                                      '',
-                                    );
-                                    for (
-                                      var digitIndex = 0;
-                                      digitIndex < _controllers.length;
-                                      digitIndex++
-                                    ) {
-                                      _controllers[digitIndex].text =
-                                          digitIndex < digits.length
-                                          ? digits[digitIndex]
-                                          : '';
-                                    }
-                                    _focusNodes[(digits.length - 1)
-                                            .clamp(0, 5)
-                                            .toInt()]
-                                        .requestFocus();
-                                    setState(() {});
-                                    return;
-                                  }
-                                  if (value.isNotEmpty && index < 5) {
-                                    _focusNodes[index + 1].requestFocus();
-                                  }
-                                  if (value.isEmpty && index > 0) {
-                                    _focusNodes[index - 1].requestFocus();
-                                  }
-                                  setState(() {});
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (!widget.authenticatorRequired)
-                          TextButton.icon(
-                            onPressed: () async {
-                              try {
-                                await widget.onScanQr();
-                              } catch (error) {
-                                _showDemoMessage('$error');
-                              }
-                            },
-                            icon: const Icon(Icons.qr_code_scanner_rounded),
-                            label: const Text('Scan sign-in QR code'),
-                          ),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed:
-                              _controllers.every(
-                                (controller) => controller.text.length == 1,
-                              )
-                              ? _verify
-                              : null,
-                          iconAlignment: IconAlignment.end,
-                          icon: const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 16,
-                          ),
-                          label: const Text('Verify & continue'),
                           style: FilledButton.styleFrom(
                             backgroundColor: _forest,
                             foregroundColor: Colors.white,
@@ -1059,27 +358,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     ),
                   ),
                 ),
-                if (!widget.authenticatorRequired) ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Didn’t receive a PIN?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 10, color: Color(0xFF65776F)),
-                  ),
-                  TextButton(
-                    onPressed: _resendPin,
-                    child: const Text(
-                      'Resend PIN',
-                      style: TextStyle(color: _forest, fontSize: 11),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                _AuthDemoNotice(
-                  text: widget.authenticatorRequired
-                      ? 'Enter the current code from Google Authenticator. Codes change every 30 seconds.'
-                      : 'The local backend displays a temporary demo PIN above. SMS delivery needs a connected messaging provider.',
-                ),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -1117,42 +396,6 @@ class _AuthBrandHeader extends StatelessWidget {
   );
 }
 
-class _AuthDemoNotice extends StatelessWidget {
-  const _AuthDemoNotice({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF5DF),
-      border: Border.all(color: const Color(0xFFF1DDA7)),
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.info_outline_rounded,
-          size: 14,
-          color: Color(0xFF765D24),
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 10,
-              height: 1.3,
-              color: Color(0xFF765D24),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
@@ -1175,7 +418,8 @@ class DashboardPage extends StatefulWidget {
 
   final AccountInfo account;
   final VoidCallback onLogout;
-  final Future<void> Function(String name, String phone) onEditProfile;
+  final Future<void> Function(String name, String phone, String email)
+  onEditProfile;
   final Future<void> Function() onRefreshAccount;
   final Future<Map<String, dynamic>> Function() onLoadAuthenticator;
   final Future<Map<String, dynamic>> Function() onSetupAuthenticator;
@@ -1362,7 +606,8 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _editFarmerProfile() async {
     final nameController = TextEditingController(text: widget.account.name);
     final phoneController = TextEditingController(text: widget.account.phone);
-    final updatedProfile = await showDialog<(String, String)>(
+    final emailController = TextEditingController(text: widget.account.email);
+    final updatedProfile = await showDialog<(String, String, String)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         scrollable: true,
@@ -1382,6 +627,16 @@ class _DashboardPageState extends State<DashboardPage> {
                   isDense: true,
                   alignLabelWithHint: true,
                   labelText: 'Farmer name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  labelText: 'Email address',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1409,6 +664,7 @@ class _DashboardPageState extends State<DashboardPage> {
             onPressed: () => Navigator.pop(dialogContext, (
               nameController.text.trim(),
               phoneController.text.trim(),
+              emailController.text.trim(),
             )),
             child: const Text('Save'),
           ),
@@ -1417,6 +673,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     nameController.dispose();
     phoneController.dispose();
+    emailController.dispose();
     if (updatedProfile == null || !mounted) return;
     if (updatedProfile.$1.isEmpty || updatedProfile.$2.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1425,7 +682,11 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
     try {
-      await widget.onEditProfile(updatedProfile.$1, updatedProfile.$2);
+      await widget.onEditProfile(
+        updatedProfile.$1,
+        updatedProfile.$2,
+        updatedProfile.$3,
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1453,11 +714,11 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _selectSection(int index) {
-    if (index == 3) {
-      setState(() => _selectedTab = 3);
+    if (index == 2) {
+      setState(() => _selectedTab = 2);
+      _openMyCrops();
     } else if (index == 4) {
       setState(() => _selectedTab = 4);
-      _openMyCrops();
     } else {
       setState(() => _selectedTab = index);
     }
@@ -1645,7 +906,10 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             actions: [
-              _ConnectionPill(connected: connected),
+              _ConnectionPill(
+                connected: connected,
+                known: _controller.hasConnectionStatus,
+              ),
               IconButton(
                 onPressed: _controller.refresh,
                 tooltip: 'Refresh',
@@ -1672,6 +936,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 label: 'Trends',
               ),
               NavigationDestination(
+                icon: Icon(Icons.spa_outlined),
+                selectedIcon: Icon(Icons.spa_rounded),
+                label: 'My Crops',
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.notifications_none_rounded),
                 selectedIcon: Icon(Icons.notifications_rounded),
                 label: 'Alerts',
@@ -1680,11 +949,6 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings_rounded),
                 label: 'Settings',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.spa_outlined),
-                selectedIcon: Icon(Icons.spa_rounded),
-                label: 'My Crops',
               ),
             ],
           ),
@@ -1697,7 +961,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final children = switch (_selectedTab) {
       0 => _homeContent(status),
       1 => _trendsContent(),
-      2 => _alertsContent(status),
+      3 => _alertsContent(status),
       _ => _settingsContent(status),
     };
     return ListView(
@@ -1721,7 +985,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
       userName: widget.account.name,
-      onAccountTap: () => _selectSection(3),
+      onAccountTap: () => _selectSection(4),
       onLogout: widget.onLogout,
     ),
     const SizedBox(height: 16),
@@ -1852,9 +1116,13 @@ class _DashboardPageState extends State<DashboardPage> {
   ];
 
   List<Widget> _alertsContent(StatusResponse? status) {
+    final knownCrop = _isKnownQualityCrop(status?.threshold.commodity);
     Alert? attentionAlert;
     for (final alert in _controller.alerts) {
-      if (!alert.acknowledged) {
+      if (knownCrop &&
+          alert.commodity?.toLowerCase() ==
+              status?.threshold.commodity.toLowerCase() &&
+          !alert.acknowledged) {
         attentionAlert = alert;
         break;
       }
@@ -1900,7 +1168,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
         const SizedBox(height: 8),
-      ] else if (status?.breached ?? false) ...[
+      ] else if (knownCrop && (status?.breached ?? false)) ...[
         Card(
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -1984,6 +1252,14 @@ class _DashboardPageState extends State<DashboardPage> {
               icon: Icons.phone_outlined,
               label: 'Number',
               value: widget.account.phone,
+            ),
+            const Divider(height: 1),
+            _AccountDetailRow(
+              icon: Icons.email_outlined,
+              label: 'Email',
+              value: widget.account.email.isEmpty
+                  ? 'Not provided'
+                  : widget.account.email,
             ),
             const Divider(height: 1),
             Align(
@@ -2149,13 +1425,18 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class _ConnectionPill extends StatelessWidget {
-  const _ConnectionPill({required this.connected});
+  const _ConnectionPill({required this.connected, required this.known});
 
   final bool connected;
+  final bool known;
 
   @override
   Widget build(BuildContext context) {
-    final color = connected ? const Color(0xFF8DE0AE) : const Color(0xFFFFA5A5);
+    final color = !known
+        ? const Color(0xFFDCE7DF)
+        : connected
+        ? const Color(0xFF8DE0AE)
+        : const Color(0xFFFFA5A5);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
@@ -2168,7 +1449,11 @@ class _ConnectionPill extends StatelessWidget {
           Icon(Icons.circle, size: 8, color: color),
           const SizedBox(width: 6),
           Text(
-            connected ? 'Status' : 'Offline',
+            !known
+                ? 'Connecting'
+                : connected
+                ? 'Connected'
+                : 'Offline',
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
           ),
         ],
@@ -2436,6 +1721,7 @@ class _CropQualityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final estimate = _estimateCropQuality(status);
+    final isKnownCrop = _isKnownQualityCrop(status?.threshold.commodity);
     final color = estimate == null
         ? const Color(0xFF65776F)
         : estimate >= 80
@@ -2444,7 +1730,9 @@ class _CropQualityCard extends StatelessWidget {
         ? const Color(0xFF8A6C27)
         : const Color(0xFF9E332B);
     final label = estimate == null
-        ? 'Waiting for readings'
+        ? isKnownCrop
+              ? 'Waiting for readings'
+              : 'No estimate for this crop'
         : estimate >= 80
         ? 'Good storage conditions'
         : estimate >= 55
@@ -2481,7 +1769,7 @@ class _CropQualityCard extends StatelessWidget {
             Text(label, style: TextStyle(color: color, fontSize: 12)),
             const SizedBox(height: 10),
             LinearProgressIndicator(
-              value: estimate == null ? null : estimate / 100,
+              value: estimate == null ? 0 : estimate / 100,
               minHeight: 7,
               borderRadius: BorderRadius.circular(8),
               color: color,
@@ -2489,7 +1777,7 @@ class _CropQualityCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              'A rough estimate from temperature and humidity only. It does not inspect the crop.',
+              'A rough estimate for maize and sorghum from air temperature and humidity only. It does not measure grain moisture or inspect the crop.',
               style: TextStyle(color: Color(0xFF65776F), fontSize: 11),
             ),
           ],
@@ -2706,10 +1994,11 @@ String _estimateDegradationRisk(
 
 String _alertReason(String commodity, Reading reading, Threshold threshold) {
   final isMaize = commodity.toLowerCase() == 'maize';
+  final isSorghum = commodity.toLowerCase() == 'sorghum';
   final reasons = <String>[];
   if (reading.temperature > threshold.maxTemp) {
     reasons.add(
-      isMaize
+      (isMaize || isSorghum)
           ? 'Warm grain can spoil faster, especially when the grain is damp.'
           : 'Warm storage can speed ripening and softening.',
     );
@@ -2737,6 +2026,7 @@ String _elapsedLabel(Duration duration) {
 }
 
 int? _estimateCropQuality(StatusResponse? status) {
+  if (!_isKnownQualityCrop(status?.threshold.commodity)) return null;
   final reading = status?.latest;
   final threshold = status?.threshold;
   if (reading == null || threshold == null) return null;
@@ -2764,6 +2054,9 @@ int? _estimateCropQuality(StatusResponse? status) {
   );
   return ((temperatureScore + humidityScore) / 2).round().clamp(0, 100).toInt();
 }
+
+bool _isKnownQualityCrop(String? commodity) =>
+    const {'maize', 'sorghum'}.contains(commodity?.trim().toLowerCase());
 
 String _formatUptime(Duration duration) {
   final hours = duration.inHours;
@@ -3223,7 +2516,7 @@ class _HarvestCard extends StatelessWidget {
       ...crops.map((crop) => crop.commodity),
     };
     if (cropOptions.length == 1) {
-      cropOptions.addAll(['Maize', 'Tomato']);
+      cropOptions.addAll(['Maize', 'Sorghum', 'Tomato']);
     }
     return Card(
       child: Padding(
@@ -4038,17 +3331,14 @@ class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
       try {
         final data = jsonDecode(raw) as Map<String, dynamic>;
         final uri = Uri.parse(data['backend'] as String);
-        final local =
-            _isPrivateIpv4Address(uri.host) || uri.host == 'localhost';
-        if (data['type'] == 'peo-yame-auth' &&
+        if (data['type'] == 'peo-yame-mobile-login' &&
             (uri.scheme == 'http' || uri.scheme == 'https') &&
             uri.hasAuthority &&
             uri.userInfo.isEmpty &&
             (uri.path.isEmpty || uri.path == '/') &&
             !uri.hasQuery &&
             !uri.hasFragment &&
-            local &&
-            RegExp(r'^\d{6}$').hasMatch('${data['code']}')) {
+            RegExp(r'^[A-Za-z0-9_-]{40,}$').hasMatch('${data['challenge']}')) {
           _finished = true;
           Navigator.of(context).pop(raw);
           return;
@@ -4056,7 +3346,7 @@ class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
       } catch (_) {}
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This is not a valid Peo Yame sign-in QR code.'),
+          content: Text('This is not a valid Peo Yame mobile sign-in QR code.'),
         ),
       );
     }
@@ -4070,7 +3360,7 @@ class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Scan sign-in QR code')),
+    appBar: AppBar(title: const Text('Scan mobile sign-in QR')),
     body: Stack(
       fit: StackFit.expand,
       children: [
@@ -4092,7 +3382,7 @@ class _AuthQrScannerPageState extends State<_AuthQrScannerPage> {
           child: Padding(
             padding: EdgeInsets.all(24),
             child: Text(
-              'Scan the temporary QR code shown on the backend sign-in page.',
+              'Scan the one-time QR shown in Connect mobile app on the signed-in web app.',
               style: TextStyle(color: Colors.white),
             ),
           ),

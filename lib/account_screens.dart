@@ -151,7 +151,7 @@ class AccountsScreen extends StatelessWidget {
         Navigator.of(context).popUntil((route) => route.isFirst);
         onDestinationSelected(0);
       },
-      selectedDestination: 3,
+      selectedDestination: 4,
       onDestinationSelected: onDestinationSelected,
       children: [
         Card(
@@ -334,7 +334,7 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
           Navigator.of(context).popUntil((route) => route.isFirst);
           widget.onDestinationSelected(0);
         },
-        selectedDestination: 4,
+        selectedDestination: 2,
         onDestinationSelected: widget.onDestinationSelected,
         children: const [
           Center(
@@ -360,16 +360,16 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
         .toList();
     return _DesignShell(
       title: 'My Crops',
-      action: TextButton.icon(
+      action: IconButton(
         onPressed: _loadFarmerCrops,
-        icon: const Icon(Icons.refresh, size: 16),
-        label: const Text('Refresh'),
+        tooltip: 'Refresh crops',
+        icon: const Icon(Icons.refresh, size: 20),
       ),
       onBack: () {
         Navigator.of(context).popUntil((route) => route.isFirst);
         widget.onDestinationSelected(0);
       },
-      selectedDestination: 4,
+      selectedDestination: 2,
       onDestinationSelected: widget.onDestinationSelected,
       children: [
         _AccountScopeBanner(name: widget.name),
@@ -738,16 +738,16 @@ class _DesignShell extends StatelessWidget {
           label: 'Trends',
         ),
         NavigationDestination(
+          icon: Icon(Icons.spa_outlined),
+          label: 'My Crops',
+        ),
+        NavigationDestination(
           icon: Icon(Icons.notifications_none_rounded),
           label: 'Alerts',
         ),
         NavigationDestination(
           icon: Icon(Icons.settings_outlined),
           label: 'Settings',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.spa_outlined),
-          label: 'My Crops',
         ),
       ],
     ),

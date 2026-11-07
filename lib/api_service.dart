@@ -32,30 +32,14 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> requestOtp({
-    required String phone,
-    String name = '',
+  Future<Map<String, dynamic>> signInWithMobileQr({
+    required String challenge,
   }) async {
     final response = await _client
         .post(
-          _uri('/api/auth/request-otp'),
+          _uri('/api/auth/mobile-qr'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone, 'name': name}),
-        )
-        .timeout(const Duration(seconds: 8));
-    _ensureOk(response);
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> verifyOtp({
-    required String phone,
-    required String code,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/auth/verify-otp'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'phone': phone, 'code': code}),
+          body: jsonEncode({'challenge': challenge}),
         )
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);
@@ -67,12 +51,13 @@ class ApiService {
   Future<Map<String, dynamic>> updateAccount({
     required String name,
     required String phone,
+    required String email,
   }) async {
     final response = await _client
         .patch(
           _uri('/api/account'),
           headers: {'Content-Type': 'application/json', ..._authHeaders},
-          body: jsonEncode({'name': name, 'phone': phone}),
+          body: jsonEncode({'name': name, 'phone': phone, 'email': email}),
         )
         .timeout(const Duration(seconds: 8));
     _ensureOk(response);

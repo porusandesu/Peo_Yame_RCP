@@ -36,6 +36,8 @@ class DashboardController extends ChangeNotifier {
   List<Threshold> crops = const [];
   String? errorMessage;
   bool isBackendConnected = false;
+  bool hasConnectionStatus = false;
+  int _missedRefreshes = 0;
 
   Timer? _timer;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
@@ -51,7 +53,7 @@ class DashboardController extends ChangeNotifier {
     unawaited(loadCrops());
     _refresh();
     _connectEvents();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
   }
 
   Future<void> _connectEvents() async {
@@ -220,13 +222,18 @@ class DashboardController extends ChangeNotifier {
       alerts = results[1] as List<Alert>;
       history = results[2] as List<Reading>;
       isBackendConnected = true;
+      hasConnectionStatus = true;
+      _missedRefreshes = 0;
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (_) {
       if (_disposed || generation != _refreshGeneration) return;
-      isBackendConnected = false;
-      errorMessage =
-          'Backend disconnected. Your last readings are saved on screen. Reconnecting automatically; check that the PC backend is running and your phone is on the same Wi-Fi.';
+      _missedRefreshes++;
+      if (_missedRefreshes >= 3) {
+        hasConnectionStatus = true;
+        isBackendConnected = false;
+        errorMessage = 'Backend unavailable. Reconnecting…';
+      }
     } finally {
       _refreshInFlight = false;
       final shouldRefreshAgain = _refreshQueued && !_disposed;

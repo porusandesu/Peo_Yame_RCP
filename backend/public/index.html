@@ -106,13 +106,17 @@
       .auth-brand { display:flex; align-items:center; gap:9px; color:var(--green); font-weight:800; }
       .auth-brand img { width:32px; height:32px; border-radius:7px; object-fit:cover; }
       #connectionQr svg { display:block; width:min(240px,70vw); height:auto; }
-      #authQr svg { display:block; width:min(210px,62vw); height:auto; margin:10px auto; }
       .auth-card h2 { margin:30px 0 5px; font-size:25px; }
       .auth-card p { color:var(--muted); font-size:13px; }
       .auth-card label { display:grid; gap:5px; margin:18px 0 8px; color:var(--muted); font-size:12px; }
       .auth-card input { width:100%; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:9px; font:inherit; color:var(--ink); }
       .primary { width:100%; margin-top:12px; padding:11px; color:#fff; border-color:var(--green); background:var(--green); }
       .auth-notice,.demo-note { padding:10px 12px; border:1px solid #ead9a8; border-radius:10px; background:#fff8e6; color:#624d1c; font-size:12px; }
+      .auth-alternative { margin-top:12px; color:var(--muted); font-size:12px; }
+      .auth-alternative summary { cursor:pointer; }
+      .auth-qr-section { margin-top:14px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#f8faf8; }
+      .auth-qr-section h3 { margin:0 0 5px; font-size:14px; }
+      .auth-qr-section p { margin:0; font-size:12px; }
       .auth-link { display:block; margin:14px auto 0; border:0; background:none; color:var(--green); }
       .pin-row { display:grid; grid-template-columns:repeat(6,1fr); gap:7px; margin:18px 0; }
       .pin-row input { text-align:center; font-size:19px; font-weight:700; }
@@ -148,22 +152,28 @@
       <div class="auth-card" id="loginPanel">
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
-        <form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue with OTP →</button></form>
+        <form id="passwordLoginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="username" required></label><label>Password<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8"></label><div class="dialog-error" id="passwordLoginError" role="alert"></div><button class="primary" type="submit">Sign in →</button></form>
+        <details class="auth-alternative"><summary>Verify with phone instead</summary><form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue with OTP →</button></form></details>
         <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
-        <div class="auth-notice">A real SMS PIN requires a connected messaging service. In this local edition, the server displays a temporary demo PIN.</div>
+        <div class="auth-notice">Local demo sign-in does not send SMS. Use the demo verification option after requesting a phone code.</div>
+        <section class="auth-qr-section"><h3>Sign in with QR code</h3><p>For mobile sign-in, first sign in to this web account, choose <strong>Connect mobile app</strong>, then scan its one-time QR with the mobile app.</p></section>
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2 id="otpTitle">Verify your number</h2><p id="otpPrompt"><span id="otpPromptText">Enter the 6-digit one-time PIN for </span><strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
-        <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
-        <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
         <form id="otpForm" novalidate><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" autocomplete="one-time-code" inputmode="numeric"><input aria-label="PIN digit 2" inputmode="numeric"><input aria-label="PIN digit 3" inputmode="numeric"><input aria-label="PIN digit 4" inputmode="numeric"><input aria-label="PIN digit 5" inputmode="numeric"><input aria-label="PIN digit 6" inputmode="numeric"></div><button class="primary" id="verifyOtpButton" type="submit">Verify &amp; continue →</button></form>
         <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
+        <button class="auth-link" id="skipDemoVerification" type="button" hidden>Skip verification (demo)</button>
+      </div>
+      <div class="auth-card" id="credentialsPanel" hidden>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Secure your account</h2><p>Your number is verified. Add an email and password for future sign-ins.</p>
+        <form id="credentialsForm"><label>Email address<input id="credentialEmail" type="email" autocomplete="email" required maxlength="254"></label><label>Create password<input id="credentialPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label><div class="dialog-error" id="credentialsError" role="alert"></div><button class="primary" id="saveCredentials" type="submit">Save and continue →</button></form>
+        <button class="auth-link" id="skipCredentialSetup" type="button" hidden>Skip account security (demo)</button>
       </div>
       <div class="auth-card" id="profilePanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Create farmer account</h2><p>Your account and linked crop list will be saved on this backend.</p>
-        <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue with PIN →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
+        <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Email address <span class="profile-meta">Optional</span><input name="email" type="email" autocomplete="email" maxlength="254"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue with PIN →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
       </div>
     </section>
     <header id="appHeader" hidden>
@@ -206,7 +216,7 @@
     </main>
     <section class="view" id="settingsView" hidden>
       <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
-      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta" id="profileEmail"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
       <h2 style="margin-top:18px">Two-step sign-in</h2><article class="profile-card"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden>6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
       <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
       <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
@@ -219,9 +229,9 @@
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
     <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
-    <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
+    <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Email address<input name="email" id="editProfileEmail" type="email" autocomplete="email" maxlength="254"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
     <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
-    <dialog id="connectionDialog"><h2>Connect your mobile app</h2><p>Put the phone and this computer on the same Wi-Fi network. In the mobile app, open Settings and scan this QR code.</p><label class="profile-meta" for="connectionAddress">Choose a network</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="QR code to connect the Peo Yame mobile app" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
+    <dialog id="connectionDialog"><h2>Sign in to the mobile app</h2><p>Sign in to your farmer account here first, then scan this one-time QR code in the Peo Yame mobile app. Keep both devices on the same Wi-Fi network.</p><label class="profile-meta" for="connectionAddress">Choose a network</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="One-time mobile sign-in QR code" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" id="refreshConnectionQr">Create a new QR</button><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
     <script src="/qrcode-generator.js"></script>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
@@ -237,6 +247,8 @@
       let demoMode = true;
       let demoProfile = null;
       let authToken = localStorage.getItem('peo_yame_farmer_token') || '';
+      let verifiedFarmer = null;
+      let demoSkipAvailable = false;
       let farmerCrops = [];
       let farmerSensors = [];
       let availableFarmerSensors = [];
@@ -245,6 +257,7 @@
       let authMode = 'pin';
       let currentView = 'dashboard';
       let connectionPort = 3000;
+      let mobileLoginChallenge = '';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
         $('harvest').innerHTML = available.map((crop) => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
@@ -254,7 +267,7 @@
         $('trigger').hidden = !demoMode || !demoProfile;
       }
       function showAuthPanel(name) {
-        for (const id of ['loginPanel','otpPanel','profilePanel']) $(id).hidden = id !== name;
+        for (const id of ['loginPanel','otpPanel','credentialsPanel','profilePanel']) $(id).hidden = id !== name;
         $('authShell').hidden = false;
         $('appHeader').hidden = true;
         $('dashboard').hidden = true;
@@ -282,6 +295,7 @@
         $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileName').textContent = demoProfile.name;
         $('profilePhone').textContent = demoProfile.phone;
+        $('profileEmail').textContent = demoProfile.email || '';
         updateDemoControls();
         showView('dashboard');
         void loadFarmerData();
@@ -292,7 +306,7 @@
         if (!authToken || !demoProfile) return;
         try {
           const profile = await getJson('/api/account');
-          if (profile.name === demoProfile.name && profile.phone === demoProfile.phone) return;
+          if (profile.name === demoProfile.name && profile.phone === demoProfile.phone && (profile.email || '') === (demoProfile.email || '')) return;
           demoProfile = profile;
           $('accountName').textContent = profile.name;
           $('accountPhone').textContent = profile.phone;
@@ -300,6 +314,7 @@
           $('profileInitial').textContent = profile.name.slice(0,1).toUpperCase();
           $('profileName').textContent = profile.name;
           $('profilePhone').textContent = profile.phone;
+          $('profileEmail').textContent = profile.email || '';
           updateDemoControls();
         } catch (_) {}
       }
@@ -317,6 +332,20 @@
         });
         if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Server returned ${response.status}`); }
         return response.json();
+      }
+      function finishAuthentication(result) {
+        authToken = result.token;
+        verifiedFarmer = result.farmer;
+        if (verifiedFarmer.passwordEnabled) {
+          localStorage.setItem('peo_yame_farmer_token', authToken);
+          activateProfile(verifiedFarmer);
+          return;
+        }
+        $('credentialEmail').value = pendingProfile?.email || verifiedFarmer.email || '';
+        $('credentialPassword').value = '';
+        $('credentialsError').textContent = '';
+        $('skipCredentialSetup').hidden = !demoSkipAvailable;
+        showAuthPanel('credentialsPanel');
       }
       async function loadFarmerData() {
         if (!authToken) return;
@@ -606,7 +635,7 @@
         $('appMenu').hidden = true;
         $('appMenuButton').setAttribute('aria-expanded', 'false');
         $('connectionDialog').showModal();
-        $('connectionQrError').textContent = 'Finding this computer’s network addresses…';
+        $('connectionQrError').textContent = 'Preparing a secure sign-in QR…';
         try {
           const info = await getJson('/api/connection-info');
           connectionPort = Number(info.port) || 3000;
@@ -615,7 +644,6 @@
             $('connectionQrError').textContent = 'No network address was found. Connect this computer to Wi-Fi and try again.';
             $('connectionQr').hidden = true;
           } else {
-            $('connectionQrError').textContent = '';
             await loadConnectionQr();
           }
         } catch (error) { $('connectionQrError').textContent = `Could not prepare a QR code: ${error.message}`; }
@@ -624,47 +652,39 @@
         const address = $('connectionAddress').value;
         if (!address) return;
         const url = `http://${address}:${connectionPort}`;
-        $('connectionUrl').textContent = 'The address is carried in this QR code for this local network session.';
+        $('connectionQr').hidden = true;
+        $('connectionQrError').textContent = 'Creating a one-time sign-in code…';
+        $('connectionUrl').textContent = 'The code expires after two minutes and can only be used once.';
         try {
+          const result = await postJson('/api/account/mobile-login-qr', {});
+          mobileLoginChallenge = result.challenge;
           const qr = qrcode(0, 'M');
-          qr.addData(url);
+          qr.addData(JSON.stringify({ type:'peo-yame-mobile-login', backend:url, challenge:mobileLoginChallenge }));
           qr.make();
           $('connectionQr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4, scalable: true });
           $('connectionQr').hidden = false;
           $('connectionQrError').textContent = '';
-        } catch (_) {
+        } catch (error) {
           $('connectionQr').hidden = true;
-          $('connectionQrError').textContent = 'Could not draw this QR code. Close the dialog and try connecting again.';
+          $('connectionQrError').textContent = `Could not create a sign-in QR: ${error.message}`;
         }
       }
       $('connectionAddress').addEventListener('change', () => { void loadConnectionQr(); });
+      $('refreshConnectionQr').addEventListener('click', () => { void loadConnectionQr(); });
       document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
       document.querySelectorAll('[data-back-dashboard]').forEach((button) => button.addEventListener('click', () => showView('dashboard')));
-      async function requestOtp(phone, name = '') {
-        const result = await postJson('/api/auth/request-otp', { phone, name });
+      async function requestOtp(phone, name = '', email = '') {
+        const result = await postJson('/api/auth/request-otp', { phone, name, email });
         authPhone = result.phone;
         authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
+        demoSkipAvailable = result.delivery === 'demo-skip-available';
         $('phonePreview').textContent = authPhone;
         $('otpTitle').textContent = authMode === 'authenticator' ? 'Google Authenticator' : 'Verify your number';
         $('otpPromptText').textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
-        $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
+        $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : demoSkipAvailable ? 'Demo mode has no SMS delivery. Use Skip verification (demo) to continue.' : 'A PIN was sent to your phone.';
         $('resendPin').hidden = authMode === 'authenticator';
+        $('skipDemoVerification').hidden = !demoSkipAvailable || authMode === 'authenticator';
         document.querySelectorAll('.pin-row input').forEach((input, index) => input.setAttribute('aria-label', `${authMode === 'authenticator' ? 'Authenticator' : 'PIN'} digit ${index + 1}`));
-        $('authQr').hidden = true;
-        $('authQrHint').hidden = true;
-        if (result.demoCode && authMode !== 'authenticator') {
-          try {
-            const info = await getJson('/api/connection-info');
-            const address = info.addresses.find(item => item.address === location.hostname)?.address || info.addresses[0]?.address;
-            const authBackend = address ? `http://${address}:${Number(info.port) || 3000}` : location.origin;
-            const qr = qrcode(0, 'M');
-            qr.addData(JSON.stringify({ type:'peo-yame-auth', backend:authBackend, phone:result.phone, code:result.demoCode }));
-            qr.make();
-            $('authQr').innerHTML = qr.createSvgTag({ cellSize:5, margin:4, scalable:true });
-            $('authQr').hidden = false;
-            $('authQrHint').hidden = false;
-          } catch (_) { $('otpNotice').textContent += ' The QR code could not be drawn.'; }
-        }
         document.querySelectorAll('.pin-row input').forEach(input => input.value = '');
         showAuthPanel('otpPanel');
         document.querySelector('.pin-row input').focus();
@@ -678,7 +698,7 @@
       });
       $('backToLogin').addEventListener('click', () => showAuthPanel('loginPanel'));
       $('resendPin').addEventListener('click', async () => {
-        try { await requestOtp(authPhone, pendingProfile?.name || ''); }
+        try { await requestOtp(authPhone, pendingProfile?.name || '', pendingProfile?.email || ''); }
         catch (error) { $('otpNotice').textContent = error.message; }
       });
       $('otpForm').addEventListener('submit', async (event) => {
@@ -692,35 +712,81 @@
         const verifyButton = $('verifyOtpButton');
         verifyButton.disabled = true;
         $('otpNotice').textContent = 'Checking your code…';
-        let verified = false;
         try {
           const result = await postJson('/api/auth/verify-otp', { phone: authPhone, code: pin });
           if (!result.token || !result.farmer || !result.farmer.name) throw new Error('The server verified the PIN but returned an incomplete farmer account.');
-          verified = true;
-          authToken = result.token;
-          localStorage.setItem('peo_yame_farmer_token', authToken);
-          pendingProfile = null;
-          activateProfile(result.farmer);
+          finishAuthentication(result);
         } catch (error) {
-          $('otpNotice').textContent = verified ? `PIN accepted, but the account could not be opened: ${error.message}` : error.message;
+          $('otpNotice').textContent = error.message;
           document.querySelector('.pin-row input').focus();
         } finally {
           verifyButton.disabled = false;
         }
+      });
+      $('skipDemoVerification').addEventListener('click', async () => {
+        const button = $('skipDemoVerification');
+        button.disabled = true;
+        $('otpNotice').textContent = 'Starting demo sign-in…';
+        try {
+          const result = await postJson('/api/auth/demo/skip-verification', { phone: authPhone });
+          finishAuthentication(result);
+        } catch (error) {
+          $('otpNotice').textContent = error.message;
+        } finally { button.disabled = false; }
+      });
+      $('passwordLoginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        $('passwordLoginError').textContent = '';
+        try {
+          const result = await postJson('/api/auth/password', {
+            email: $('loginEmail').value.trim(),
+            password: $('loginPassword').value,
+          });
+          localStorage.setItem('peo_yame_farmer_token', result.token);
+          authToken = result.token;
+          activateProfile(result.farmer);
+        } catch (error) { $('passwordLoginError').textContent = error.message; }
+      });
+      $('credentialsForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = $('saveCredentials');
+        button.disabled = true;
+        $('credentialsError').textContent = '';
+        try {
+          const response = await fetch('/api/account/credentials', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ email: $('credentialEmail').value.trim(), password: $('credentialPassword').value }),
+          });
+          const profile = await response.json();
+          if (!response.ok) throw new Error(profile.error || `Server returned ${response.status}`);
+          verifiedFarmer = profile;
+          localStorage.setItem('peo_yame_farmer_token', authToken);
+          pendingProfile = null;
+          activateProfile(profile);
+        } catch (error) { $('credentialsError').textContent = error.message; }
+        finally { button.disabled = false; }
+      });
+      $('skipCredentialSetup').addEventListener('click', () => {
+        if (!demoSkipAvailable || !verifiedFarmer) return;
+        localStorage.setItem('peo_yame_farmer_token', authToken);
+        pendingProfile = null;
+        activateProfile(verifiedFarmer);
       });
       $('createProfile').addEventListener('click', () => showAuthPanel('profilePanel'));
       $('profileCancel').addEventListener('click', () => showAuthPanel('loginPanel'));
       $('profileForm').addEventListener('submit', (event) => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-        pendingProfile = {name:values.name.trim()};
+        pendingProfile = {name:values.name.trim(), email:values.email.trim()};
         $('profileError').textContent = '';
-        requestOtp(values.phone.trim(), pendingProfile.name).catch(error => { $('profileError').textContent = error.message; });
+        requestOtp(values.phone.trim(), pendingProfile.name, pendingProfile.email).catch(error => { $('profileError').textContent = error.message; });
       });
       document.querySelectorAll('[data-edit-profile]').forEach(button => button.addEventListener('click', () => {
         $('editProfileError').textContent = '';
         $('editProfileName').value = demoProfile?.name || '';
         $('editProfilePhone').value = demoProfile?.phone || '';
+        $('editProfileEmail').value = demoProfile?.email || '';
         $('editProfileDialog').showModal();
       }));
       $('editProfileForm').addEventListener('submit', async event => {
@@ -738,6 +804,7 @@
           $('profileInitial').textContent = body.name.slice(0,1).toUpperCase();
           $('profileName').textContent = body.name;
           $('profilePhone').textContent = body.phone;
+          $('profileEmail').textContent = body.email || '';
           updateDemoControls();
           $('accountActionNotice').textContent = 'Profile saved.';
         } catch (error) { $('editProfileError').textContent = error.message; }

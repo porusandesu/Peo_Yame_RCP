@@ -11,7 +11,8 @@ void main() {
     await tester.pumpWidget(const StorageMonitorApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Connect to web backend'), findsOneWidget);
+    expect(find.text('Sign in securely'), findsOneWidget);
+    expect(find.text('Scan sign-in QR'), findsOneWidget);
+    expect(find.text('Continue with OTP'), findsNothing);
   });
 }
