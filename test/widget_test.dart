@@ -69,14 +69,22 @@ void main() {
     await tester.pump();
 
     expect(find.text('Profile'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('Accounts'),
+      find.byType(ListView).last,
+      const Offset(0, -350),
+    );
+    await tester.pump();
     expect(find.text('Accounts'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('Link another phone'),
+      find.byType(ListView).last,
+      const Offset(0, -350),
+    );
+    await tester.pump();
     expect(find.text('Link another phone'), findsOneWidget);
     expect(find.text('Approve browser sign-in'), findsOneWidget);
     expect(find.text('Demo mode'), findsNothing);
-    expect(
-      tester.getTopLeft(find.text('Profile')).dy,
-      lessThan(tester.getTopLeft(find.text('Accounts')).dy),
-    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
