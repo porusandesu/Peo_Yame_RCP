@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `8acfe79` — `Launch branded Windows app without console window`.
+- Latest committed revision reviewed: `d4894b7` — `Record GitHub Actions validation in handoff`.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -16,18 +16,19 @@ farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
 for the recent commit history and current local work.
 
-The worktree currently has uncommitted changes in `backend/public/index.html`,
-`lib/main.dart`, and `test/widget_test.dart`: the web OTP prompt now updates a
-dedicated text element; mobile PIN resend retains the name for a pending farmer
-registration; signed-out mobile users can enter or scan the web backend address
-before creating/signing into an account; changing the backend while signed in
-clears the previously saved token and returns to sign-in. The widget test now
-checks the fresh-install sign-in screen. These changes were formatted.
-The Flutter widget test and backend authenticator test pass, as do JavaScript
-syntax checks and `git diff --check`. `dart analyze` did not return diagnostics
-within 30 seconds. GitHub Actions run [42355687815](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42355687815)
-passed both the Android debug APK build and Windows backend tests/package for
-commit `bc5d5c1`. The APK has not been exercised on a physical device.
+The current uncommitted work adds a Windows notification-area menu with web
+panel launch, backend restart and shutdown, and application exit actions. OTP
+verification now gives immediate incomplete-code feedback and a busy state.
+An isolated backend OTP request → verify → authenticated-account check passed.
+The web UI still needs an end-to-end browser/device check with the running demo.
+
+The prior account-pairing changes and fresh-install widget test are committed
+in `bc5d5c1`. Flutter widget/backend tests and JavaScript syntax checks passed.
+GitHub Actions run [42355687815](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42355687815)
+passed the Android debug APK build and Windows backend tests/package. The
+follow-up documentation run [42356162301](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42356162301)
+also passed. `dart analyze` did not return diagnostics within 30 seconds. The
+APK and tray controls have not been exercised interactively on devices.
 
 Account records, crop locations, sensor assignments, and sessions live in the
 backend SQLite database. Web and mobile clients see the same data when they use
@@ -62,7 +63,8 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 1. Exercise signed-out mobile backend pairing, farmer registration and OTP on
    an emulator and physical phone; then verify that profile and crop changes
    appear in both clients while connected to the same backend.
-2. Run relevant Flutter and backend checks before committing the local edits.
+2. Verify the OTP flow in the browser and the tray menu on Windows after the
+   current edits pass GitHub Actions.
 3. Keep the prototype on a controlled demo network: it uses plain HTTP and
    local demo OTP behavior.
 

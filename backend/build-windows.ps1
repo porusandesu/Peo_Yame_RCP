@@ -47,7 +47,7 @@ try {
   }
   if (-not (Test-Path $csharpCompiler)) { throw "The Windows C# compiler was not found at $csharpCompiler." }
   $launcherExecutable = Join-Path $distributionDirectory "Peo-Yame-Backend.exe"
-  & $csharpCompiler /nologo /target:winexe "/win32icon:$applicationIcon" "/out:$launcherExecutable" $windowsLauncherSource
+  & $csharpCompiler /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll "/win32icon:$applicationIcon" "/out:$launcherExecutable" $windowsLauncherSource
   if ($LASTEXITCODE -ne 0) { throw "The branded Windows launcher build failed with exit code $LASTEXITCODE." }
 
   Write-Host "Starting the built executable for a startup check..."
@@ -96,10 +96,12 @@ try {
 PEO YAME - QUICK START
 
 1. Extract this folder somewhere easy to find.
-2. Double-click "Peo-Yame-Backend.exe". Your dashboard opens without a server window.
-3. To use your phone, put it on the same Wi-Fi, open Connect mobile app on the
-   dashboard, then scan the code in Peo Yame Settings.
-4. To stop Peo Yame, double-click "Stop Peo Yame.bat".
+2. Double-click "Peo-Yame-Backend.exe". Peo Yame stays in the Windows notification area.
+3. Click its icon to launch the web panel, restart or shut down the backend.
+4. To use your phone, put it on the same Wi-Fi, open Connect mobile app on the
+   dashboard, then choose Connect to web backend on the signed-out screen and
+   scan the QR code.
+5. Choose Exit Peo Yame in the tray menu to close the app and backend.
 
 Your information is saved on this computer. You do not need to install anything.
 '@

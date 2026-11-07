@@ -158,7 +158,7 @@
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
         <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
-        <form id="otpForm"><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" autocomplete="one-time-code" inputmode="numeric" required><input aria-label="PIN digit 2" inputmode="numeric" required><input aria-label="PIN digit 3" inputmode="numeric" required><input aria-label="PIN digit 4" inputmode="numeric" required><input aria-label="PIN digit 5" inputmode="numeric" required><input aria-label="PIN digit 6" inputmode="numeric" required></div><button class="primary" type="submit">Verify &amp; continue →</button></form>
+        <form id="otpForm" novalidate><div class="pin-row" aria-label="One-time PIN"><input aria-label="PIN digit 1" autocomplete="one-time-code" inputmode="numeric"><input aria-label="PIN digit 2" inputmode="numeric"><input aria-label="PIN digit 3" inputmode="numeric"><input aria-label="PIN digit 4" inputmode="numeric"><input aria-label="PIN digit 5" inputmode="numeric"><input aria-label="PIN digit 6" inputmode="numeric"></div><button class="primary" id="verifyOtpButton" type="submit">Verify &amp; continue →</button></form>
         <button class="auth-link" id="resendPin" type="button">Send another PIN</button>
       </div>
       <div class="auth-card" id="profilePanel" hidden>
@@ -684,13 +684,29 @@
       $('otpForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const pin = [...document.querySelectorAll('.pin-row input')].map((input) => input.value).join('');
+        if (!/^\d{6}$/.test(pin)) {
+          $('otpNotice').textContent = 'Enter all six digits of the PIN, then try again.';
+          document.querySelector('.pin-row input').focus();
+          return;
+        }
+        const verifyButton = $('verifyOtpButton');
+        verifyButton.disabled = true;
+        $('otpNotice').textContent = 'Checking your code…';
+        let verified = false;
         try {
           const result = await postJson('/api/auth/verify-otp', { phone: authPhone, code: pin });
+          if (!result.token || !result.farmer || !result.farmer.name) throw new Error('The server verified the PIN but returned an incomplete farmer account.');
+          verified = true;
           authToken = result.token;
           localStorage.setItem('peo_yame_farmer_token', authToken);
           pendingProfile = null;
           activateProfile(result.farmer);
-        } catch (error) { $('otpNotice').textContent = error.message; }
+        } catch (error) {
+          $('otpNotice').textContent = verified ? `PIN accepted, but the account could not be opened: ${error.message}` : error.message;
+          document.querySelector('.pin-row input').focus();
+        } finally {
+          verifyButton.disabled = false;
+        }
       });
       $('createProfile').addEventListener('click', () => showAuthPanel('profilePanel'));
       $('profileCancel').addEventListener('click', () => showAuthPanel('loginPanel'));

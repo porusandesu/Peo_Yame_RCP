@@ -13,10 +13,13 @@ Sensor assignments are saved records; sensor readings remain simulated.
 
 Download the **peo-yame-backend-windows** artifact from the latest successful
 GitHub Actions run and extract the ZIP. Double-click **Peo-Yame-Backend.exe** to
-open the dashboard without a server window. To use your phone, connect both
-devices to the same Wi-Fi, choose **Connect mobile app** on the dashboard, then
-scan its QR code from **Settings** in the phone app. Double-click **Stop Peo
-Yame.bat** when you are finished. Your data stays on this computer.
+start the backend in the background. Its Peo Yame icon appears in the Windows
+notification area (possibly under **Show hidden icons**). Click the icon for
+**Launch web panel**, **Restart backend**, **Shutdown backend**, or **Exit Peo
+Yame**. To use your phone, connect both devices to the same Wi-Fi, choose
+**Connect mobile app** on the dashboard, then choose **Connect to web backend**
+on the signed-out phone screen and scan the QR code. Your data stays on this
+computer.
 
 ## Start the backend from source
 
