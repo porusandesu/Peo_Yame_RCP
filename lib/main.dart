@@ -557,6 +557,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _controller = DashboardController(
       api: ApiService(baseUrl: widget.baseUrl, authToken: widget.token),
     );
+    _controller.demoMode = widget.token == null;
     _controller.loadCrops();
     _loadSavedAddress();
   }
