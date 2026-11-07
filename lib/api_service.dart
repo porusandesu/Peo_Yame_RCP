@@ -125,11 +125,20 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> updateFarmerName(String name) async {
+  Future<Map<String, dynamic>> updateFarmerProfile({required String name, String? email}) async {
     final response = await _client.patch(
       _uri('/api/account'),
       headers: _jsonAuthHeaders,
-      body: jsonEncode({'name': name}),
+      body: jsonEncode({'name': name, if (email != null) 'email': email}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getFarmerAccount() async {
+    final response = await _client.get(
+      _uri('/api/account'),
+      headers: _authHeaders,
     ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
@@ -147,6 +156,24 @@ class ApiService {
   Future<void> enableAuthenticator(String code) async {
     final response = await _client.post(
       _uri('/api/account/authenticator/enable'),
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({'code': code}),
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+  }
+
+  Future<bool> getAuthenticatorEnabled() async {
+    final response = await _client.get(
+      _uri('/api/account/authenticator'),
+      headers: _authHeaders,
+    ).timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as Map<String, dynamic>)['enabled'] == true;
+  }
+
+  Future<void> disableAuthenticator(String code) async {
+    final response = await _client.post(
+      _uri('/api/account/authenticator/disable'),
       headers: _jsonAuthHeaders,
       body: jsonEncode({'code': code}),
     ).timeout(const Duration(seconds: 8));
@@ -262,6 +289,14 @@ class ApiService {
     return list
         .map((item) => Alert.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getSmsLog() async {
+    final response = await _client.get(_uri('/api/sms-log'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return (jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>();
   }
 
   Future<void> acknowledgeAlert(int id) async {

@@ -436,6 +436,7 @@ app.post("/api/account/authenticator/enable", requireFarmer, (req, res) => {
   if (!secret) return res.status(409).json({ error: "Start authenticator setup first." });
   if (!verifyAuthenticatorCode(secret, req.body?.code)) return res.status(400).json({ error: "That code is incorrect or has expired. Try the current code." });
   cropDatabase.enableAuthenticator(req.farmer.id);
+  broadcastUpdate("account");
   res.json({ enabled: true });
 });
 
@@ -444,6 +445,7 @@ app.post("/api/account/authenticator/disable", requireFarmer, (req, res) => {
   if (!secret) return res.status(409).json({ error: "Authenticator sign-in is not enabled." });
   if (!verifyAuthenticatorCode(secret, req.body?.code)) return res.status(400).json({ error: "That code is incorrect or has expired." });
   cropDatabase.disableAuthenticator(req.farmer.id);
+  broadcastUpdate("account");
   res.json({ enabled: false });
 });
 

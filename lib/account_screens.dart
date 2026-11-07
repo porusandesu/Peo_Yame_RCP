@@ -219,6 +219,27 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
   bool _saving = false;
   String? _error;
   int _loadRevision = 0;
+  String _query = '';
+
+  List<Map<String, dynamic>> get _filteredSites {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _sites;
+    return _sites.where((site) {
+      final id = site['id'];
+      final linkedIds = _sensors.where((sensor) => sensor['siteId'] == id)
+          .map((sensor) => sensor['sensorId']).join(' ');
+      return '${site['commodity']} ${site['label']} $linkedIds'
+          .toLowerCase().contains(query);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredSensors {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return _sensors;
+    return _sensors.where((sensor) =>
+      '${sensor['sensorId']} ${_sensorDescription(sensor)}'
+          .toLowerCase().contains(query)).toList();
+  }
 
   @override
   void initState() {
@@ -529,6 +550,14 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
           child: Center(child: CircularProgressIndicator()),
         ),
       if (!_loading && _error == null) ...[
+        TextField(
+          onChanged: (value) => setState(() => _query = value),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            labelText: 'Search crop, location or sensor ID',
+            border: OutlineInputBorder(),
+          ),
+        ),
         const SizedBox(height: 8),
         FilledButton.icon(
           onPressed: _saving ? null : _addLocation,
@@ -551,7 +580,12 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
               ),
             ),
           ),
-        ..._sites.map((site) {
+        if (_filteredSites.isEmpty && _sites.isNotEmpty)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No crop locations or sensors match this search.'),
+          ),
+        ..._filteredSites.map((site) {
           final siteId = site['id'] as int;
           final linked = _sensors
               .where((sensor) => sensor['siteId'] == siteId)
@@ -592,11 +626,11 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
             ),
           );
         }),
-        if (_sensors.isNotEmpty) ...[
+        if (_filteredSensors.isNotEmpty) ...[
           const SizedBox(height: 8),
           const _AccountSectionTitle('Linked sensors'),
           const SizedBox(height: 8),
-          ..._sensors.map((sensor) {
+          ..._filteredSensors.map((sensor) {
             final id = sensor['sensorId'] as String;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),

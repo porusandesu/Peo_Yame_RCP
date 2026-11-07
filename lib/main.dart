@@ -551,7 +551,19 @@ class _DashboardPageState extends State<DashboardPage> {
   String _baseUrl = defaultApiBaseUrl;
   int _selectedTab = 0;
   bool _showBackendAddress = false;
+  bool _authenticatorEnabled = false;
+  bool _loadingAuthenticator = false;
+  int _observedAccountRevision = 0;
+  String _cropGuideSearch = '';
   DateTime _sensorStartedAt = DateTime.now();
+
+  List<Threshold> get _visibleCropGuides {
+    final query = _cropGuideSearch.trim().toLowerCase();
+    if (query.isEmpty) return _controller.crops;
+    return _controller.crops.where((crop) =>
+      '${crop.commodity} ${crop.cropGroup} ${crop.storageNote}'
+          .toLowerCase().contains(query)).toList();
+  }
 
   Future<void> _exportActionLog(BuildContext buttonContext) async {
     try {
@@ -609,9 +621,51 @@ class _DashboardPageState extends State<DashboardPage> {
     _controller = DashboardController(
       api: ApiService(baseUrl: widget.baseUrl, authToken: widget.token),
     );
+    _controller.addListener(_handleDashboardUpdate);
     _controller.demoMode = widget.token == null;
     _controller.loadCrops();
     _loadSavedAddress();
+    if (widget.token != null) _refreshAuthenticatorStatus();
+  }
+
+  void _handleDashboardUpdate() {
+    if (widget.token == null ||
+        _observedAccountRevision == _controller.farmerAccountRevision) return;
+    _observedAccountRevision = _controller.farmerAccountRevision;
+    unawaited(_refreshFarmerProfile());
+    unawaited(_refreshAuthenticatorStatus());
+  }
+
+  Future<void> _refreshFarmerProfile() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final account = await api.getFarmerAccount();
+      if (!mounted) return;
+      setState(() {
+        _accountName = account['name'] as String? ?? _accountName;
+        _accountEmail = account['email'] as String? ?? '';
+        _accountPhone = account['phone'] as String? ?? _accountPhone;
+      });
+    } catch (_) {
+      // Keep the last server-confirmed profile visible while reconnecting.
+    } finally {
+      api.dispose();
+    }
+  }
+
+  Future<void> _refreshAuthenticatorStatus() async {
+    if (widget.token == null) return;
+    setState(() => _loadingAuthenticator = true);
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final enabled = await api.getAuthenticatorEnabled();
+      if (mounted) setState(() => _authenticatorEnabled = enabled);
+    } catch (_) {
+      // Keep the security controls usable if status lookup is temporarily unavailable.
+    } finally {
+      api.dispose();
+      if (mounted) setState(() => _loadingAuthenticator = false);
+    }
   }
 
   Future<void> _loadSavedAddress() async {
@@ -644,18 +698,27 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _editProfile() async {
     if (widget.token == null) return;
     final nameController = TextEditingController(text: _accountName);
+    final emailController = TextEditingController(text: _accountEmail);
     String? validationError;
-    final name = await showDialog<String>(
+    final profile = await showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Edit profile'),
-          content: TextField(
-            controller: nameController,
-            autofocus: true,
-            maxLength: 80,
-            decoration: InputDecoration(labelText: 'Name', errorText: validationError),
-          ),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              maxLength: 80,
+              decoration: InputDecoration(labelText: 'Name', errorText: validationError),
+            ),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              maxLength: 254,
+              decoration: const InputDecoration(labelText: 'Email (optional)'),
+            ),
+          ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
             FilledButton(
@@ -665,7 +728,12 @@ class _DashboardPageState extends State<DashboardPage> {
                   setDialogState(() => validationError = 'Enter a name between 2 and 80 characters.');
                   return;
                 }
-                Navigator.pop(dialogContext, value);
+                final email = emailController.text.trim();
+                if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                  setDialogState(() => validationError = 'Enter a valid email address or leave it blank.');
+                  return;
+                }
+                Navigator.pop(dialogContext, {'name': value, 'email': email});
               },
               child: const Text('Save'),
             ),
@@ -674,13 +742,14 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
     nameController.dispose();
-    if (name == null || !mounted || name == _accountName) return;
+    emailController.dispose();
+    if (profile == null || !mounted || (profile['name'] == _accountName && profile['email'] == _accountEmail)) return;
     final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
     try {
-      final account = await api.updateFarmerName(name);
+      final account = await api.updateFarmerProfile(name: profile['name']!, email: profile['email']!);
       if (!mounted) return;
       setState(() {
-        _accountName = account['name'] as String? ?? name;
+        _accountName = account['name'] as String? ?? profile['name']!;
         _accountEmail = account['email'] as String? ?? _accountEmail;
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated.')));
@@ -698,9 +767,33 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _setupAuthenticator() async {
     final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
     try {
+      String? code;
+      if (_authenticatorEnabled) {
+        code = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) {
+            final codeController = TextEditingController();
+            return AlertDialog(
+              title: const Text('Turn off authenticator sign-in?'),
+              content: TextField(controller: codeController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'Current 6-digit code', counterText: '')),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, codeController.text.trim()), child: const Text('Turn off')),
+              ],
+            );
+          },
+        );
+        if (code == null || code.isEmpty) return;
+        await api.disableAuthenticator(code);
+        if (mounted) {
+          setState(() => _authenticatorEnabled = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is disabled.')));
+        }
+        return;
+      }
       final setup = await api.setupAuthenticator();
       if (!mounted) return;
-      final code = await showDialog<String>(
+      code = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
           final codeController = TextEditingController();
@@ -722,7 +815,10 @@ class _DashboardPageState extends State<DashboardPage> {
       );
       if (code == null || code.isEmpty) return;
       await api.enableAuthenticator(code);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is enabled.')));
+      if (mounted) {
+        setState(() => _authenticatorEnabled = true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Authenticator sign-in is enabled.')));
+      }
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))));
     } finally {
@@ -1020,6 +1116,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _controller.removeListener(_handleDashboardUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -1298,10 +1395,24 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     ],
     const SizedBox(height: 8),
-    if (_controller.crops.isEmpty)
-      const _EmptyCard(icon: Icons.eco_outlined, text: 'Crop guides are unavailable while the backend is offline.')
+    TextField(
+      onChanged: (value) => setState(() => _cropGuideSearch = value),
+      decoration: const InputDecoration(
+        prefixIcon: Icon(Icons.search),
+        labelText: 'Search crop guides',
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 8),
+    if (_visibleCropGuides.isEmpty)
+      _EmptyCard(
+        icon: Icons.eco_outlined,
+        text: _controller.crops.isEmpty
+            ? 'Crop guides are unavailable while the backend is offline.'
+            : 'No crop guides match this search.',
+      )
     else
-      ..._controller.crops.map((crop) => Card(
+      ..._visibleCropGuides.map((crop) => Card(
         child: ExpansionTile(
           leading: const Icon(Icons.eco_outlined, color: _forest),
           title: Text(crop.commodity, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -1391,6 +1502,27 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
         ),
+      const SizedBox(height: 16),
+      const _SectionTitle(title: 'SMS dispatch log · simulation only'),
+      const SizedBox(height: 8),
+      const Text(
+        'These entries are recorded locally by the demo backend. No text message is sent.',
+        style: TextStyle(color: Color(0xFF65776F), fontSize: 12),
+      ),
+      const SizedBox(height: 8),
+      if (_controller.smsLog.isEmpty)
+        const _EmptyCard(
+          icon: Icons.sms_outlined,
+          text: 'No simulated dispatch entries yet.',
+        )
+      else
+        ..._controller.smsLog.take(10).map((entry) => Card(
+          child: ListTile(
+            leading: const Icon(Icons.sms_outlined, color: _forest),
+            title: Text('${entry['body'] ?? 'Alert dispatch'}', maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text('${entry['status'] ?? 'logged'} · ${_formatDate('${entry['createdAt'] ?? ''}')}'),
+          ),
+        )),
       const SizedBox(height: 16),
       if (_controller.demoMode) ...[
         Card(
@@ -1483,9 +1615,13 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       const SizedBox(height: 10),
       OutlinedButton.icon(
-        onPressed: _setupAuthenticator,
+        onPressed: _loadingAuthenticator ? null : _setupAuthenticator,
         icon: const Icon(Icons.security_rounded),
-        label: const Text('Set up authenticator sign-in'),
+        label: Text(_loadingAuthenticator
+            ? 'Checking authenticator…'
+            : _authenticatorEnabled
+                ? 'Turn off authenticator sign-in'
+                : 'Set up authenticator sign-in'),
         style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
       ),
       const SizedBox(height: 16),
@@ -1619,8 +1755,9 @@ class _DashboardPageState extends State<DashboardPage> {
     const SizedBox(height: 8),
     const _SimulationBanner(),
     const SizedBox(height: 8),
-    Card(
-      child: SwitchListTile(
+    if (widget.token == null)
+      Card(
+        child: SwitchListTile(
         secondary: const Icon(Icons.science_outlined, color: _forest),
         title: const Text('Demo mode'),
         subtitle: Text(
@@ -1630,8 +1767,8 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         value: _controller.demoMode,
         onChanged: (enabled) => _controller.setDemoMode(enabled),
+        ),
       ),
-    ),
     const SizedBox(height: 8),
     const Card(
       child: ListTile(

@@ -172,7 +172,7 @@
       </div>
     </header>
     <main id="dashboard" hidden>
-      <nav class="top-nav" aria-label="Application sections"><button type="button" data-open-view="accounts">Accounts</button><button type="button" data-open-view="crops">My Crops</button></nav>
+      <nav class="top-nav" aria-label="Application sections"><button type="button" data-open-view="accounts">Accounts</button><button type="button" data-open-view="crops">My Crops</button><button type="button" data-open-view="settings">Settings</button></nav>
         <div class="notice"><span aria-hidden="true">ℹ️</span><div><strong>Demo data</strong>Dashboard readings are simulated. No physical sensors are connected and no text messages are sent.</div></div>
       <div class="toolbar"><div id="updated" class="updated">Connecting…</div></div>
       <div id="error" role="status" aria-live="polite"></div>
@@ -213,9 +213,16 @@
       <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, location or sensor ID" aria-label="Search crop, location or sensor ID"><button class="filter-button" data-sensor-filter="all" aria-pressed="true">All sensors</button></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
+    <section class="view" id="settingsView" hidden>
+      <div class="view-heading"><button type="button" data-back-dashboard>←</button><h2>Settings</h2></div>
+      <article class="profile-card"><h2>Account information</h2><div class="profile-line"><div class="profile-avatar" id="settingsInitial">D</div><div><strong id="settingsName">Shared Demo profile</strong><div class="profile-meta" id="settingsIdentity"></div></div></div><button type="button" id="settingsEditProfile" style="margin-top:12px">Edit profile</button></article>
+      <article class="profile-card" id="webSecuritySettings"><h2>Account security</h2><div class="profile-meta" id="authenticatorStatus">Checking authenticator status…</div><button type="button" id="authenticatorAction" style="margin-top:10px">Check status</button><div class="profile-meta" id="securityNotice" role="status" aria-live="polite" style="margin-top:8px"></div></article>
+      <article class="profile-card"><h2>Monitor and data</h2><div class="profile-meta" id="webBackendInfo">This page uses the backend serving this web app.</div><div class="view-actions"><button type="button" id="settingsRefresh">↻ &nbsp; Refresh shared data</button><button type="button" id="settingsExportCsv">▦ &nbsp; Export readings as CSV</button><button type="button" id="settingsExportActions">⇩ &nbsp; Export activity log</button></div><div class="profile-meta" style="margin-top:10px">Demo readings are simulated. No physical sensor or SMS provider is connected.</div></article>
+    </section>
     <dialog id="siteDialog"><form id="siteForm"><h2>Add a crop location</h2><div class="form-grid"><label>Crop<select name="commodity" id="siteCommodity" required></select></label><label>Storage or field name<input name="label" required maxlength="80" placeholder="For example: North store"></label></div><div id="siteError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="siteDialog">Cancel</button><button type="submit">Save location</button></div></form></dialog>
-    <dialog id="sensorDialog"><form id="sensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Crop location<select name="siteId" id="sensorSiteId" required></select></label><label>Discovered sensor<select name="sensorId" id="sensorId" required></select></label></div><div id="sensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="sensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
+    <dialog id="sensorDialog"><form id="sensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Crop location<select name="siteId" id="sensorSiteId"></select></label><label>Discovered sensor<select name="sensorId" id="sensorId" required></select></label></div><div id="sensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="sensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
     <dialog id="profileDialog"><form id="profileForm"><h2>Edit profile</h2><label>Name<input name="name" id="profileNameInput" required minlength="2" maxlength="80"></label><label>Email address (optional)<input name="email" id="profileEmailInput" type="email" maxlength="254"></label><div class="profile-meta">Your phone number is the sign-in identity and cannot be changed here.</div><div id="profileEditError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="profileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
+    <dialog id="authenticatorDialog"><form id="authenticatorForm"><h2 id="authenticatorTitle">Set up authenticator</h2><p class="profile-meta" id="authenticatorInstructions"></p><p id="authenticatorSecret" style="font-weight:800;letter-spacing:1.2px;overflow-wrap:anywhere"></p><label>Current 6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label><div id="authenticatorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close="authenticatorDialog">Cancel</button><button type="submit" id="authenticatorSubmit">Enable</button></div></form></dialog>
     <dialog id="cropDialog"><form id="cropForm"><h2>Add a crop</h2><div class="form-grid"><label>Crop name<input name="name" required maxlength="60" autocomplete="off"></label><label>Minimum temperature (°C)<input name="minTemp" type="number" step="any" required></label><label>Maximum temperature (°C)<input name="maxTemp" type="number" step="any" required></label><label>Minimum humidity (%)<input name="minHumidity" type="number" min="0" max="100" step="any" required></label><label>Maximum humidity (%)<input name="maxHumidity" type="number" min="0" max="100" step="any" required></label></div><div id="cropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button id="cancelCrop" type="button">Cancel</button><button type="submit">Save crop</button></div></form></dialog>
     <script>
       const $ = (id) => document.getElementById(id);
@@ -235,6 +242,8 @@
       let ownedSites = [];
       let ownedSensors = [];
       let ownedDataRevision = 0;
+      let authenticatorEnabled = false;
+      let authenticatorDialogMode = 'enable';
       let currentView = 'dashboard';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
@@ -257,6 +266,7 @@
         $('dashboard').hidden = true;
         $('accountsView').hidden = true;
         $('cropsView').hidden = true;
+        $('settingsView').hidden = true;
       }
       function showWebAuth(createAccount = false) {
         registeredMode = createAccount;
@@ -281,6 +291,7 @@
         $('dashboard').hidden = name !== 'dashboard';
         $('accountsView').hidden = name !== 'accounts';
         $('cropsView').hidden = name !== 'crops';
+        $('settingsView').hidden = name !== 'settings';
         $('accountMenu').hidden = true;
         $('accountButton').setAttribute('aria-expanded','false');
         if (name === 'crops') renderSensors();
@@ -306,8 +317,13 @@
         $('profileName').textContent = demoProfile.name;
         $('profilePhone').textContent = demoProfile.phone || 'Demo profile';
         $('profileEmail').textContent = demoProfile.email || '';
+        $('settingsInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+        $('settingsName').textContent = demoProfile.name;
+        $('settingsIdentity').textContent = demoMode ? (demoProfile.email || 'Shared demo profile') : [demoProfile.phone, demoProfile.email].filter(Boolean).join(' · ');
         $('cropAccountLabel').textContent = `${demoProfile.name}’s storage locations`;
         $('editProfile').hidden = demoMode;
+        $('settingsEditProfile').hidden = demoMode;
+        $('webSecuritySettings').hidden = demoMode;
         $('linkSensor').hidden = demoMode;
         $('connectPhone').hidden = demoMode;
         $('addDemoSensor').hidden = !demoMode;
@@ -317,7 +333,7 @@
           : 'Saved crop locations and linked sensor IDs belong to your account. Last-seen time is based on received readings.';
         updateDemoControls();
         showView('dashboard');
-        if (!demoMode) void loadOwnedData();
+        if (!demoMode) { void loadOwnedData(); void loadAuthenticatorStatus(); }
         refresh();
       }
       function renderSensors() {
@@ -336,7 +352,12 @@
           return;
         }
         const filtered = ownedSites.filter((site) => `${site.commodity} ${site.label} ${(site.sensors || []).join(' ')}`.toLowerCase().includes(query));
-        $('sensorList').innerHTML = filtered.map((site) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(site.commodity.slice(0,1))}</span><strong>${escapeHtml(site.commodity)}</strong><span class="profile-meta">${escapeHtml(site.label)}</span><button type="button" data-remove-site="${Number(site.id)}" aria-label="Remove ${escapeHtml(site.label)}">Remove</button></div><div class="profile-meta">Room target ${site.minTemp}–${site.maxTemp} °C · ${site.minHumidity}–${site.maxHumidity}% RH</div>${ownedSensors.filter((sensor) => Number(sensor.siteId) === Number(site.id)).map((sensor) => `<div class="sensor-title"><span class="profile-meta">Sensor ${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div>`).join('') || '<div class="profile-meta">No linked sensors</div>'}</article>`).join('') || '<div class="empty">No crop locations yet. Add a crop and storage location to get started.</div>';
+        const sitesHtml = filtered.map((site) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(site.commodity.slice(0,1))}</span><strong>${escapeHtml(site.commodity)}</strong><span class="profile-meta">${escapeHtml(site.label)}</span><button type="button" data-remove-site="${Number(site.id)}" aria-label="Remove ${escapeHtml(site.label)}">Remove</button></div><div class="profile-meta">Room target ${site.minTemp}–${site.maxTemp} °C · ${site.minHumidity}–${site.maxHumidity}% RH</div>${ownedSensors.filter((sensor) => Number(sensor.siteId) === Number(site.id)).map((sensor) => `<div class="sensor-title"><span class="profile-meta">Sensor ${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div>`).join('') || '<div class="profile-meta">No linked sensors</div>'}</article>`).join('') || '<div class="empty">No crop locations yet. Add a crop and storage location to get started.</div>';
+        const guides = cropCatalog.filter((crop) => `${crop.commodity} ${crop.cropGroup || ''} ${crop.storageNote || ''}`.toLowerCase().includes(query));
+        const guidesHtml = `<h2>Crop guides</h2><div class="profile-meta">Selecting a guide updates the shared monitoring crop and its configured target band.</div>${guides.map((crop) => `<article class="sensor-card"><div class="sensor-title"><span class="profile-avatar">${escapeHtml(crop.commodity.slice(0,1))}</span><strong>${escapeHtml(crop.commodity)}</strong><span class="profile-meta">${escapeHtml(crop.cropGroup || 'Crop guide')}</span><button type="button" data-monitor-crop="${escapeHtml(crop.commodity)}">Monitor</button></div><div class="profile-meta">Room target ${Number(crop.minTemp)}–${Number(crop.maxTemp)} °C · ${Number(crop.minHumidity)}–${Number(crop.maxHumidity)}% RH</div><div class="profile-meta">${escapeHtml(crop.storageNote || 'Indicative reference band; confirm advice for the crop and its condition.')}</div>${crop.safeMoisturePct == null ? '' : `<div class="profile-meta">Grain moisture guide: at or below ${Number(crop.safeMoisturePct)}%; measure separately with a moisture meter.</div>`}</article>`).join('') || '<div class="empty">No crop guides match your search.</div>'}`;
+        const unassigned = ownedSensors.filter((sensor) => !ownedSites.some((site) => Number(site.id) === Number(sensor.siteId)));
+        const unassignedHtml = unassigned.length ? `<h2>Unassigned linked sensors</h2>${unassigned.map((sensor) => `<article class="sensor-card"><div class="sensor-title"><strong>Sensor ${escapeHtml(sensor.sensorId)}</strong><span class="profile-meta">No crop location · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</span><button type="button" data-unlink-sensor="${escapeHtml(sensor.sensorId)}">Unlink</button></div></article>`).join('')}` : '';
+        $('sensorList').innerHTML = `${sitesHtml}${unassignedHtml}${guidesHtml}`;
         $('sensorList').querySelectorAll('[data-remove-site]').forEach((button) => button.addEventListener('click', async () => {
           try { await requestJson(`/api/farmer/crops/${button.dataset.removeSite}`, { method:'DELETE' }); await loadOwnedData(); }
           catch (error) { $('cropActionNotice').textContent = error.message; }
@@ -344,6 +365,14 @@
         $('sensorList').querySelectorAll('[data-unlink-sensor]').forEach((button) => button.addEventListener('click', async () => {
           try { await requestJson(`/api/farmer/sensors/${encodeURIComponent(button.dataset.unlinkSensor)}`, { method:'DELETE' }); await loadOwnedData(); }
           catch (error) { $('cropActionNotice').textContent = error.message; }
+        }));
+        $('sensorList').querySelectorAll('[data-monitor-crop]').forEach((button) => button.addEventListener('click', async () => {
+          try {
+            const selected = await postJson('/api/commodity', {name:button.dataset.monitorCrop, source:'web'});
+            applyHarvestSelection(selected);
+            showView('dashboard');
+            await refresh();
+          } catch (error) { $('cropActionNotice').textContent = error.message; }
         }));
       }
       async function requestJson(url, options = {}) {
@@ -370,6 +399,70 @@
           if (revision === ownedDataRevision) $('accountActionNotice').textContent = error.message;
         }
       }
+      async function loadAuthenticatorStatus() {
+        if (demoMode || !authToken) return;
+        $('authenticatorAction').disabled = true;
+        $('authenticatorStatus').textContent = 'Checking authenticator status…';
+        try {
+          const result = await requestJson('/api/account/authenticator');
+          authenticatorEnabled = result.enabled === true;
+          $('authenticatorStatus').textContent = authenticatorEnabled
+            ? 'Authenticator sign-in is enabled for this account.'
+            : 'Authenticator sign-in is not enabled.';
+          $('authenticatorAction').textContent = authenticatorEnabled ? 'Turn off authenticator sign-in' : 'Set up authenticator sign-in';
+          $('securityNotice').textContent = '';
+        } catch (error) {
+          $('authenticatorStatus').textContent = `Could not check account security: ${error.message}`;
+          $('authenticatorAction').textContent = 'Retry status check';
+        } finally { $('authenticatorAction').disabled = false; }
+      }
+      async function reloadFarmerProfile() {
+        if (demoMode || !authToken) return;
+        try {
+          const profile = await requestJson('/api/account');
+          demoProfile = {name:profile.name || 'Farmer', phone:profile.phone || '', email:profile.email || ''};
+          $('accountName').textContent = demoProfile.name;
+          $('accountPhone').textContent = demoProfile.phone || demoProfile.email || 'Farmer account';
+          $('menuName').textContent = demoProfile.name;
+          $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('profileName').textContent = demoProfile.name;
+          $('profilePhone').textContent = demoProfile.phone || 'Farmer account';
+          $('profileEmail').textContent = demoProfile.email;
+          $('cropAccountLabel').textContent = `${demoProfile.name}’s storage locations`;
+          $('settingsInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
+          $('settingsName').textContent = demoProfile.name;
+          $('settingsIdentity').textContent = [demoProfile.phone, demoProfile.email].filter(Boolean).join(' · ');
+        } catch (_) {
+          // Leave the last server-confirmed values in place during reconnect.
+        }
+      }
+      async function openAuthenticatorDialog() {
+        if (demoMode || !authToken) return;
+        $('authenticatorError').textContent = '';
+        $('authenticatorCode').value = '';
+        if (authenticatorEnabled) {
+          authenticatorDialogMode = 'disable';
+          $('authenticatorTitle').textContent = 'Turn off authenticator sign-in';
+          $('authenticatorInstructions').textContent = 'Enter the current code from your authenticator app to disable this extra sign-in check.';
+          $('authenticatorSecret').hidden = true;
+          $('authenticatorSubmit').textContent = 'Turn off';
+        } else {
+          try {
+            const setup = await postJson('/api/account/authenticator/setup', {});
+            authenticatorDialogMode = 'enable';
+            $('authenticatorTitle').textContent = 'Set up authenticator';
+            $('authenticatorInstructions').textContent = 'Add this key in Google Authenticator or another TOTP app, then enter its current six-digit code.';
+            $('authenticatorSecret').textContent = setup.secret;
+            $('authenticatorSecret').hidden = false;
+            $('authenticatorSubmit').textContent = 'Enable';
+          } catch (error) {
+            $('securityNotice').textContent = `Could not start setup: ${error.message}`;
+            return;
+          }
+        }
+        $('authenticatorDialog').showModal();
+      }
       async function openSiteDialog() {
         $('siteError').textContent = '';
         try {
@@ -383,9 +476,8 @@
         try {
           await loadOwnedData();
           const available = await getJson('/api/farmer/available-sensors');
-          if (!ownedSites.length) throw new Error('Add a crop location before linking a sensor.');
           if (!available.length) throw new Error('No unassigned physical sensor readings have reached this backend yet.');
-          $('sensorSiteId').innerHTML = ownedSites.map((site) => `<option value="${Number(site.id)}">${escapeHtml(site.commodity)} · ${escapeHtml(site.label)}</option>`).join('');
+          $('sensorSiteId').innerHTML = `<option value="">No location yet</option>${ownedSites.map((site) => `<option value="${Number(site.id)}">${escapeHtml(site.commodity)} · ${escapeHtml(site.label)}</option>`).join('')}`;
           $('sensorId').innerHTML = available.map((sensor) => `<option value="${escapeHtml(sensor.sensorId)}">${escapeHtml(sensor.sensorId)} · last seen ${escapeHtml(fmtTime(sensor.lastSeen))}</option>`).join('');
           $('sensorDialog').showModal();
         } catch (error) { $('accountActionNotice').textContent = error.message; }
@@ -705,6 +797,27 @@
         $('profileEmailInput').value = demoProfile?.email || '';
         $('profileDialog').showModal();
       });
+      $('settingsEditProfile').addEventListener('click', () => $('editProfile').click());
+      $('authenticatorAction').addEventListener('click', () => {
+        if (!authToken) { void loadAuthenticatorStatus(); return; }
+        void openAuthenticatorDialog();
+      });
+      $('authenticatorForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const code = $('authenticatorCode').value.trim();
+        $('authenticatorSubmit').disabled = true;
+        $('authenticatorError').textContent = '';
+        try {
+          await postJson(`/api/account/authenticator/${authenticatorDialogMode}`, {code});
+          $('authenticatorDialog').close();
+          $('securityNotice').textContent = authenticatorDialogMode === 'enable' ? 'Authenticator sign-in enabled.' : 'Authenticator sign-in disabled.';
+          await loadAuthenticatorStatus();
+        } catch (error) { $('authenticatorError').textContent = error.message; }
+        finally { $('authenticatorSubmit').disabled = false; }
+      });
+      $('settingsRefresh').addEventListener('click', () => { void recordAction('Manual refresh'); void refresh(); if (!demoMode) void loadOwnedData(); });
+      $('settingsExportCsv').addEventListener('click', () => $('exportData').click());
+      $('settingsExportActions').addEventListener('click', () => $('exportActions').click());
       $('linkSensor').addEventListener('click', openSensorDialog);
       $('addDemoSensor').addEventListener('click', () => {
         if (demoMode) {
@@ -729,7 +842,7 @@
       $('sensorForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-        values.siteId = Number(values.siteId);
+        values.siteId = values.siteId === '' ? null : Number(values.siteId);
         try {
           await postJson('/api/farmer/sensors', values);
           $('sensorDialog').close();
@@ -777,7 +890,7 @@
         refresh();
         try {
           const update = JSON.parse(event.data);
-          if (update.type === 'account' && !demoMode) void loadOwnedData();
+          if (update.type === 'account' && !demoMode) { void loadOwnedData(); void loadAuthenticatorStatus(); void reloadFarmerProfile(); }
         } catch (_) {}
       };
       updates.onerror = () => {

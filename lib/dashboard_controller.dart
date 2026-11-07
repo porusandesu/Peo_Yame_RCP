@@ -29,6 +29,7 @@ class DashboardController extends ChangeNotifier {
 
   StatusResponse? status;
   List<Alert> alerts = const [];
+  List<Map<String, dynamic>> smsLog = const [];
   List<Reading> history = const [];
   List<TrendPoint> trends = const [];
   String trendRange = '24h';
@@ -237,6 +238,7 @@ class DashboardController extends ChangeNotifier {
       final results = await Future.wait([
         _api.getStatus(),
         _api.getAlerts(),
+        _api.getSmsLog().catchError((_) => smsLog),
         _api.getHistory(limit: 20),
       ]);
 
@@ -244,7 +246,8 @@ class DashboardController extends ChangeNotifier {
 
       status = results[0] as StatusResponse;
       alerts = results[1] as List<Alert>;
-      history = results[2] as List<Reading>;
+      smsLog = results[2] as List<Map<String, dynamic>>;
+      history = results[3] as List<Reading>;
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (_) {
