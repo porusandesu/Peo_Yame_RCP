@@ -113,6 +113,41 @@ app.post("/api/auth/mobile-qr", (req, res) => {
   res.json(createSession(farmer));
 });
 
+// A signed-in phone can issue a one-use challenge for web sign-in. The browser
+// polls the challenge and receives the same backend session after QR scan.
+app.post("/api/auth/web-login-qr", (req, res) => {
+  const challenge = crypto.randomBytes(32).toString("base64url");
+  mobileLoginChallenges.set(challenge, { expiresAt: Date.now() + 2 * 60 * 1000, direction: "web" });
+  res.json({ challenge, expiresInSeconds: 120 });
+});
+
+app.post("/api/account/web-login-qr/approve", requireFarmer, (req, res) => {
+  const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
+  const entry = mobileLoginChallenges.get(challenge);
+  if (entry && entry.direction === "web" && !entry.accountId && entry.expiresAt > Date.now()) {
+    return res.status(202).json({ pending: true });
+  }
+  if (!entry || entry.direction !== "web" || entry.expiresAt <= Date.now()) {
+    mobileLoginChallenges.delete(challenge);
+    return res.status(401).json({ error: "This web sign-in QR expired. Reload the login page and try again." });
+  }
+  entry.accountId = req.farmer.id;
+  res.json({ approved: true });
+});
+
+app.post("/api/auth/web-qr-session", (req, res) => {
+  const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
+  const entry = mobileLoginChallenges.get(challenge);
+  if (!entry || entry.direction !== "web" || !entry.accountId || entry.expiresAt <= Date.now()) {
+    mobileLoginChallenges.delete(challenge);
+    return res.status(401).json({ error: "This phone sign-in QR expired. Create a new one in the mobile app." });
+  }
+  mobileLoginChallenges.delete(challenge);
+  const farmer = cropDatabase.findFarmerById(entry.accountId);
+  if (!farmer) return res.status(404).json({ error: "The farmer account for this QR was not found." });
+  res.json(createSession(farmer));
+});
+
 app.post("/api/auth/request-otp", (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
@@ -175,6 +210,7 @@ app.post("/api/auth/demo/skip-verification", (req, res) => {
   let farmer = cropDatabase.findFarmer(phone);
   if (farmer?.authenticatorEnabled) return res.status(401).json({ error: "Use your authenticator code to verify this account." });
   if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name, challenge.email);
+  farmer = cropDatabase.markFarmerDemoSecuritySkipped(farmer.id) || farmer;
   otpChallenges.delete(phone);
   res.json(createSession(farmer));
 });

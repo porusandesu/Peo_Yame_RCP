@@ -16,9 +16,12 @@ npm run demo
 ```
 
 Open <http://localhost:3000>. For a physical phone, connect it to the same
-Wi-Fi, sign in to the web app, choose **Connect mobile app**, then scan the
-one-use QR in the Flutter app. A signed-out mobile app accepts QR sign-in only;
-the QR is issued by an authenticated web session and expires after two minutes.
+Wi-Fi. In the Flutter app, choose **Sign in with phone number** to use an
+existing farmer account's phone/authenticator verification, or choose **Scan
+sign-in QR** after signing in on the web app and opening **Connect mobile app**.
+The local demo does not send SMS; phone sign-in offers **Skip verification
+(demo)**. New farmer accounts must first be created on the web. QR sign-in is
+issued by an authenticated web session and expires after two minutes.
 
 ## Demonstration flow
 

@@ -48,6 +48,64 @@ class ApiService {
     return result['farmer'] as Map<String, dynamic>;
   }
 
+  Future<void> approveWebLoginQr(String challenge) async {
+    final response = await _client
+        .post(
+          _uri('/api/account/web-login-qr/approve'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: jsonEncode({'challenge': challenge}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+  }
+
+  Future<Map<String, dynamic>> requestPhoneSignInCode({
+    required String phone,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/request-otp'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> signInWithPhoneCode({
+    required String phone,
+    required String code,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/verify-otp'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone, 'code': code}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result;
+  }
+
+  Future<Map<String, dynamic>> skipPhoneVerificationForDemo({
+    required String phone,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/auth/demo/skip-verification'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    authToken = result['token'] as String;
+    return result;
+  }
+
   Future<Map<String, dynamic>> updateAccount({
     required String name,
     required String phone,
@@ -362,6 +420,15 @@ class ApiService {
 
   void _ensureOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final message = body['error'];
+        if (message is String && message.isNotEmpty) {
+          throw Exception(message);
+        }
+      } on FormatException {
+        // Use the status/body fallback for non-JSON errors.
+      }
       throw Exception('HTTP ${response.statusCode}: ${response.body}');
     }
   }

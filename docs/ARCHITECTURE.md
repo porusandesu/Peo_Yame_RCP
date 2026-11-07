@@ -48,7 +48,9 @@ flowchart LR
 - The web dashboard issues a random one-use mobile pairing challenge only
   after web authentication. A QR contains the backend address and challenge;
   it expires in two minutes. Mobile exchanges the challenge for its own
-  seven-day session. The signed-out mobile screen accepts only this QR flow.
+  seven-day session. The mobile sign-in screen also supports phone OTP or
+  Google Authenticator for existing farmer accounts. Demo mode offers a
+  verification bypass because no SMS is sent; production needs an SMS provider.
 - Session tokens are random bearer values; SQLite stores their SHA-256 hashes.
   Password hashes and session hashes are not returned by API responses.
 

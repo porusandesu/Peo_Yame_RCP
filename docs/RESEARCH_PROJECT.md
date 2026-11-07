@@ -89,8 +89,8 @@ flowchart LR
 
 ### Flutter client
 
-- `lib/main.dart`: application root, QR-only mobile sign-in/session gate, dashboard screens, five-tab navigation, Settings, data exports and UI actions.
-- `lib/api_service.dart`: HTTP request construction, JSON decoding, timeouts, SSE stream decoding, mobile QR/account/crop operations and exports.
+- `lib/main.dart`: application root, mobile QR and phone-verification sign-in/session gate, dashboard screens, five-tab navigation, Settings, data exports and UI actions.
+- `lib/api_service.dart`: HTTP request construction, JSON decoding, timeouts, SSE stream decoding, mobile QR/OTP/account/crop operations and exports.
 - `lib/dashboard_controller.dart`: dashboard state, SSE lifecycle, reconnect loop, 20-second polling fallback, tolerance for two missed refreshes, request coalescing, crop loading, selection and error state.
 - `lib/models.dart`: typed data objects for readings, trends, thresholds, status and alerts.
 - `lib/account_screens.dart`: farmer Accounts and My Crops views, farmer-name edit dialog, crop-location listing and deletion. Some account summary counts, sensor-linking affordances and reading decoration remain design/demo content.
@@ -253,10 +253,10 @@ All routes use the configured Express host and port (`HOST`, default development
 
 ### Phone verification, credentials and account sign-in
 
-1. Web registration/login requests phone verification through `/api/auth/request-otp`. OTP challenge hashes and expiry/attempt data remain in process memory; the raw code is not returned to clients. Demo mode offers an explicit bypass button instead of exposing a code. The bypass consumes a pending challenge and is disabled in production. Phone verification does not sign in the mobile app.
-2. `/api/auth/verify-otp` checks the PIN when delivery is configured, or checks an authenticator code for accounts with TOTP enabled. Successful web verification establishes the web session and proceeds to account credential setup when needed.
+1. Web and mobile request phone verification through `/api/auth/request-otp`. OTP challenge hashes and expiry/attempt data remain in process memory; the raw code is not returned to clients. Demo mode offers an explicit bypass button instead of exposing a code. The bypass consumes a pending challenge and is disabled in production. Mobile phone sign-in is for existing farmer accounts; new accounts are created on the web.
+2. `/api/auth/verify-otp` checks the PIN when delivery is configured, or checks an authenticator code for accounts with TOTP enabled. Successful verification creates a server session for the requesting client; web proceeds to account credential setup when needed.
 3. Accounts without password credentials can save a unique email and password at `/api/account/credentials`. The server derives a 64-byte scrypt hash with a per-account random salt; raw passwords are not stored. Demo mode permits skipping this step through authenticated `/api/account/credentials/skip`; SQLite remembers the choice for subsequent demo phone sign-ins. Production does not honor the demo skip.
-4. Web email/password login calls `/api/auth/password`. Existing accounts can also use their phone/authenticator route. Password hashes and sessions are not returned in API payloads.
+4. Web email/password login calls `/api/auth/password`. Mobile can sign in with phone/authenticator verification or signed-in-web QR pairing. Password hashes and sessions are not returned in API payloads.
 5. Farmer session token hashes and seven-day expiry are stored in SQLite, so valid sessions survive backend restarts. Flutter stores its bearer token in `SharedPreferences`; the browser uses `localStorage`.
 
 ### Account and crop management

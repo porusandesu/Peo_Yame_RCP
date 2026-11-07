@@ -18,10 +18,11 @@ for the recent commit history and current local work.
 
 Code commit `e2161c6` centers **My Crops** in the five-tab mobile
 navigation, makes refresh compact, and tolerates two missed 20-second backend
-polls before showing offline. Mobile sign-in is QR-only: the one-use,
-two-minute pairing QR is issued only by an authenticated web account. The
-signed-out mobile page does not accept a phone/PIN or ask the user to configure
-a backend address.
+polls before showing offline. The signed-out mobile page offers two sign-in
+routes: phone verification for an existing farmer account, or one-use QR
+pairing issued by an authenticated web account. Phone sign-in supports PIN or
+Google Authenticator verification; demo mode offers a bypass because no SMS
+is sent. New farmer accounts are created on the web.
 
 The same code commit adds web email/password sign-in, password setup after phone
 verification for accounts without credentials, and a demo-only skip for phone
@@ -91,8 +92,9 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 
 1. Exercise the complete browser login, demo skip, credential setup, and
    email/password flows in an interactive browser.
-2. Exercise QR pairing on an Android emulator and physical phone; verify that
-   profile and crop assignments sync between clients on the same backend.
+2. Exercise phone-number sign-in and QR pairing on an Android emulator and
+   physical phone; verify that profile and crop assignments sync between
+   clients on the same backend.
 3. Exercise the packaged Windows tray menu interactively.
 4. Keep the prototype on a controlled local network. Plain HTTP and unscoped
    global monitor APIs are not intended for exposure.

@@ -153,10 +153,10 @@
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
         <form id="passwordLoginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="username" required></label><label>Password<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8"></label><div class="dialog-error" id="passwordLoginError" role="alert"></div><button class="primary" type="submit">Sign in →</button></form>
-        <details class="auth-alternative"><summary>Verify with phone instead</summary><form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue with OTP →</button></form></details>
+        <details class="auth-alternative"><summary>Log in with phone number</summary><form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue →</button></form></details>
         <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
         <div class="auth-notice">Local demo sign-in does not send SMS. Use the demo verification option after requesting a phone code.</div>
-        <section class="auth-qr-section"><h3>Sign in with QR code</h3><p>For mobile sign-in, first sign in to this web account, choose <strong>Connect mobile app</strong>, then scan its one-time QR with the mobile app.</p></section>
+        <section class="auth-qr-section"><h3>Sign in with QR code</h3><p>Scan this one-time code with Peo Yame on a phone that is already signed in.</p><button class="auth-link" id="showWebLoginQr" type="button">Show sign-in QR</button><div id="webLoginQr" style="display:grid;place-items:center;padding:10px" hidden></div><p id="webLoginQrStatus" role="status"></p></section>
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
@@ -173,7 +173,7 @@
       </div>
       <div class="auth-card" id="profilePanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame</div><h2>Create farmer account</h2><p>Your account and linked crop list will be saved on this backend.</p>
-        <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Email address <span class="profile-meta">Optional</span><input name="email" type="email" autocomplete="email" maxlength="254"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue with PIN →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
+        <form id="profileForm"><label>Farmer name<input name="name" autocomplete="name" required maxlength="80"></label><label>Mobile number<input name="phone" type="tel" autocomplete="tel" required></label><div class="dialog-error" id="profileError" role="alert"></div><button class="primary" type="submit">Continue →</button></form><button class="auth-link" id="profileCancel" type="button">Back to login</button>
       </div>
     </section>
     <header id="appHeader" hidden>
@@ -669,6 +669,33 @@
           $('connectionQrError').textContent = `Could not create a sign-in QR: ${error.message}`;
         }
       }
+      let webQrPollTimer;
+      $('showWebLoginQr').addEventListener('click', async () => {
+        const status = $('webLoginQrStatus');
+        const box = $('webLoginQr');
+        clearInterval(webQrPollTimer);
+        status.textContent = 'Creating a one-time sign-in code…';
+        box.hidden = true;
+        try {
+          const { challenge } = await postJson('/api/auth/web-login-qr', {});
+          const address = `${location.protocol}//${location.hostname}:${location.port || 3000}`;
+          const qr = qrcode(0, 'M');
+          qr.addData(JSON.stringify({type:'peo-yame-web-login', backend:address, challenge}));
+          qr.make(); box.innerHTML = qr.createSvgTag({cellSize:6,margin:4,scalable:true}); box.hidden = false;
+          status.textContent = 'Waiting for approval from the signed-in phone…';
+          webQrPollTimer = setInterval(async () => {
+            try {
+              const result = await postJson('/api/auth/web-qr-session', {challenge});
+              if (result.pending) return;
+              clearInterval(webQrPollTimer);
+              localStorage.setItem('peo_yame_farmer_token', result.token);
+              authToken = result.token; activateProfile(result.farmer);
+            } catch (error) {
+              if (/expired|reload/i.test(error.message)) { clearInterval(webQrPollTimer); status.textContent = error.message; }
+            }
+          }, 1500);
+        } catch (error) { status.textContent = error.message; }
+      });
       $('connectionAddress').addEventListener('change', () => { void loadConnectionQr(); });
       $('refreshConnectionQr').addEventListener('click', () => { void loadConnectionQr(); });
       document.querySelectorAll('[data-open-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.openView)));
@@ -790,7 +817,7 @@
       $('profileForm').addEventListener('submit', (event) => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-        pendingProfile = {name:values.name.trim(), email:values.email.trim()};
+        pendingProfile = {name:values.name.trim(), email:values.email?.trim() || ''};
         $('profileError').textContent = '';
         requestOtp(values.phone.trim(), pendingProfile.name, pendingProfile.email).catch(error => { $('profileError').textContent = error.message; });
       });

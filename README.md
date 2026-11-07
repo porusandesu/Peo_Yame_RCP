@@ -40,10 +40,12 @@ shut down the backend, or exit the launcher.
    this step; accounts with credentials can sign in on the web using them.
    Phone verification/Google Authenticator remains available as an alternate
    sign-in path.
-3. To sign in on mobile, first sign in on the web app. Choose **Connect mobile
-   app**, then scan the one-use QR in the mobile app. It expires after two
-   minutes. The signed-out mobile app accepts QR pairing only; it has no phone
-   OTP or manual backend-connection flow.
+3. On mobile, sign in either with **Phone number** using the number on an
+   existing farmer account, or scan a one-use QR issued by a signed-in web
+   account. Phone login uses the account's SMS code or authenticator code; the
+   local demo offers **Skip verification (demo)** because it sends no SMS.
+   New farmer accounts are created from the web app. QR pairing expires after
+   two minutes and also configures the backend address for the phone.
 
 Both clients use the same SQLite-backed farmer account when they connect to
 the same running backend. Separate backend instances have separate databases.

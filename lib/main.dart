@@ -167,18 +167,37 @@ class _AppGateState extends State<_AppGate> {
     final data = jsonDecode(raw) as Map<String, dynamic>;
     final backendUrl = data['backend'] as String;
     final backend = Uri.tryParse(backendUrl);
-    if (data['type'] != 'peo-yame-mobile-login' ||
-        backend == null ||
-        backend.host.isEmpty ||
-        data['challenge'] is! String) {
-      throw Exception('This is not a valid mobile sign-in QR code.');
-    }
+    if ((data['type'] != 'peo-yame-mobile-login' && data['type'] != 'peo-yame-web-login') || backend == null || backend.host.isEmpty || data['challenge'] is! String) throw Exception('This is not a valid Peo Yame sign-in QR code.');
     await _connectBackend(backendUrl);
+    if (data['type'] == 'peo-yame-web-login') {
+      await _authApi.approveWebLoginQr(data['challenge'] as String);
+      return;
+    }
     final farmer = await _authApi.signInWithMobileQr(
       challenge: data['challenge'] as String,
     );
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('farmer_auth_token', _authApi.authToken!);
+    if (!mounted) return;
+    setState(() {
+      _account = AccountInfo(
+        name: farmer['name'] as String,
+        phone: farmer['phone'] as String,
+        email: farmer['email'] as String? ?? '',
+      );
+    });
+  }
+
+  Future<void> _signInWithPhone() async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(builder: (_) => _PhoneSignInPage(api: _authApi)),
+    );
+    if (result == null) return;
+    final farmer = result['farmer'] as Map<String, dynamic>;
+    final token = result['token'] as String;
+    _authApi.authToken = token;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('farmer_auth_token', token);
     if (!mounted) return;
     setState(() {
       _account = AccountInfo(
@@ -247,6 +266,7 @@ class _AppGateState extends State<_AppGate> {
       return DashboardPage(
         account: account,
         onLogout: _logout,
+        onScanSignInQr: _signInWithQr,
         onEditProfile: _editProfile,
         onRefreshAccount: _refreshAccount,
         onLoadAuthenticator: _authApi.getAuthenticatorStatus,
@@ -262,7 +282,10 @@ class _AppGateState extends State<_AppGate> {
         onCreateCropSetup: _authApi.addFarmerCropWithSensors,
       );
     }
-    return _LoginSplash(onScanSignInQr: _signInWithQr);
+    return _LoginSplash(
+      onScanSignInQr: _signInWithQr,
+      onSignInWithPhone: _signInWithPhone,
+    );
   }
 }
 
@@ -275,9 +298,13 @@ class AccountInfo {
 }
 
 class _LoginSplash extends StatelessWidget {
-  const _LoginSplash({required this.onScanSignInQr});
+  const _LoginSplash({
+    required this.onScanSignInQr,
+    required this.onSignInWithPhone,
+  });
 
   final Future<void> Function() onScanSignInQr;
+  final Future<void> Function() onSignInWithPhone;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -306,7 +333,7 @@ class _LoginSplash extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 const Text(
-                  'Open the web app while signed in, choose “Connect mobile app”, then scan its QR code.',
+                  'Sign in with your phone number, or scan a one-time QR from your signed-in web account.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
@@ -354,6 +381,32 @@ class _LoginSplash extends StatelessWidget {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              await onSignInWithPhone();
+                            } catch (error) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Could not sign in: $error'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.phone_android_rounded),
+                          label: const Text('Sign in with phone number'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _forest,
+                            minimumSize: const Size.fromHeight(44),
+                            side: const BorderSide(color: _forest),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -366,6 +419,266 @@ class _LoginSplash extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _PhoneSignInPage extends StatefulWidget {
+  const _PhoneSignInPage({required this.api});
+
+  final ApiService api;
+
+  @override
+  State<_PhoneSignInPage> createState() => _PhoneSignInPageState();
+}
+
+class _PhoneSignInPageState extends State<_PhoneSignInPage> {
+  final _phoneController = TextEditingController();
+  final _codeController = TextEditingController();
+  String _phone = '';
+  bool _codeRequested = false;
+  bool _authenticatorRequired = false;
+  bool _demoMode = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _requestCode() async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = 'Enter the phone number on your farmer account.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.api.requestPhoneSignInCode(phone: phone);
+      if (!mounted) return;
+      setState(() {
+        _phone = result['phone'] as String? ?? phone;
+        _authenticatorRequired = result['authenticatorRequired'] == true;
+        _demoMode =
+            result['demoMode'] == true ||
+            result['delivery'] == 'demo-skip-available';
+        _codeRequested = true;
+        _codeController.clear();
+      });
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _finishSignIn(
+    Future<Map<String, dynamic>> Function() signIn,
+  ) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await signIn();
+      if (result['token'] is! String ||
+          result['farmer'] is! Map<String, dynamic>) {
+        throw const FormatException(
+          'The server returned an incomplete sign-in response.',
+        );
+      }
+      if (mounted) Navigator.of(context).pop(result);
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Sign in with phone')),
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(
+                      Icons.phone_android_rounded,
+                      size: 36,
+                      color: _forest,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _codeRequested
+                          ? 'Verify your number'
+                          : 'Enter your number',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _codeRequested
+                          ? _authenticatorRequired
+                                ? 'Enter the current code from your authenticator app.'
+                                : 'Enter the code sent to $_phone.'
+                          : 'Use the phone number linked to your farmer account.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF65776F),
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    if (!_codeRequested) ...[
+                      TextField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.telephoneNumber],
+                        decoration: const InputDecoration(
+                          labelText: 'Phone number with country code',
+                          hintText: '+267…',
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: (_) => _busy ? null : _requestCode(),
+                      ),
+                      const SizedBox(height: 14),
+                      FilledButton(
+                        onPressed: _busy ? null : _requestCode,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _forest,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        child: _busy
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Continue'),
+                      ),
+                    ] else ...[
+                      TextField(
+                        controller: _codeController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [AutofillHints.oneTimeCode],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 22, letterSpacing: 8),
+                        decoration: InputDecoration(
+                          labelText: _authenticatorRequired
+                              ? 'Authenticator code'
+                              : '6-digit code',
+                          border: const OutlineInputBorder(),
+                          counterText: '',
+                        ),
+                        onSubmitted: (_) => _busy ? null : _verifyCode(),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _busy ? null : _verifyCode,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _forest,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        child: _busy
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Verify and sign in'),
+                      ),
+                      if (_demoMode && !_authenticatorRequired) ...[
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => _finishSignIn(
+                                  () => widget.api.skipPhoneVerificationForDemo(
+                                    phone: _phone,
+                                  ),
+                                ),
+                          child: const Text('Skip verification (demo)'),
+                        ),
+                      ],
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () => setState(() {
+                                _codeRequested = false;
+                                _error = null;
+                              }),
+                        child: const Text('Use a different phone number'),
+                      ),
+                    ],
+                    if (_demoMode && _codeRequested && !_authenticatorRequired)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Demo mode does not send SMS. You can continue with the demo verification option.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF65776F),
+                          ),
+                        ),
+                      ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _verifyCode() async {
+    final code = _codeController.text.trim();
+    if (code.length != 6) {
+      setState(() => _error = 'Enter all six digits, then try again.');
+      return;
+    }
+    await _finishSignIn(
+      () => widget.api.signInWithPhoneCode(phone: _phone, code: code),
+    );
+  }
 }
 
 class _AuthBrandHeader extends StatelessWidget {
@@ -400,6 +713,7 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
     required this.onLogout,
+    required this.onScanSignInQr,
     required this.onEditProfile,
     required this.onRefreshAccount,
     required this.onLoadAuthenticator,
@@ -418,6 +732,7 @@ class DashboardPage extends StatefulWidget {
 
   final AccountInfo account;
   final VoidCallback onLogout;
+  final Future<void> Function() onScanSignInQr;
   final Future<void> Function(String name, String phone, String email)
   onEditProfile;
   final Future<void> Function() onRefreshAccount;
@@ -906,6 +1221,22 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Approve web sign-in QR',
+                onPressed: () async {
+                  try {
+                    await widget.onScanSignInQr();
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Web sign-in approved.')),
+                    );
+                  } catch (error) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not approve sign-in: $error')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+              ),
               _ConnectionPill(
                 connected: connected,
                 known: _controller.hasConnectionStatus,
