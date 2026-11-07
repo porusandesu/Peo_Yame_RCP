@@ -116,17 +116,6 @@ class _AppGateState extends State<_AppGate> {
       if (_authApi.isDemoMode) {
         _authApi.authToken = null;
         await preferences.remove('farmer_auth_token');
-        _account = AccountInfo(name: 'Demo Farmer', phone: '', email: '');
-        try {
-          final farmer = await _authApi.getAccount();
-          _account = AccountInfo(
-            name: farmer['name'] as String,
-            phone: farmer['phone'] as String? ?? '',
-            email: farmer['email'] as String? ?? '',
-          );
-        } catch (_) {
-          // Keep the demo home visible while its backend is unavailable.
-        }
       } else {
         _authApi.authToken = preferences.getString('farmer_auth_token');
         if (_authApi.authToken != null) {
@@ -142,6 +131,25 @@ class _AppGateState extends State<_AppGate> {
       _authApi.authToken = null;
     }
     if (mounted) setState(() => _loadingSession = false);
+  }
+
+  Future<void> _enterDemoMode() async {
+    await _authApi.checkConnection();
+    if (!_authApi.isDemoMode) {
+      throw Exception('Demo mode is not enabled on this backend.');
+    }
+    _authApi.authToken = null;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('farmer_auth_token');
+    final farmer = await _authApi.getAccount();
+    if (!mounted) return;
+    setState(() {
+      _account = AccountInfo(
+        name: farmer['name'] as String,
+        phone: farmer['phone'] as String? ?? '',
+        email: farmer['email'] as String? ?? '',
+      );
+    });
   }
 
   Future<void> _connectBackend(String address) async {
@@ -329,8 +337,10 @@ class _AppGateState extends State<_AppGate> {
       );
     }
     return _LoginSplash(
+      isDemoMode: _authApi.isDemoMode,
       onScanSignInQr: _signInWithQr,
       onSignInWithPhone: _signInWithPhone,
+      onEnterDemoMode: _enterDemoMode,
     );
   }
 }
@@ -345,12 +355,16 @@ class AccountInfo {
 
 class _LoginSplash extends StatelessWidget {
   const _LoginSplash({
+    required this.isDemoMode,
     required this.onScanSignInQr,
     required this.onSignInWithPhone,
+    required this.onEnterDemoMode,
   });
 
+  final bool isDemoMode;
   final Future<void> Function() onScanSignInQr;
   final Future<void> Function() onSignInWithPhone;
+  final Future<void> Function() onEnterDemoMode;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -368,8 +382,8 @@ class _LoginSplash extends StatelessWidget {
                 const SizedBox(height: 38),
                 const Icon(Icons.spa_outlined, size: 42, color: _forest),
                 const SizedBox(height: 16),
-                const Text(
-                  'Sign in securely',
+                Text(
+                  isDemoMode ? 'Welcome to Peo Yame' : 'Sign in securely',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 23,
@@ -378,8 +392,10 @@ class _LoginSplash extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 7),
-                const Text(
-                  'Sign in with your phone number, or scan a one-time QR from your signed-in web account.',
+                Text(
+                  isDemoMode
+                      ? 'Open the shared demo using Mr Lesego Lefoko’s profile.'
+                      : 'Sign in with your phone number, or scan a one-time QR from your signed-in web account.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
@@ -394,65 +410,89 @@ class _LoginSplash extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Connect your account',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton.icon(
-                          onPressed: () async {
-                            try {
-                              await onScanSignInQr();
-                            } catch (error) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Could not sign in: $error'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          label: const Text('Scan sign-in QR'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _forest,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(44),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9),
+                        if (isDemoMode) ...[
+                          const Text(
+                            'Demo account',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              await onSignInWithPhone();
-                            } catch (error) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Could not sign in: $error'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.phone_android_rounded),
-                          label: const Text('Sign in with phone number'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _forest,
-                            minimumSize: const Size.fromHeight(44),
-                            side: const BorderSide(color: _forest),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(9),
+                          const SizedBox(height: 4),
+                          const Text('Mr Lesego Lefoko'),
+                          const Text(
+                            'LLefoko@email.co.bw',
+                            style: TextStyle(color: Color(0xFF65776F)),
+                          ),
+                          const SizedBox(height: 12),
+                          _demoModeButton(context),
+                        ] else ...[
+                          const Text(
+                            'Connect your account',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 10),
+                          FilledButton.icon(
+                            onPressed: () async {
+                              try {
+                                await onScanSignInQr();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Could not sign in: $error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                            label: const Text('Scan sign-in QR'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _forest,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(44),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                await onSignInWithPhone();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Could not sign in: $error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.phone_android_rounded),
+                            label: const Text('Sign in with phone number'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _forest,
+                              minimumSize: const Size.fromHeight(44),
+                              side: const BorderSide(color: _forest),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _demoModeButton(context),
+                        ],
                       ],
                     ),
                   ),
@@ -463,6 +503,28 @@ class _LoginSplash extends StatelessWidget {
           ),
         ),
       ),
+    ),
+  );
+
+  Widget _demoModeButton(BuildContext context) => OutlinedButton.icon(
+    onPressed: () async {
+      try {
+        await onEnterDemoMode();
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open demo mode: $error')),
+          );
+        }
+      }
+    },
+    icon: const Icon(Icons.play_arrow_rounded),
+    label: const Text('Demo mode'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: _forest,
+      minimumSize: const Size.fromHeight(44),
+      side: const BorderSide(color: _forest),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
     ),
   );
 }

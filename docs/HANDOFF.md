@@ -3,9 +3,10 @@
 Updated: 7 November 2026
 
 **Current worktree auth change:** Demo authentication has been removed. Web and
-mobile open the shared Demo Farmer directly; stored tokens are cleared, all
-sign-in/verification/QR auth routes are disabled in demo mode, and QR sign-in is
-hidden. Production auth remains available.
+mobile now show a **Demo mode** button that opens the shared profile for
+**Mr Lesego Lefoko** (`LLefoko@email.co.bw`) without login. Demo auth routes
+remain disabled; production auth remains available. The current UI/profile
+change is awaiting GitHub Actions validation.
 
 ## Workspace
 
@@ -28,6 +29,13 @@ each crop with its type. A suggested low-literacy farmer workflow is documented
 as future usability work; it has not been field tested or fully implemented.
 The checked-in backend integration test now covers demo login removal, crop
 catalog groups and demo crop create/list/delete through the API.
+
+The latest change adds an explicit demo entry button to both sign-in screens.
+Demo mode presents only the demo profile and button; tapping it loads the shared
+backend profile. Production login still validates the backend demo flag before
+allowing entry to demo mode. The backend profile is updated to the requested
+name/email. A mobile widget assertion and web/API checks cover this behavior;
+GitHub Actions is the requested build/test environment for the current change.
 
 Commit `6dff368` adds phone-to-web QR sign-in approval through the backend; the
 crop and demo-auth work described here is newer than that commit.

@@ -35,10 +35,11 @@ flowchart LR
 
 ## Authentication and mobile pairing
 
-- Demo mode opens both clients directly into a shared built-in demo farmer.
-  It does not issue or require session tokens, display login/verification
-  screens, or expose password/OTP/QR authentication endpoints. Crop locations
-  and sensor assignments in demo mode belong to that shared demo farmer.
+- Demo mode shows a one-tap **Demo mode** entry in both clients. It opens the
+  shared built-in farmer, **Mr Lesego Lefoko** (`LLefoko@email.co.bw`). Demo
+  does not issue or require session tokens, display login/verification forms,
+  or expose password/OTP/QR authentication endpoints. Crop locations and
+  sensor assignments belong to the shared farmer.
 - Production mode retains phone verification, password credentials and
   authenticator/QR routes. Phone verification requires an SMS provider.
 - An account without credentials can add an email/password after phone

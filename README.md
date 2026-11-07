@@ -33,10 +33,11 @@ shut down the backend, or exit the launcher.
 
 ## Open the demo
 
-The web dashboard and mobile app open directly into the shared demo account.
-There is no demo login, PIN, password, account setup, or QR pairing. Both apps
-use the same demo farmer and crop assignments when they connect to the same
-backend. Separate backend instances have separate databases. The Android
+In demo mode, both apps show a **Demo mode** button. Press it to open the shared
+account without entering login details. The account is **Mr Lesego Lefoko**
+(`LLefoko@email.co.bw`). Demo mode has no PIN, password, account setup or QR
+pairing. Both apps use the same demo farmer and crop assignments when they
+connect to the same backend. Separate backend instances have separate databases. The Android
 emulator default is `http://10.0.2.2:3000`; physical phones can use **Settings →
 Backend address** to connect to the PC on the same Wi-Fi. Mobile navigation is
 Overview, Trends, **My Crops**, Alerts, Settings.

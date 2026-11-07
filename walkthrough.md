@@ -15,16 +15,17 @@ npm ci
 npm run demo
 ```
 
-Open <http://localhost:3000>. The web dashboard opens directly. For a physical
-phone, connect it to the same Wi-Fi and open the mobile app; it also opens
-directly into the shared Demo Farmer account. Use **Settings → Backend
+Open <http://localhost:3000> and choose **Demo mode → Open demo home**. On the
+phone, connect to the same Wi-Fi, open the mobile app and tap **Demo mode**. Both
+clients enter as **Mr Lesego Lefoko** (`LLefoko@email.co.bw`) without requesting
+login details. Use **Settings → Backend
 address** if the phone is pointed at a different backend. The demo has no
 sign-in, verification, password, logout or QR pairing flow.
 
 ## Demonstration flow
 
-1. Confirm both clients open on **Demo Farmer** without prompting for
-   credentials.
+1. Confirm both clients show the demo profile and enter the dashboard with one
+   tap, without prompting for credentials.
 2. Add a crop location in **My Crops** and confirm both clients see it when
    connected to the same backend.
 3. Review Overview, Trends, the centered **My Crops** tab, Alerts, and

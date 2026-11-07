@@ -155,8 +155,15 @@
         <form id="passwordLoginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="username" required></label><label>Password<input id="loginPassword" type="password" autocomplete="current-password" required minlength="8"></label><div class="dialog-error" id="passwordLoginError" role="alert"></div><button class="primary" type="submit">Sign in →</button></form>
         <details class="auth-alternative"><summary>Log in with phone number</summary><form id="loginForm"><label>Mobile number<input id="phoneInput" type="tel" autocomplete="tel" required></label><p>Use the phone number linked to your farmer account.</p><div class="dialog-error" id="loginError" role="alert"></div><button class="primary" type="submit">Continue →</button></form></details>
         <button class="auth-link" id="createProfile" type="button">New farmer? Create a demo account</button>
+        <button class="auth-link" id="loginDemoMode" type="button">Demo mode</button><div class="dialog-error" id="loginDemoModeError" role="status"></div>
         <div class="auth-notice">Local demo sign-in does not send SMS. Use the demo verification option after requesting a phone code.</div>
         <section class="auth-qr-section"><h3>Sign in with QR code</h3><p>Scan this one-time code with Peo Yame on a phone that is already signed in.</p><button class="auth-link" id="showWebLoginQr" type="button">Show sign-in QR</button><div id="webLoginQr" style="display:grid;place-items:center;padding:10px" hidden></div><p id="webLoginQrStatus" role="status"></p></section>
+      </div>
+      <div class="auth-card" id="demoPanel" hidden>
+        <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
+        <h2>Demo mode</h2><p>Continue to the dashboard without signing in.</p>
+        <article class="profile-card"><strong>Mr Lesego Lefoko</strong><p class="profile-meta">LLefoko@email.co.bw</p></article>
+        <div class="dialog-error" id="demoModeError" role="status"></div><button class="primary" id="enterDemoMode" type="button">Open demo home →</button>
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
@@ -268,7 +275,7 @@
         $('trigger').hidden = !demoMode || !demoProfile;
       }
       function showAuthPanel(name) {
-        for (const id of ['loginPanel','otpPanel','credentialsPanel','profilePanel']) $(id).hidden = id !== name;
+        for (const id of ['loginPanel','otpPanel','credentialsPanel','profilePanel','demoPanel']) $(id).hidden = id !== name;
         $('authShell').hidden = false;
         $('appHeader').hidden = true;
         $('dashboard').hidden = true;
@@ -290,7 +297,7 @@
       function activateProfile(profile) {
         demoProfile = profile;
         $('accountName').textContent = demoProfile.name;
-        $('accountPhone').textContent = demoProfile.phone;
+        $('accountPhone').textContent = demoProfile.phone || demoProfile.email || '';
         $('menuName').textContent = `${demoProfile.name} · Farmer account`;
         $('accountInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
         $('profileInitial').textContent = demoProfile.name.slice(0,1).toUpperCase();
@@ -315,7 +322,7 @@
           if (profile.name === demoProfile.name && profile.phone === demoProfile.phone && (profile.email || '') === (demoProfile.email || '')) return;
           demoProfile = profile;
           $('accountName').textContent = profile.name;
-          $('accountPhone').textContent = profile.phone;
+          $('accountPhone').textContent = profile.phone || profile.email || '';
           $('accountInitial').textContent = profile.name.slice(0,1).toUpperCase();
           $('profileInitial').textContent = profile.name.slice(0,1).toUpperCase();
           $('profileName').textContent = profile.name;
@@ -788,6 +795,21 @@
           activateProfile(result.farmer);
         } catch (error) { $('passwordLoginError').textContent = error.message; }
       });
+      async function openDemoHome(errorId) {
+        $(errorId).textContent = '';
+        try {
+          const health = await getJson('/api/health');
+          if (health.demoMode !== true) throw new Error('Demo mode is not enabled on this backend.');
+          demoMode = true;
+          authToken = '';
+          localStorage.removeItem('peo_yame_farmer_token');
+          activateProfile(await getJson('/api/account'));
+        } catch (error) {
+          $(errorId).textContent = error.message;
+        }
+      }
+      $('loginDemoMode').addEventListener('click', () => void openDemoHome('loginDemoModeError'));
+      $('enterDemoMode').addEventListener('click', () => void openDemoHome('demoModeError'));
       $('credentialsForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const button = $('saveCredentials');
@@ -944,7 +966,8 @@
         if (demoMode) {
           authToken = '';
           localStorage.removeItem('peo_yame_farmer_token');
-          activateProfile(await getJson('/api/account'));
+          $('demoModeError').textContent = '';
+          showAuthPanel('demoPanel');
           return;
         }
         if (authToken) {
@@ -955,8 +978,8 @@
         demoMode = true;
         authToken = '';
         localStorage.removeItem('peo_yame_farmer_token');
-        activateProfile({name:'Demo Farmer', phone:'', email:''});
-        $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Offline<small>Waiting for demo service</small>';
+        showAuthPanel('demoPanel');
+        $('demoModeError').textContent = 'Waiting for the demo backend. Check the connection and try again.';
       });
       const updates = new EventSource('/api/events');
       updates.onmessage = (event) => {

@@ -204,7 +204,7 @@ module.exports = {
   recentReadings: (limit = 200) => sql(`SELECT r.id,r.site,c.name AS commodity,r.temperature,r.humidity,r.data_source AS dataSource,r.recorded_at AS recordedAt FROM readings r JOIN crops c ON c.id=r.crop_id ORDER BY r.recorded_at DESC,r.id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 200, 2000))};`, true).reverse(),
   findFarmer: (phone) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
   getOrCreateDemoFarmer: () => {
-    sql(`INSERT OR IGNORE INTO farmer_accounts(phone,name,email) VALUES('DEMO','Demo Farmer','');`);
+    sql(`INSERT INTO farmer_accounts(phone,name,email) VALUES('DEMO','Mr Lesego Lefoko','LLefoko@email.co.bw') ON CONFLICT(phone) DO UPDATE SET name=excluded.name,email=excluded.email;`);
     return sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone='DEMO';`, true)[0] || null;
   },
   findFarmerById: (id) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null,

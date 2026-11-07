@@ -74,7 +74,16 @@ test("demo mode opens farmer/crop APIs without auth and disables sign-in", { tim
 
   const accountResponse = await fetch(`${baseUrl}/api/account`);
   assert.equal(accountResponse.status, 200);
-  assert.equal((await accountResponse.json()).name, "Demo Farmer");
+  const demoAccount = await accountResponse.json();
+  assert.equal(demoAccount.name, "Mr Lesego Lefoko");
+  assert.equal(demoAccount.email, "LLefoko@email.co.bw");
+
+  const dashboardResponse = await fetch(baseUrl);
+  assert.equal(dashboardResponse.status, 200);
+  const dashboardHtml = await dashboardResponse.text();
+  assert.match(dashboardHtml, /id="enterDemoMode"/);
+  assert.match(dashboardHtml, /id="loginDemoMode"/);
+  assert.match(dashboardHtml, /LLefoko@email\.co\.bw/);
 
   const cropResponse = await fetch(`${baseUrl}/api/crops`);
   assert.equal(cropResponse.status, 200);

@@ -4,6 +4,9 @@
 > build path now have local automated coverage. CI for the current worktree is
 > pending push; physical-device and live-farmer usability checks remain open.
 
+> **New demo-entry change:** The web and mobile Demo mode buttons and the
+> requested profile are pending GitHub Actions validation.
+
 **Updated:** 7 November 2026
 **Branch:** `exe-work`
 **Code commit:** `e2161c6` (`Improve farmer sign-in and center mobile crops tab`)

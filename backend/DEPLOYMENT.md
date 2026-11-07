@@ -16,11 +16,12 @@ local path. SQLite WAL files must stay on the same host and local filesystem.
 
 ## Demo account flow
 
-Both clients open directly into the shared **Demo Farmer** account. Demo mode
-does not show sign-in, phone verification, password, authenticator, logout or
-QR-pairing flows, and does not issue or require session tokens. Authentication
-endpoints return not found in demo mode. Crop locations and sensor assignments
-are saved under this shared demo account.
+Both clients show a **Demo mode** button that opens the shared account without
+login. The profile is **Mr Lesego Lefoko** (`LLefoko@email.co.bw`). Demo mode
+does not request a phone number, password, authenticator or QR, and does not
+issue or require session tokens. Authentication endpoints return not found in
+demo mode. Crop locations and sensor assignments are saved under this shared
+demo account.
 
 ## Production account flow
 

@@ -35,7 +35,7 @@ const PORT = Number(process.env.PORT || 3000);
 const isPackagedWindowsDemo = Boolean(process.pkg) && process.platform === "win32";
 const isDemoMode = process.env.NODE_ENV !== "production" || isPackagedWindowsDemo;
 const demoFarmerRecord = isDemoMode ? cropDatabase.getOrCreateDemoFarmer() : null;
-const demoFarmer = demoFarmerRecord && { ...demoFarmerRecord, phone: "", email: "", passwordEnabled: false, demoSecuritySkipped: false, authenticatorEnabled: false };
+const demoFarmer = demoFarmerRecord && { ...demoFarmerRecord, phone: "", passwordEnabled: false, demoSecuritySkipped: false, authenticatorEnabled: false };
 const HOSTS = process.env.HOST
   ? [process.env.HOST]
   : isDemoMode
