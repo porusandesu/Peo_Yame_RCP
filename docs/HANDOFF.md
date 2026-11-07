@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `633e9af` — `Update handoff with tray and OTP validation`.
+- Latest committed revision reviewed: `e2161c6` — `Improve farmer sign-in and center mobile crops tab`.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -16,7 +16,7 @@ farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
 for the recent commit history and current local work.
 
-Uncommitted follow-up work now centers **My Crops** in the five-tab mobile
+Commit `e2161c6` centers **My Crops** in the five-tab mobile
 navigation, makes refresh compact, and tolerates two missed 20-second backend
 polls before showing offline. Mobile sign-in is QR-only: the one-use,
 two-minute pairing QR is issued only by an authenticated web account. The
@@ -32,11 +32,14 @@ behind the signed-in web session. Email is part of farmer account records and
 is migrated for existing databases. See the latest section in
 [changes-2026-11-07.md](changes-2026-11-07.md) for validation status.
 
-The latest local checks passed the Flutter widget test, backend authenticator
-test, JavaScript syntax checks (including the web page's inline script), and an
+Local checks passed the Flutter widget test, backend authenticator test,
+JavaScript syntax checks (including the web page's inline script), and an
 isolated backend flow covering demo skip, credential setup and password login.
-`dart analyze lib` reports no errors and 14 style/context lint infos.
-The login flow has not been exercised in an interactive browser.
+`dart analyze lib` reports no errors and 14 style/context lint infos. GitHub
+Actions run [42360332399](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42360332399)
+passed both Android APK build and Windows backend tests/package. GitHub noted
+that the workflow's v4 actions currently run under Node 24 despite targeting
+Node 20. The login flow has not been exercised in an interactive browser.
 
 Commit `e64fd93` adds a Windows notification-area menu with web panel launch,
 backend restart and shutdown, and application exit actions. OTP verification
