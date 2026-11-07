@@ -154,7 +154,7 @@
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p id="otpPrompt">Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
+        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2 id="otpTitle">Verify your number</h2><p id="otpPrompt">Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
         <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
@@ -207,7 +207,7 @@
     <section class="view" id="settingsView" hidden>
       <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
       <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
-      <h2 style="margin-top:18px">Two-step sign-in</h2><article class="profile-card"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden style="display:grid;gap:6px;margin-top:10px">6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
+      <h2 style="margin-top:18px">Two-step sign-in</h2><article class="profile-card"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden>6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
       <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
       <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
       <h2 style="margin-top:18px">Crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
@@ -341,6 +341,7 @@
           $('startAuthenticator').hidden = status.enabled;
           $('disableAuthenticator').hidden = !status.enabled;
           $('authenticatorCodeLabel').hidden = !status.enabled;
+          $('authenticatorCodeLabel').style.display = status.enabled ? 'grid' : 'none';
           $('confirmAuthenticator').hidden = true;
           $('authenticatorSetup').hidden = true;
           $('authenticatorError').textContent = '';
@@ -644,6 +645,7 @@
         authPhone = result.phone;
         authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
         $('phonePreview').textContent = authPhone;
+        $('otpTitle').textContent = authMode === 'authenticator' ? 'Google Authenticator' : 'Verify your number';
         $('otpPrompt').firstChild.textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
         $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
         $('resendPin').hidden = authMode === 'authenticator';
@@ -733,6 +735,7 @@
           $('authenticatorQr').innerHTML = qr.createSvgTag({cellSize:5,margin:4,scalable:true});
           $('authenticatorSetup').hidden = false;
           $('authenticatorCodeLabel').hidden = false;
+          $('authenticatorCodeLabel').style.display = 'grid';
           $('confirmAuthenticator').hidden = false;
           $('authenticatorCode').value = '';
           $('authenticatorError').textContent = '';

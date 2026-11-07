@@ -96,7 +96,7 @@ try {
 PEO YAME - QUICK START
 
 1. Extract this folder somewhere easy to find.
-2. Double-click "Start Peo Yame.vbs". Your dashboard opens in your browser.
+2. Double-click "Peo-Yame-Backend.exe". Your dashboard opens without a server window.
 3. To use your phone, put it on the same Wi-Fi, open Connect mobile app on the
    dashboard, then scan the code in Peo Yame Settings.
 4. To stop Peo Yame, double-click "Stop Peo Yame.bat".
@@ -106,8 +106,8 @@ Your information is saved on this computer. You do not need to install anything.
   Set-Content -Path (Join-Path $distributionDirectory "Read Me - Start Here.txt") -Value $instructions -Encoding UTF8
 
   $zipPath = Join-Path $distributionDirectory "Peo-Yame-Backend.zip"
-  Copy-Item -Path (Join-Path $PSScriptRoot "Start Peo Yame.vbs"), (Join-Path $PSScriptRoot "Stop Peo Yame.bat") -Destination $distributionDirectory -Force
-  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), $runtimeDirectory, (Join-Path $distributionDirectory "Start Peo Yame.vbs"), (Join-Path $distributionDirectory "Stop Peo Yame.bat"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
+  Copy-Item -Path (Join-Path $PSScriptRoot "Stop Peo Yame.bat") -Destination $distributionDirectory -Force
+  Compress-Archive -Path (Join-Path $distributionDirectory "Peo-Yame-Backend.exe"), $runtimeDirectory, (Join-Path $distributionDirectory "Stop Peo Yame.bat"), (Join-Path $distributionDirectory "Read Me - Start Here.txt") -DestinationPath $zipPath -Force
   Write-Host "Ready: $zipPath"
 }
 finally {

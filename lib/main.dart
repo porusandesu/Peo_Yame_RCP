@@ -745,8 +745,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   color: _forest,
                 ),
                 const SizedBox(height: 15),
-                const Text(
-                  'Verify your number',
+                Text(
+                  widget.authenticatorRequired
+                      ? 'Google Authenticator'
+                      : 'Verify your number',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 22,
