@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:storage_monitor_flutter/account_screens.dart';
 import 'package:storage_monitor_flutter/main.dart';
 
 void main() {
@@ -48,63 +47,36 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('signed-in account exposes both one-time QR sign-in actions', (
+  testWidgets('mobile settings orders Profile before Accounts and keeps phone QR there', (
     WidgetTester tester,
   ) async {
-    var showQrRequested = false;
-    var scanRequested = false;
-    var locationsRequested = false;
-    var profileEditRequested = false;
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => AccountsScreen(
-                    name: 'Lesego Farmer',
-                    email: 'lesego@example.test',
-                    phone: '+26771234567',
-                    isDemo: false,
-                    onLogout: () {},
-                    onDestinationSelected: (_) {},
-                    onShowSignInQr: () => showQrRequested = true,
-                    onScanSignInQr: () => scanRequested = true,
-                    onManageLocations: () => locationsRequested = true,
-                    onEditProfile: () => profileEditRequested = true,
-                  ),
-                ),
-              ),
-              child: const Text('Open account'),
-            ),
+        home: DashboardPage(
+          account: const AccountInfo(
+            name: 'Lesego Farmer',
+            email: 'lesego@example.test',
+            phone: '+26771234567',
           ),
+          token: 'test-session-token',
+          baseUrl: 'http://127.0.0.1:3000',
+          onLogout: () {},
         ),
       ),
     );
-
-    await tester.tap(find.text('Open account'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Manage linked sensors'));
-    await tester.tap(find.text('Manage linked sensors'));
-    await tester.pumpAndSettle();
-    expect(locationsRequested, isTrue);
-    await tester.tap(find.text('Open account'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Edit profile'));
-    await tester.tap(find.text('Edit profile'));
-    await tester.pumpAndSettle();
-    expect(profileEditRequested, isTrue);
-    await tester.tap(find.text('Open account'));
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(find.text('Show sign-in QR code'));
-    await tester.tap(find.text('Show sign-in QR code'));
     await tester.pump();
-    expect(showQrRequested, isTrue);
-    await tester.ensureVisible(find.text('Approve browser sign-in'));
-    await tester.tap(find.text('Approve browser sign-in'));
+    await tester.tap(find.text('Settings'));
     await tester.pump();
-    expect(scanRequested, isTrue);
+
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Accounts'), findsOneWidget);
+    expect(find.text('Link another phone'), findsOneWidget);
+    expect(find.text('Approve browser sign-in'), findsOneWidget);
+    expect(find.text('Demo mode'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('Profile')).dy,
+      lessThan(tester.getTopLeft(find.text('Accounts')).dy),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
