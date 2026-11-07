@@ -234,6 +234,7 @@
       let mobileQrPoll = null;
       let ownedSites = [];
       let ownedSensors = [];
+      let ownedDataRevision = 0;
       let currentView = 'dashboard';
       function renderCrops(crops, selected) {
         const available = crops.length ? crops : [{commodity:selected}];
@@ -354,14 +355,20 @@
       }
       async function loadOwnedData() {
         if (demoMode || !authToken) return;
+        const revision = ++ownedDataRevision;
         try {
-          [ownedSites, ownedSensors] = await Promise.all([requestJson('/api/farmer/crops'), requestJson('/api/farmer/sensors')]);
+          const [sites, sensors] = await Promise.all([requestJson('/api/farmer/crops'), requestJson('/api/farmer/sensors')]);
+          if (revision !== ownedDataRevision) return;
+          ownedSites = sites;
+          ownedSensors = sensors;
           $('ownedCropCount').textContent = ownedSites.length;
           $('ownedSensorCount').textContent = ownedSensors.length;
           $('cropSummary').textContent = `${ownedSites.length} location${ownedSites.length === 1 ? '' : 's'} · ${ownedSensors.length} linked sensor${ownedSensors.length === 1 ? '' : 's'}`;
           $('ownedCropSummary').textContent = `${ownedSites.length} locations · ${ownedSensors.length} linked sensors`;
           renderSensors();
-        } catch (error) { $('accountActionNotice').textContent = error.message; }
+        } catch (error) {
+          if (revision === ownedDataRevision) $('accountActionNotice').textContent = error.message;
+        }
       }
       async function openSiteDialog() {
         $('siteError').textContent = '';
@@ -412,7 +419,7 @@
         $('webQrStatus').textContent = 'Creating a short-lived sign-in code…';
         $('webQrBox').hidden = false;
         try {
-          const result = await postJson('/api/auth/qr/web-challenge', {});
+          const result = await postJson('/api/auth/qr/web-challenge', {serverBaseUrl:window.location.origin});
           $('webQrImage').src = result.qrCode;
           $('webQrStatus').textContent = `Scan with a signed-in phone before ${fmtTime(result.expiresAt)}.`;
           let checking = false;
@@ -453,7 +460,7 @@
         $('mobileQrBox').hidden = false;
         $('mobileQrStatus').textContent = 'Creating a short-lived sign-in code…';
         try {
-          const result = await postJson('/api/auth/qr/mobile-challenge', {});
+          const result = await postJson('/api/auth/qr/mobile-challenge', {serverBaseUrl:window.location.origin});
           $('mobileQrImage').src = result.qrCode;
           $('mobileQrStatus').textContent = `Scan with Peo Yame on the phone before ${fmtTime(result.expiresAt)}.`;
           mobileQrPoll = setTimeout(() => {
@@ -766,7 +773,13 @@
         if (mobileQrPoll) clearTimeout(mobileQrPoll);
       });
       const updates = new EventSource('/api/events');
-      updates.onmessage = () => refresh();
+      updates.onmessage = (event) => {
+        refresh();
+        try {
+          const update = JSON.parse(event.data);
+          if (update.type === 'account' && !demoMode) void loadOwnedData();
+        } catch (_) {}
+      };
       updates.onerror = () => {
         $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Reconnecting<small>Waiting for demo service</small>';
       };

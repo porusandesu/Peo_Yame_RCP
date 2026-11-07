@@ -341,23 +341,35 @@ app.post("/api/auth/logout", requireFarmer, (req, res) => {
   res.json({ ok: true });
 });
 
-async function createQrChallenge(purpose, farmerId = null) {
+function validateQrServerBaseUrl(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") throw new TypeError("Invalid backend address in sign-in QR request.");
+  let uri;
+  try { uri = new URL(value); } catch (_) { throw new TypeError("Invalid backend address in sign-in QR request."); }
+  if (!["http:", "https:"].includes(uri.protocol) || !uri.hostname || uri.username || uri.password || !["", "/"].includes(uri.pathname) || uri.search || uri.hash) {
+    throw new TypeError("Invalid backend address in sign-in QR request.");
+  }
+  return uri.origin;
+}
+
+async function createQrChallenge(purpose, farmerId = null, serverBaseUrl = null) {
   const challenge = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
   cropDatabase.createAuthChallenge(farmerAuth.tokenHash(challenge), purpose, farmerId, expiresAt);
   const direction = purpose === "web_login" ? "web-login" : "mobile-login";
-  const qrPayload = `peoyame://${direction}/${challenge}`;
+  const server = validateQrServerBaseUrl(process.env.PUBLIC_BASE_URL || serverBaseUrl);
+  const qrPayload = `peoyame://${direction}/${challenge}${server ? `?server=${encodeURIComponent(server)}` : ""}`;
   const qrCode = await QRCode.toDataURL(qrPayload, { errorCorrectionLevel: "M", margin: 2, width: 240 });
-  return { challenge, expiresAt, qrPayload, qrCode };
+  return { challenge, expiresAt, qrPayload, qrCode, serverBaseUrl: server };
 }
 
 function validChallenge(value) {
   return typeof value === "string" && /^[A-Za-z0-9_-]{40,50}$/.test(value);
 }
 
-app.post("/api/auth/qr/web-challenge", async (_req, res) => {
+app.post("/api/auth/qr/web-challenge", async (req, res) => {
   if (!AUTH_ENABLED) return authUnavailable(res);
-  try { return res.status(201).json(await createQrChallenge("web_login")); }
+  try { return res.status(201).json(await createQrChallenge("web_login", null, req.body?.serverBaseUrl)); }
   catch (error) { return authFailure(res, error); }
 });
 
@@ -388,7 +400,7 @@ app.get("/api/auth/qr/web-challenge/:challenge", (req, res) => {
 });
 
 app.post("/api/auth/qr/mobile-challenge", requireFarmer, async (req, res) => {
-  try { return res.status(201).json(await createQrChallenge("mobile_login", req.farmer.id)); }
+  try { return res.status(201).json(await createQrChallenge("mobile_login", req.farmer.id, req.body?.serverBaseUrl)); }
   catch (error) { return authFailure(res, error); }
 });
 
@@ -449,6 +461,7 @@ app.patch("/api/account", requireFarmer, (req, res) => {
   try {
     const email = req.body?.email == null ? req.farmer.email : String(req.body.email).trim();
     const updated = cropDatabase.updateFarmer(req.farmer.id, { name, email });
+    broadcastUpdate("account");
     return res.json(updated);
   } catch (error) { return authFailure(res, error); }
 });
@@ -462,6 +475,7 @@ app.post("/api/farmer/crops", requireFarmer, (req, res) => {
   try {
     const site = cropDatabase.addFarmerSite(req.farmer.id, commodity, label);
     if (!site) return res.status(400).json({ error: "Choose a crop from the catalog." });
+    broadcastUpdate("account");
     return res.status(201).json(site);
   } catch (error) { return authFailure(res, error); }
 });
@@ -470,6 +484,7 @@ app.delete("/api/farmer/crops/:id", requireFarmer, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: "Invalid crop location." });
   if (!cropDatabase.deleteFarmerSite(req.farmer.id, id)) return res.status(404).json({ error: "Crop location not found." });
+  broadcastUpdate("account");
   res.json({ ok: true });
 });
 
@@ -486,6 +501,7 @@ app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
     const linked = cropDatabase.linkFarmerSensor(req.farmer.id, sensorId, siteId);
     if (linked === null) return res.status(404).json({ error: "Crop location not found." });
     if (!linked) return res.status(404).json({ error: "No readings have been received from that sensor ID." });
+    broadcastUpdate("account");
     return res.status(201).json({ ok: true });
   } catch (error) { return authFailure(res, error); }
 });
@@ -493,6 +509,7 @@ app.post("/api/farmer/sensors", requireFarmer, (req, res) => {
 app.delete("/api/farmer/sensors/:sensorId", requireFarmer, (req, res) => {
   const sensorId = String(req.params.sensorId || "");
   if (!cropDatabase.unlinkFarmerSensor(req.farmer.id, sensorId)) return res.status(404).json({ error: "Linked sensor not found." });
+  broadcastUpdate("account");
   res.json({ ok: true });
 });
 
@@ -740,7 +757,7 @@ app.post("/api/commodity", (req, res) => {
   const previousCommodity = threshold.commodity;
   threshold = selected;
   cropDatabase.setActiveCrop(name);
-  broadcastUpdate();
+  broadcastUpdate("selection");
   logAction("Harvest changed", {
     source: typeof req.body?.source === "string" ? req.body.source : "api",
     details: { from: previousCommodity, to: name },
@@ -766,7 +783,7 @@ app.post("/api/alerts/:id/acknowledge", (req, res) => {
   const alert = alerts.find((item) => item.id === Number.parseInt(req.params.id, 10));
   if (!alert) return res.status(404).json({ error: "Alert not found" });
   alert.acknowledged = true;
-  broadcastUpdate();
+  broadcastUpdate("alerts");
   logAction("Alert acknowledged", { details: { alertId: alert.id, commodity: alert.commodity } });
   res.json(alert);
 });

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:storage_monitor_flutter/account_screens.dart';
 import 'package:storage_monitor_flutter/main.dart';
 
 void main() {
@@ -37,5 +38,33 @@ void main() {
     expect(find.text('Trigger demo breach'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('signed-in account exposes both one-time QR sign-in actions', (
+    WidgetTester tester,
+  ) async {
+    var showQrRequested = false;
+    var scanRequested = false;
+    await tester.pumpWidget(MaterialApp(
+      home: AccountsScreen(
+        name: 'Lesego Farmer',
+        email: 'lesego@example.test',
+        phone: '+26771234567',
+        isDemo: false,
+        onLogout: () {},
+        onDestinationSelected: (_) {},
+        onShowSignInQr: () => showQrRequested = true,
+        onScanSignInQr: () => scanRequested = true,
+      ),
+    ));
+
+    await tester.ensureVisible(find.text('Show sign-in QR code'));
+    await tester.tap(find.text('Show sign-in QR code'));
+    await tester.pump();
+    expect(showQrRequested, isTrue);
+    await tester.ensureVisible(find.text('Approve browser sign-in'));
+    await tester.tap(find.text('Approve browser sign-in'));
+    await tester.pump();
+    expect(scanRequested, isTrue);
   });
 }

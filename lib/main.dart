@@ -439,6 +439,24 @@ class _QrScannerPageState extends State<_QrScannerPage> {
   bool _busy = false;
   String? _error;
 
+  Uri? _qrServerUri(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw const FormatException('This sign-in code has an invalid backend address.');
+    }
+    return uri.replace(path: '', query: null, fragment: null);
+  }
+
+  bool _isLoopback(String host) =>
+      host == 'localhost' || host == '127.0.0.1' || host == '::1';
+
   Future<void> _handleCapture(BarcodeCapture capture) async {
     if (_busy || capture.barcodes.isEmpty) return;
     final value = capture.barcodes.first.rawValue;
@@ -451,10 +469,38 @@ class _QrScannerPageState extends State<_QrScannerPage> {
     try {
       final challenge = uri.pathSegments.last;
       if (uri.host == 'mobile-login') {
+        final qrServer = _qrServerUri(uri.queryParameters['server']);
+        if (qrServer != null &&
+            !_isLoopback(qrServer.host) &&
+            qrServer.toString() != widget.api.baseUrl) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Use the same Peo Yame backend?'),
+              content: Text('This sign-in code connects to ${qrServer.host}. Continue to use that backend on this phone.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Continue')),
+              ],
+            ),
+          );
+          if (confirmed != true) {
+            if (mounted) setState(() => _busy = false);
+            return;
+          }
+          widget.api.baseUrl = qrServer.toString();
+        }
         final result = await widget.api.exchangeMobileLoginQr(challenge);
+        result['baseUrl'] = widget.api.baseUrl;
         if (mounted) Navigator.of(context).pop(result);
       } else if (uri.host == 'web-login') {
         if (widget.api.authToken == null) throw Exception('Sign in on this phone first, then scan the browser code.');
+        final qrServer = _qrServerUri(uri.queryParameters['server']);
+        if (qrServer != null &&
+            !_isLoopback(qrServer.host) &&
+            qrServer.toString() != widget.api.baseUrl) {
+          throw Exception('This browser QR belongs to a different backend. Connect this phone to ${qrServer.host} first.');
+        }
         await widget.api.approveWebLoginQr(challenge);
         if (mounted) Navigator.of(context).pop({'approved': true});
       } else {
@@ -705,9 +751,52 @@ class _DashboardPageState extends State<DashboardPage> {
           onDestinationSelected: (index) {
             if (mounted) setState(() => _selectedTab = index);
           },
+          onShowSignInQr: widget.token == null ? null : _showSignInQr,
+          onScanSignInQr: widget.token == null ? null : _scanBrowserLoginQr,
         ),
       ),
     );
+  }
+
+  Future<void> _showSignInQr() async {
+    final api = ApiService(baseUrl: _controller.baseUrl, authToken: widget.token);
+    try {
+      final challenge = await api.createMobileLoginQr(serverBaseUrl: _controller.baseUrl);
+      if (!mounted) return;
+      final qrData = challenge['qrCode'] as String;
+      final comma = qrData.indexOf(',');
+      if (!qrData.startsWith('data:image/') || comma < 0) {
+        throw const FormatException('The server returned an invalid sign-in QR code.');
+      }
+      final expiresAt = DateTime.parse(challenge['expiresAt'] as String).toLocal();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Sign in another phone'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.memory(base64Decode(qrData.substring(comma + 1)), width: 240, height: 240),
+              const SizedBox(height: 12),
+              const Text('Scan this one-time code with Peo Yame on the other phone.'),
+              const SizedBox(height: 8),
+              Text('Expires ${TimeOfDay.fromDateTime(expiresAt).format(dialogContext)}', style: const TextStyle(color: Color(0xFF65776F), fontSize: 12)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not create a sign-in QR code: ${error.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    } finally {
+      api.dispose();
+    }
   }
 
   Future<void> _refreshSensors() async {

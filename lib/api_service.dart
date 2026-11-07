@@ -115,10 +115,11 @@ class ApiService {
     return result;
   }
 
-  Future<Map<String, dynamic>> createMobileLoginQr() async {
+  Future<Map<String, dynamic>> createMobileLoginQr({String? serverBaseUrl}) async {
     final response = await _client.post(
       _uri('/api/auth/qr/mobile-challenge'),
-      headers: _authHeaders,
+      headers: _jsonAuthHeaders,
+      body: jsonEncode({if (serverBaseUrl != null) 'serverBaseUrl': serverBaseUrl}),
     ).timeout(const Duration(seconds: 8));
     _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;

@@ -17,6 +17,48 @@ async function unusedPort() {
   return port;
 }
 
+async function connectEvents(base) {
+  const response = await fetch(`${base}/api/events`);
+  assert.equal(response.status, 200);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  async function nextEvent() {
+    while (true) {
+      buffer = buffer.replaceAll("\r\n", "\n");
+      const separator = buffer.indexOf("\n\n");
+      if (separator >= 0) {
+        const block = buffer.slice(0, separator);
+        buffer = buffer.slice(separator + 2);
+        const data = block.split("\n").find((line) => line.startsWith("data:"));
+        if (data) return JSON.parse(data.slice(5).trim());
+        continue;
+      }
+      const { done, value } = await reader.read();
+      if (done) throw new Error("The realtime update stream closed unexpectedly.");
+      buffer += decoder.decode(value, { stream: true });
+    }
+  }
+  return {
+    nextEvent,
+    nextEventOfType: async (type) => {
+      while (true) {
+        const event = await nextEvent();
+        if (event.type === type) return event;
+      }
+    },
+    close: () => reader.cancel(),
+  };
+}
+
+async function webSessionSites(base, token) {
+  const response = await fetch(`${base}/api/farmer/crops`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
 test("phone account registration, password login, session restore, logout, and demo independence", { timeout: 30000 }, async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "peo-yame-auth-"));
   const port = await unusedPort();
@@ -26,6 +68,7 @@ test("phone account registration, password login, session restore, logout, and d
       ...process.env,
       NODE_ENV: "development",
       AUTH_ENABLED: "true",
+      PUBLIC_BASE_URL: "",
       HOST: "127.0.0.1",
       PORT: String(port),
       DATABASE_PATH: path.join(directory, "accounts.sqlite"),
@@ -79,6 +122,16 @@ test("phone account registration, password login, session restore, logout, and d
   assert.equal(restoredSession.status, 200);
   assert.equal((await restoredSession.json()).farmer.id, created.farmer.id);
 
+  // Both app clients subscribe to the same backend snapshot stream.
+  const [webEvents, mobileEvents] = await Promise.all([connectEvents(base), connectEvents(base)]);
+  const [webConnected, mobileConnected] = await Promise.all([webEvents.nextEvent(), mobileEvents.nextEvent()]);
+  assert.ok(webConnected.time);
+  assert.ok(mobileConnected.time);
+  const accountUpdates = Promise.all([
+    webEvents.nextEventOfType("account"),
+    mobileEvents.nextEventOfType("account"),
+  ]);
+
   const ownedCrop = await fetch(`${base}/api/farmer/crops`, {
     method: "POST",
     headers: { authorization: `Bearer ${created.token}`, "content-type": "application/json" },
@@ -86,6 +139,10 @@ test("phone account registration, password login, session restore, logout, and d
   });
   assert.equal(ownedCrop.status, 201);
   const site = await ownedCrop.json();
+  const accountEvents = await accountUpdates;
+  assert.equal(accountEvents[0].updatedAt, accountEvents[1].updatedAt);
+  const [webSites, mobileSites] = await Promise.all([webSessionSites(base, created.token), webSessionSites(base, created.token)]);
+  assert.deepEqual(webSites, mobileSites);
   const sensorReading = await fetch(`${base}/api/readings`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -102,6 +159,58 @@ test("phone account registration, password login, session restore, logout, and d
   assert.equal(linked.status, 201);
   const ownedSensors = await fetch(`${base}/api/farmer/sensors`, { headers: { authorization: `Bearer ${created.token}` } });
   assert.equal((await ownedSensors.json())[0].siteLabel, "Main store");
+
+  const selectionUpdates = Promise.all([
+    webEvents.nextEventOfType("selection"),
+    mobileEvents.nextEventOfType("selection"),
+  ]);
+  const selectTomato = await fetch(`${base}/api/commodity`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Tomato", source: "sync-test" }),
+  });
+  assert.equal(selectTomato.status, 200);
+  const selectionEvents = await selectionUpdates;
+  assert.equal(selectionEvents[0].updatedAt, selectionEvents[1].updatedAt);
+  const [webStatus, mobileStatus] = await Promise.all([
+    fetch(`${base}/api/status`).then((response) => response.json()),
+    fetch(`${base}/api/status`).then((response) => response.json()),
+  ]);
+  assert.equal(webStatus.threshold.commodity, "Tomato");
+  assert.deepEqual(webStatus, mobileStatus);
+
+  const readingUpdates = Promise.all([
+    webEvents.nextEventOfType("reading"),
+    mobileEvents.nextEventOfType("reading"),
+  ]);
+  const breach = await fetch(`${base}/api/sim/breach`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(breach.status, 201);
+  const readingEvents = await readingUpdates;
+  assert.equal(readingEvents[0].updatedAt, readingEvents[1].updatedAt);
+  const [webAlerts, mobileAlerts] = await Promise.all([
+    fetch(`${base}/api/alerts`).then((response) => response.json()),
+    fetch(`${base}/api/alerts`).then((response) => response.json()),
+  ]);
+  assert.ok(webAlerts.length > 0);
+  assert.deepEqual(webAlerts, mobileAlerts);
+  const alertUpdates = Promise.all([
+    webEvents.nextEventOfType("alerts"),
+    mobileEvents.nextEventOfType("alerts"),
+  ]);
+  const reviewed = await fetch(`${base}/api/alerts/${webAlerts[0].id}/acknowledge`, { method: "POST" });
+  assert.equal(reviewed.status, 200);
+  const alertEvents = await alertUpdates;
+  assert.equal(alertEvents[0].updatedAt, alertEvents[1].updatedAt);
+  const [reviewedByWeb, reviewedByMobile] = await Promise.all([
+    fetch(`${base}/api/alerts`).then((response) => response.json()),
+    fetch(`${base}/api/alerts`).then((response) => response.json()),
+  ]);
+  assert.deepEqual(reviewedByWeb, reviewedByMobile);
+  assert.equal(reviewedByWeb[0].acknowledged, true);
 
   const secondRegistration = await fetch(`${base}/api/auth/register`, {
     method: "POST",
@@ -163,10 +272,16 @@ test("phone account registration, password login, session restore, logout, and d
   assert.equal(protectedLogin.status, 200);
   const phoneSession = await protectedLogin.json();
 
-  const webChallengeResponse = await fetch(`${base}/api/auth/qr/web-challenge`, { method: "POST" });
+  const webChallengeResponse = await fetch(`${base}/api/auth/qr/web-challenge`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ serverBaseUrl: base }),
+  });
   assert.equal(webChallengeResponse.status, 201);
   const webChallenge = await webChallengeResponse.json();
   assert.match(webChallenge.qrCode, /^data:image\/png;base64,/);
+  assert.equal(webChallenge.serverBaseUrl, base);
+  assert.match(webChallenge.qrPayload, /\?server=http%3A%2F%2F127\.0\.0\.1%3A\d+/);
   const approveChallenge = await fetch(`${base}/api/auth/qr/web-challenge/${webChallenge.challenge}/approve`, {
     method: "POST",
     headers: { authorization: `Bearer ${phoneSession.token}` },
@@ -182,10 +297,13 @@ test("phone account registration, password login, session restore, logout, and d
 
   const mobileChallengeResponse = await fetch(`${base}/api/auth/qr/mobile-challenge`, {
     method: "POST",
-    headers: { authorization: `Bearer ${webSession.token}` },
+    headers: { authorization: `Bearer ${webSession.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ serverBaseUrl: base }),
   });
   assert.equal(mobileChallengeResponse.status, 201);
   const mobileChallenge = await mobileChallengeResponse.json();
+  assert.match(mobileChallenge.qrCode, /^data:image\/png;base64,/);
+  assert.equal(mobileChallenge.serverBaseUrl, base);
   const mobileSessionResponse = await fetch(`${base}/api/auth/qr/mobile-exchange`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -214,4 +332,5 @@ test("phone account registration, password login, session restore, logout, and d
   assert.equal(logout.status, 200);
   const expired = await fetch(`${base}/api/auth/session`, { headers: { authorization: `Bearer ${signedIn.token}` } });
   assert.equal(expired.status, 401);
+  await Promise.all([webEvents.close(), mobileEvents.close()]);
 });

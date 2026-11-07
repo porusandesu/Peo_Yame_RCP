@@ -11,6 +11,8 @@ class AccountsScreen extends StatelessWidget {
     required this.isDemo,
     required this.onLogout,
     required this.onDestinationSelected,
+    required this.onShowSignInQr,
+    required this.onScanSignInQr,
     super.key,
   });
 
@@ -20,6 +22,8 @@ class AccountsScreen extends StatelessWidget {
   final bool isDemo;
   final VoidCallback onLogout;
   final ValueChanged<int> onDestinationSelected;
+  final VoidCallback? onShowSignInQr;
+  final VoidCallback? onScanSignInQr;
 
   void _openCrops(BuildContext context) {
     Navigator.of(context).pop();
@@ -78,6 +82,28 @@ class AccountsScreen extends StatelessWidget {
             onTap: () => _openCrops(context),
           ),
         ),
+        if (!isDemo) ...[
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.qr_code_2_rounded, color: _forest),
+              title: const Text('Show sign-in QR code'),
+              subtitle: const Text('Let another Peo Yame phone sign in to this account.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onShowSignInQr,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.qr_code_scanner_rounded, color: _forest),
+              title: const Text('Approve browser sign-in'),
+              subtitle: const Text('Scan the one-time code shown on the web sign-in page.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onScanSignInQr,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Card(
           child: ListTile(
