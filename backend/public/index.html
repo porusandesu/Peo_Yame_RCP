@@ -336,7 +336,7 @@
       function finishAuthentication(result) {
         authToken = result.token;
         verifiedFarmer = result.farmer;
-        if (verifiedFarmer.passwordEnabled) {
+        if (verifiedFarmer.passwordEnabled || (demoSkipAvailable && verifiedFarmer.demoSecuritySkipped)) {
           localStorage.setItem('peo_yame_farmer_token', authToken);
           activateProfile(verifiedFarmer);
           return;
@@ -677,7 +677,7 @@
         const result = await postJson('/api/auth/request-otp', { phone, name, email });
         authPhone = result.phone;
         authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
-        demoSkipAvailable = result.delivery === 'demo-skip-available';
+        demoSkipAvailable = result.demoMode === true || result.delivery === 'demo-skip-available';
         $('phonePreview').textContent = authPhone;
         $('otpTitle').textContent = authMode === 'authenticator' ? 'Google Authenticator' : 'Verify your number';
         $('otpPromptText').textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
@@ -767,11 +767,23 @@
         } catch (error) { $('credentialsError').textContent = error.message; }
         finally { button.disabled = false; }
       });
-      $('skipCredentialSetup').addEventListener('click', () => {
-        if (!demoSkipAvailable || !verifiedFarmer) return;
-        localStorage.setItem('peo_yame_farmer_token', authToken);
-        pendingProfile = null;
-        activateProfile(verifiedFarmer);
+      $('skipCredentialSetup').addEventListener('click', async () => {
+        const button = $('skipCredentialSetup');
+        if (!demoSkipAvailable || !verifiedFarmer || !authToken) {
+          $('credentialsError').textContent = 'The demo sign-in has expired. Start again from the login page.';
+          return;
+        }
+        button.disabled = true;
+        $('credentialsError').textContent = '';
+        try {
+          const profile = await postJson('/api/account/credentials/skip', {});
+          verifiedFarmer = profile;
+          localStorage.setItem('peo_yame_farmer_token', authToken);
+          pendingProfile = null;
+          activateProfile(profile);
+        } catch (error) {
+          $('credentialsError').textContent = error.message;
+        } finally { button.disabled = false; }
       });
       $('createProfile').addEventListener('click', () => showAuthPanel('profilePanel'));
       $('profileCancel').addEventListener('click', () => showAuthPanel('loginPanel'));

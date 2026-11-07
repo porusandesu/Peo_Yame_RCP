@@ -127,7 +127,8 @@ The schema is initialized idempotently with `CREATE TABLE IF NOT EXISTS` in `bac
 | `app_settings` | Text primary key `key`, required text `value` | Stores the selected global active crop and the one-time history-seed marker. |
 | `readings` | Integer primary key; required `site`; `crop_id` FK to `crops`; numeric temperature/humidity; required `data_source`; UTC `recorded_at`; humidity database check 0…100 | Durable readings, including generated demo data and submitted sensor-style data. Index on `recorded_at`. These rows are not tied to a farmer or registered sensor. |
 | `farmer_accounts` | Integer primary key; case-insensitive unique `phone`; required `name`; UTC `created_at` | Farmer profile identity. OTP-based local registration creates a row after successful verification. |
-| `farmer_accounts` (auth fields) | Unique email; nullable password salt/hash; nullable TOTP secret | Email/password credentials use salted scrypt hashes. Existing databases receive password columns through startup column checks. |
+| `farmer_accounts` (auth fields) | Unique email; nullable password salt/hash; nullable TOTP secret | Email/password credentials use salted scrypt hashes. Startup column checks add missing auth fields to existing databases. |
+| `farmer_accounts.demo_security_skipped` | Boolean integer, default false | Persists a user's demo-only choice to defer email/password setup. The choice is honored only in demo mode. |
 | `farmer_sessions` | Hashed token primary key; account FK; expiry timestamp | Persists bearer-session hashes and seven-day expiry; plaintext tokens are held by clients only. |
 | `farmer_crops` | Integer primary key; `account_id` FK with `ON DELETE CASCADE`; `crop_id` FK; required location `label`; UTC creation time; unique `(account_id, crop_id, label)` | Crop/storage locations owned by a farmer. One farmer can have many locations, including multiple locations for a commodity. |
 | `farmer_sensors` | Integer primary key; `account_id` FK cascade; `farmer_crop_id` FK cascade; `sensor_code`, `label`, `created_at`; unique `(account_id, sensor_code)` | Sensor identifiers assigned to a farmer's crop locations. Deleting the crop location cascades to these assignments. The route validates that the location belongs to the account before insertion. |
@@ -231,6 +232,7 @@ All routes use the configured Express host and port (`HOST`, default development
 | `POST /api/auth/demo/skip-verification` | Development/demo-only verification bypass; disabled in production. Consumes an existing pending phone challenge. |
 | `POST /api/auth/password` | Email/password login; validates salted scrypt hashes and applies a per-email failed-attempt window. |
 | `PUT /api/account/credentials` | Authenticated email/password setup; validates unique email and stores a salted scrypt hash. |
+| `POST /api/account/credentials/skip` | Authenticated demo-only continuation without setting a password; confirms demo mode and persists that choice. |
 | `POST /api/account/mobile-login-qr`, `POST /api/auth/mobile-qr` | Authenticated web account issues a two-minute one-use QR challenge; mobile consumes it to create a separate session. |
 | `GET /api/account`, `PATCH /api/account` | Authenticated farmer profile read/update, including email. |
 | `POST /api/auth/logout` | Deletes the current persisted session hash. |
@@ -253,7 +255,7 @@ All routes use the configured Express host and port (`HOST`, default development
 
 1. Web registration/login requests phone verification through `/api/auth/request-otp`. OTP challenge hashes and expiry/attempt data remain in process memory; the raw code is not returned to clients. Demo mode offers an explicit bypass button instead of exposing a code. The bypass consumes a pending challenge and is disabled in production. Phone verification does not sign in the mobile app.
 2. `/api/auth/verify-otp` checks the PIN when delivery is configured, or checks an authenticator code for accounts with TOTP enabled. Successful web verification establishes the web session and proceeds to account credential setup when needed.
-3. Accounts without password credentials can save a unique email and password at `/api/account/credentials`. The server derives a 64-byte scrypt hash with a per-account random salt; raw passwords are not stored. Demo mode permits skipping this step.
+3. Accounts without password credentials can save a unique email and password at `/api/account/credentials`. The server derives a 64-byte scrypt hash with a per-account random salt; raw passwords are not stored. Demo mode permits skipping this step through authenticated `/api/account/credentials/skip`; SQLite remembers the choice for subsequent demo phone sign-ins. Production does not honor the demo skip.
 4. Web email/password login calls `/api/auth/password`. Existing accounts can also use their phone/authenticator route. Password hashes and sessions are not returned in API payloads.
 5. Farmer session token hashes and seven-day expiry are stored in SQLite, so valid sessions survive backend restarts. Flutter stores its bearer token in `SharedPreferences`; the browser uses `localStorage`.
 

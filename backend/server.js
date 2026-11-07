@@ -59,6 +59,7 @@ function publicFarmer(farmer) {
     phone: farmer.phone,
     email: farmer.email || "",
     passwordEnabled: Boolean(farmer.passwordEnabled),
+    demoSecuritySkipped: Boolean(farmer.demoSecuritySkipped),
   };
 }
 function createSession(farmer) {
@@ -126,7 +127,7 @@ app.post("/api/auth/request-otp", (req, res) => {
   if (previous && Date.now() - previous.createdAt < 30000) return res.status(429).json({ error: "Please wait 30 seconds before requesting another PIN." });
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   otpChallenges.set(phone, { hash: crypto.createHash("sha256").update(code).digest("hex"), name, email, createdAt: Date.now(), attempts: 0 });
-  res.json({ sent: true, phone, expiresInSeconds: 300, delivery: isDemoMode ? "demo-skip-available" : "sms" });
+  res.json({ sent: true, phone, expiresInSeconds: 300, demoMode: isDemoMode, delivery: isDemoMode ? "demo-skip-available" : "sms" });
 });
 
 app.post("/api/auth/verify-otp", (req, res) => {
@@ -223,6 +224,13 @@ app.put("/api/account/credentials", requireFarmer, async (req, res) => {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = (await scryptAsync(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })).toString("hex");
   const farmer = cropDatabase.updateFarmerCredentials(req.farmer.id, email, salt, hash);
+  res.json(publicFarmer(farmer));
+});
+
+app.post("/api/account/credentials/skip", requireFarmer, (req, res) => {
+  if (!isDemoMode) return res.status(404).json({ error: "Skipping account security is available only in demo mode." });
+  const farmer = cropDatabase.markFarmerDemoSecuritySkipped(req.farmer.id);
+  if (!farmer) return res.status(404).json({ error: "Farmer account not found." });
   res.json(publicFarmer(farmer));
 });
 

@@ -41,6 +41,10 @@ flowchart LR
   verification. Passwords are scrypt hashes with per-account random salts.
   Email/password sign-in is available from the web login page. Existing
   accounts can use phone/Google Authenticator sign-in where configured.
+- The credential setup screen's demo skip calls an authenticated backend route,
+  which confirms demo mode and persists the choice on the farmer account. Later
+  demo phone sign-ins bypass credential setup; production does not honor that
+  demo-only choice. The page shows an error if the demo session has expired.
 - The web dashboard issues a random one-use mobile pairing challenge only
   after web authentication. A QR contains the backend address and challenge;
   it expires in two minutes. Mobile exchanges the challenge for its own

@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS farmer_accounts (
   id INTEGER PRIMARY KEY, phone TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name TEXT NOT NULL, email TEXT NOT NULL DEFAULT '', password_salt TEXT, password_hash TEXT,
   totp_secret TEXT, pending_totp_secret TEXT,
+  demo_security_skipped INTEGER NOT NULL DEFAULT 0 CHECK(demo_security_skipped IN (0,1)),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS farmer_sessions (
@@ -76,6 +77,7 @@ if (!farmerColumns.has("password_salt")) sql("ALTER TABLE farmer_accounts ADD CO
 if (!farmerColumns.has("password_hash")) sql("ALTER TABLE farmer_accounts ADD COLUMN password_hash TEXT;");
 if (!farmerColumns.has("totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN totp_secret TEXT;");
 if (!farmerColumns.has("pending_totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN pending_totp_secret TEXT;");
+if (!farmerColumns.has("demo_security_skipped")) sql("ALTER TABLE farmer_accounts ADD COLUMN demo_security_skipped INTEGER NOT NULL DEFAULT 0 CHECK(demo_security_skipped IN (0,1));");
 
 function toCrop(row) {
   return row && { id: row.id, commodity: row.name, minTemp: row.min_temp, maxTemp: row.max_temp, minHumidity: row.min_humidity, maxHumidity: row.max_humidity };
@@ -169,8 +171,8 @@ module.exports = {
     sql(`INSERT INTO readings(id,site,crop_id,temperature,humidity,data_source,recorded_at) VALUES(${reading.id},${quote(reading.site)},${crop.id},${reading.temperature},${reading.humidity},${quote(reading.dataSource)},${quote(reading.recordedAt)});`);
   },
   recentReadings: (limit = 200) => sql(`SELECT r.id,r.site,c.name AS commodity,r.temperature,r.humidity,r.data_source AS dataSource,r.recorded_at AS recordedAt FROM readings r JOIN crops c ON c.id=r.crop_id ORDER BY r.recorded_at DESC,r.id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 200, 2000))};`, true).reverse(),
-  findFarmer: (phone) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
-  findFarmerById: (id) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null,
+  findFarmer: (phone) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
+  findFarmerById: (id) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null,
   findFarmerByEmail: (email) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,password_salt AS passwordSalt,password_hash AS passwordHash FROM farmer_accounts WHERE email=${quote(email)} COLLATE NOCASE AND password_hash IS NOT NULL;`, true)[0] || null,
   findFarmerByEmailAddress: (email) => sql(`SELECT id FROM farmer_accounts WHERE email=${quote(email)} COLLATE NOCASE LIMIT 1;`, true)[0] || null,
   createFarmer: (phone, name, email = "") => {
@@ -185,6 +187,10 @@ module.exports = {
     sql(`UPDATE farmer_accounts SET email=${quote(email)},password_salt=${quote(salt)},password_hash=${quote(hash)} WHERE id=${Number(id)};`);
     return sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null;
   },
+  markFarmerDemoSecuritySkipped: (id) => {
+    sql(`UPDATE farmer_accounts SET demo_security_skipped=1 WHERE id=${Number(id)};`);
+    return sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null;
+  },
   farmerAuthenticator: (accountId) => sql(`SELECT totp_secret AS secret,pending_totp_secret AS pendingSecret FROM farmer_accounts WHERE id=${Number(accountId)};`, true)[0] || null,
   setPendingAuthenticator: (accountId, secret) => sql(`UPDATE farmer_accounts SET pending_totp_secret=${quote(secret)} WHERE id=${Number(accountId)} AND totp_secret IS NULL;`),
   enableAuthenticator: (accountId) => sql(`UPDATE farmer_accounts SET totp_secret=pending_totp_secret,pending_totp_secret=NULL WHERE id=${Number(accountId)} AND pending_totp_secret IS NOT NULL;`),
@@ -192,7 +198,7 @@ module.exports = {
   createFarmerSession: (tokenHash, accountId, expiresAt) => {
     sql(`DELETE FROM farmer_sessions WHERE expires_at<=${Number(Date.now())}; INSERT INTO farmer_sessions(token_hash,account_id,expires_at) VALUES(${quote(tokenHash)},${Number(accountId)},${Number(expiresAt)});`);
   },
-  findFarmerBySession: (tokenHash, now = Date.now()) => sql(`SELECT a.id,a.name,a.phone,a.email,(a.password_hash IS NOT NULL) AS passwordEnabled FROM farmer_sessions s JOIN farmer_accounts a ON a.id=s.account_id WHERE s.token_hash=${quote(tokenHash)} AND s.expires_at>${Number(now)};`, true)[0] || null,
+  findFarmerBySession: (tokenHash, now = Date.now()) => sql(`SELECT a.id,a.name,a.phone,a.email,(a.password_hash IS NOT NULL) AS passwordEnabled,a.demo_security_skipped AS demoSecuritySkipped FROM farmer_sessions s JOIN farmer_accounts a ON a.id=s.account_id WHERE s.token_hash=${quote(tokenHash)} AND s.expires_at>${Number(now)};`, true)[0] || null,
   removeFarmerSession: (tokenHash) => sql(`DELETE FROM farmer_sessions WHERE token_hash=${quote(tokenHash)};`),
   farmerCrops: (accountId) => sql(`SELECT fc.id,fc.label,c.name AS commodity,c.min_temp AS minTemp,c.max_temp AS maxTemp,c.min_humidity AS minHumidity,c.max_humidity AS maxHumidity,(SELECT COUNT(*) FROM farmer_sensors fs WHERE fs.farmer_crop_id=fc.id) AS sensorCount FROM farmer_crops fc JOIN crops c ON c.id=fc.crop_id WHERE fc.account_id=${Number(accountId)} ORDER BY fc.id;`, true),
   addFarmerCrop: (accountId, commodity, label) => {

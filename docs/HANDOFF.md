@@ -6,7 +6,7 @@ Updated: 7 November 2026
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
 - Branch: `exe-work`
-- Latest committed revision reviewed: `1c85d58` — `Record farmer sign-in validation in handoff`.
+- Latest reviewed code: current `exe-work` HEAD; see `git log --oneline` for its hash and documentation follow-ups.
 - Consult `git log` for the complete history and `git status` for local edits.
 
 ## Current worktree
@@ -31,6 +31,12 @@ salts; the demo PIN is no longer returned to the browser. The login page's
 behind the signed-in web session. Email is part of farmer account records and
 is migrated for existing databases. See the latest section in
 [changes-2026-11-07.md](changes-2026-11-07.md) for validation status.
+
+The account-security skip now confirms demo mode through an authenticated
+backend route and persists the choice in SQLite, so repeat demo phone sign-ins
+do not reopen credential setup. The production flow ignores this demo-only
+choice. This change is included in the current commit; CI and browser
+interaction validation are pending.
 
 Local checks passed the Flutter widget test, backend authenticator test,
 JavaScript syntax checks (including the web page's inline script), and an
