@@ -32,6 +32,8 @@ void main() {
     await tester.tap(find.text('My Crops'));
     await tester.pump();
     expect(find.textContaining('Shared demo crop catalog'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -700));
+    await tester.pump();
     expect(
       find.textContaining('No crop locations or linked physical sensors'),
       findsOneWidget,
