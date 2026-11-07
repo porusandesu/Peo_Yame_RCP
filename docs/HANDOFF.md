@@ -25,7 +25,9 @@ clears the previously saved token and returns to sign-in. The widget test now
 checks the fresh-install sign-in screen. These changes were formatted.
 The Flutter widget test and backend authenticator test pass, as do JavaScript
 syntax checks and `git diff --check`. `dart analyze` did not return diagnostics
-within 30 seconds. No build or physical-device checks have been run for them.
+within 30 seconds. GitHub Actions run [42355687815](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42355687815)
+passed both the Android debug APK build and Windows backend tests/package for
+commit `bc5d5c1`. The APK has not been exercised on a physical device.
 
 Account records, crop locations, sensor assignments, and sessions live in the
 backend SQLite database. Web and mobile clients see the same data when they use
