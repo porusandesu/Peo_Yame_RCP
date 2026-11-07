@@ -100,6 +100,7 @@ class _AppGateState extends State<_AppGate> {
   final ApiService _authApi = ApiService();
   AccountInfo? _account;
   String? _pendingPhone;
+  String _pendingFarmerName = '';
   String? _pendingDemoCode;
   bool _authenticatorRequired = false;
   bool _loadingSession = true;
@@ -137,6 +138,7 @@ class _AppGateState extends State<_AppGate> {
   }) {
     setState(() {
       _pendingPhone = request.phone;
+      _pendingFarmerName = request.name;
       _pendingDemoCode = demoCode;
       _authenticatorRequired = authenticatorRequired;
     });
@@ -144,6 +146,7 @@ class _AppGateState extends State<_AppGate> {
 
   void _backToLogin() => setState(() {
     _pendingPhone = null;
+    _pendingFarmerName = '';
     _pendingDemoCode = null;
     _authenticatorRequired = false;
   });
@@ -168,6 +171,108 @@ class _AppGateState extends State<_AppGate> {
     }
   }
 
+  Future<void> _configureBackendFromLogin() async {
+    final controller = TextEditingController();
+    var validationMessage = '';
+    final address = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Connect to your monitor'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              hintText: '192.168.1.42:3000',
+              helperText:
+                  'Use the address shown in the web app’s Connect mobile app window.',
+              errorText: validationMessage.isEmpty ? null : validationMessage,
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                final scanned = await Navigator.of(dialogContext).push<String>(
+                  MaterialPageRoute<String>(
+                    builder: (_) => const _BackendQrScannerPage(),
+                  ),
+                );
+                if (scanned != null) {
+                  controller.text = scanned;
+                  setDialogState(() => validationMessage = '');
+                }
+              },
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+              label: const Text('Scan QR code'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = normalizeApiBaseUrl(controller.text);
+                final uri = Uri.tryParse(value);
+                if (uri == null ||
+                    uri.host.isEmpty ||
+                    !['http', 'https'].contains(uri.scheme) ||
+                    (uri.path.isNotEmpty && uri.path != '/') ||
+                    uri.hasQuery ||
+                    uri.hasFragment) {
+                  setDialogState(() {
+                    validationMessage =
+                        'Enter a server address such as 192.168.1.42:3000.';
+                  });
+                  return;
+                }
+                Navigator.pop(dialogContext, value);
+              },
+              child: const Text('Connect'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (address == null || !mounted) return;
+    try {
+      await _connectBackend(address);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Connected to the monitor. Sign in or create your farmer account.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
+  Future<void> _backendChanged(String address) async {
+    final nextAddress = normalizeApiBaseUrl(address);
+    final changed = _authApi.baseUrl != nextAddress;
+    _authApi.baseUrl = nextAddress;
+    if (!changed) return;
+    _authApi.authToken = null;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('farmer_auth_token');
+    if (!mounted) return;
+    setState(() {
+      _account = null;
+      _pendingPhone = null;
+      _pendingFarmerName = '';
+      _pendingDemoCode = null;
+      _authenticatorRequired = false;
+    });
+  }
+
   Future<void> _continueDemo(String code) async {
     final phone = _pendingPhone ?? '';
     final farmer = await _authApi.verifyOtp(phone: phone, code: code);
@@ -180,6 +285,7 @@ class _AppGateState extends State<_AppGate> {
         phone: farmer['phone'] as String,
       );
       _pendingPhone = null;
+      _pendingFarmerName = '';
       _pendingDemoCode = null;
       _authenticatorRequired = false;
     });
@@ -195,6 +301,7 @@ class _AppGateState extends State<_AppGate> {
       setState(() {
         _account = null;
         _pendingPhone = null;
+        _pendingFarmerName = '';
         _pendingDemoCode = null;
         _authenticatorRequired = false;
       });
@@ -245,8 +352,7 @@ class _AppGateState extends State<_AppGate> {
         onSetupAuthenticator: _authApi.setupAuthenticator,
         onEnableAuthenticator: _authApi.enableAuthenticator,
         onDisableAuthenticator: _authApi.disableAuthenticator,
-        onBackendChanged: (address) =>
-            _authApi.baseUrl = normalizeApiBaseUrl(address),
+        onBackendChanged: _backendChanged,
         onLoadFarmerCrops: _authApi.getFarmerCrops,
         onLoadFarmerSensors: _authApi.getFarmerSensors,
         onDeleteFarmerCrop: _authApi.deleteFarmerCrop,
@@ -264,7 +370,10 @@ class _AppGateState extends State<_AppGate> {
         onBack: _backToLogin,
         onContinue: _continueDemo,
         onResend: () async {
-          final result = await _authApi.requestOtp(phone: pendingPhone);
+          final result = await _authApi.requestOtp(
+            phone: pendingPhone,
+            name: _pendingFarmerName,
+          );
           final code = result['demoCode'] as String?;
           if (mounted) {
             setState(() {
@@ -313,13 +422,16 @@ class _AppGateState extends State<_AppGate> {
           throw Exception('This is not a valid sign-in QR code.');
         await _connectBackend(data['backend'] as String);
         _pendingPhone = data['phone'] as String;
+        _pendingFarmerName = '';
         try {
           await _continueDemo(data['code'] as String);
         } catch (_) {
           _pendingPhone = null;
+          _pendingFarmerName = '';
           rethrow;
         }
       },
+      onConfigureBackend: _configureBackendFromLogin,
       onContinue: (request) async {
         try {
           _authApi.baseUrl = normalizeApiBaseUrl(
@@ -366,10 +478,15 @@ class AccountInfo {
 }
 
 class _LoginSplash extends StatefulWidget {
-  const _LoginSplash({required this.onContinue, required this.onScanSignInQr});
+  const _LoginSplash({
+    required this.onContinue,
+    required this.onScanSignInQr,
+    required this.onConfigureBackend,
+  });
 
   final Future<void> Function(DemoSignInRequest) onContinue;
   final Future<void> Function() onScanSignInQr;
+  final Future<void> Function() onConfigureBackend;
 
   @override
   State<_LoginSplash> createState() => _LoginSplashState();
@@ -576,6 +693,11 @@ class _LoginSplashState extends State<_LoginSplash> {
                           },
                           icon: const Icon(Icons.qr_code_2_rounded, size: 17),
                           label: const Text('Scan sign-in QR'),
+                        ),
+                        TextButton.icon(
+                          onPressed: widget.onConfigureBackend,
+                          icon: const Icon(Icons.router_outlined, size: 17),
+                          label: const Text('Connect to web backend'),
                         ),
                         const SizedBox(height: 10),
                         const Text(

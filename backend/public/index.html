@@ -154,7 +154,7 @@
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2 id="otpTitle">Verify your number</h2><p id="otpPrompt">Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
+        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2 id="otpTitle">Verify your number</h2><p id="otpPrompt"><span id="otpPromptText">Enter the 6-digit one-time PIN for </span><strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
         <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
@@ -646,7 +646,7 @@
         authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
         $('phonePreview').textContent = authPhone;
         $('otpTitle').textContent = authMode === 'authenticator' ? 'Google Authenticator' : 'Verify your number';
-        $('otpPrompt').firstChild.textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
+        $('otpPromptText').textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
         $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
         $('resendPin').hidden = authMode === 'authenticator';
         document.querySelectorAll('.pin-row input').forEach((input, index) => input.setAttribute('aria-label', `${authMode === 'authenticator' ? 'Authenticator' : 'PIN'} digit ${index + 1}`));
