@@ -3,7 +3,7 @@
 **Updated:** 2026-11-07 (Africa/Gaborone)
 **Repository:** `/home/porusandesu/Documents/storage_monitor_flutter`
 **Active branch:** `pauls-branch`
-**HEAD before current work:** `7538d60` (`Record verified sync and account QR flows`)
+**HEAD:** `ac91aee` (`Fix mobile crop management compilation`)
 **Remote:** `origin/pauls-branch` is at the same commit.
 **Reference inventory:** `exe-work` at `c8926b7`; merge base with this branch is `65d308c`.
 **Current state:** Demo parity, brand restoration, backend auth, web flows, and Windows package changes are committed and pushed. The latest GitHub Actions run passed. Remaining parity gaps and limits are listed below; physical-device and live-sensor end-to-end behavior are not verified.
@@ -127,4 +127,4 @@ The user asked that web/mobile reflect the same backend data at the same time an
 
 ## 2026-11-07 mobile crop and sensor management
 
-The mobile My Crops view now loads farmer-owned storage locations, adds a crop/location from the shared catalog, and deletes a location with confirmation. It lists linked sensor IDs and their last reading timestamps, links only IDs detected from actual backend sensor readings to an owned location, and supports unlinking. The Accounts page routes My Crops and Manage linked sensors to this panel. Mobile reloads owner data on `account` SSE updates; polling remains the dashboard fallback. Backend tests now cover owned deletion, unlink, and sensor rediscovery after unlink; Flutter coverage exercises Accounts navigation. This increment is pending GitHub Actions. Physical sensor connectivity and device-level visuals remain unverified.
+The mobile My Crops view now loads farmer-owned storage locations, adds a crop/location from the shared catalog, and deletes a location with confirmation. It lists linked sensor IDs and their last reading timestamps, links only IDs detected from actual backend sensor readings to an owned location, and supports unlinking. The Accounts page routes My Crops and Manage linked sensors to this panel. Mobile reloads owner data on `account` SSE updates; polling remains the dashboard fallback. Backend tests cover owned deletion, unlink, and sensor rediscovery after unlink; Flutter coverage exercises Accounts navigation. CI run [42393553982](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42393553982) passed on `ac91aee`: backend Linux/Windows, Flutter tests/analysis, Android APK and Windows package all passed. Artifacts: Android expires 2026-11-21 and Windows expires 2026-12-07. Physical sensor connectivity and device-level visuals remain unverified.
