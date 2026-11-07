@@ -29,13 +29,10 @@ void main() {
     expect(find.textContaining('Shared demo crop catalog'), findsOneWidget);
     expect(find.textContaining('No crop locations or linked physical sensors'), findsOneWidget);
 
-    await tester.tap(find.text('Alerts'));
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('Trigger demo breach'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.tap(find.text('Alerts').last);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -800));
+    await tester.pumpAndSettle();
     expect(find.text('Trigger demo breach'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
