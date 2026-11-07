@@ -148,7 +148,7 @@
     </style>
   </head>
   <body>
-    <section class="auth-shell" id="authShell" aria-live="polite">
+    <section class="auth-shell" id="authShell" aria-live="polite" hidden>
       <div class="auth-card" id="loginPanel">
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
         <h2>Welcome back</h2><p>Your harvest, your sensors. All in one place.</p>
@@ -217,7 +217,7 @@
     <section class="view" id="settingsView" hidden>
       <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
       <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta" id="profileEmail"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
-      <h2 style="margin-top:18px">Two-step sign-in</h2><article class="profile-card"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden>6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
+      <h2 id="authSecurityHeader" style="margin-top:18px">Two-step sign-in</h2><article class="profile-card" id="authSecurityCard"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden>6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
       <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
       <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
       <h2 style="margin-top:18px">Crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
@@ -228,7 +228,7 @@
       <div class="sensor-toolbar"><input id="sensorSearch" type="search" placeholder="Search crop, storage or sensor ID" aria-label="Search your crops and sensors"></div>
       <div id="sensorList"></div><div class="profile-meta" id="cropActionNotice" role="status" aria-live="polite"></div>
     </section>
-    <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
+    <dialog id="farmerCropDialog"><form id="farmerCropForm"><h2>Add a crop and connect sensors</h2><div class="form-grid"><label>Crop<select name="commodity" id="farmerCropSelect" required></select></label><label>Field or storage name<input name="label" placeholder="For example: North store" required maxlength="80"></label></div><p id="farmerCropGuide" class="profile-meta"></p><fieldset style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px"><legend>Connected backend sensors</legend><div id="farmerCropSensors" class="profile-meta">Loading sensors…</div></fieldset><div id="farmerCropError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerCropDialog">Cancel</button><button type="submit">Save crop setup</button></div></form></dialog>
     <dialog id="editProfileDialog"><form id="editProfileForm"><h2>Edit farmer profile</h2><label>Farmer name<input name="name" id="editProfileName" autocomplete="name" required maxlength="80"></label><label>Email address<input name="email" id="editProfileEmail" type="email" autocomplete="email" maxlength="254"></label><label>Phone number<input name="phone" id="editProfilePhone" type="tel" autocomplete="tel" required></label><div id="editProfileError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="editProfileDialog">Cancel</button><button type="submit">Save profile</button></div></form></dialog>
     <dialog id="farmerSensorDialog"><form id="farmerSensorForm"><h2>Link a sensor</h2><div class="form-grid"><label>Assign to crop location<select name="farmerCropId" id="farmerSensorCrop" required></select></label><label>Connected sensor ID<select name="sensorCode" id="farmerSensorCode" required></select></label><label>Sensor name<input name="label" placeholder="For example: Main store sensor" required maxlength="80"></label></div><div id="farmerSensorError" class="dialog-error" role="alert"></div><div class="dialog-actions"><button type="button" data-close-dialog="farmerSensorDialog">Cancel</button><button type="submit">Link sensor</button></div></form></dialog>
     <dialog id="connectionDialog"><h2>Sign in to the mobile app</h2><p>Sign in to your farmer account here first, then scan this one-time QR code in the Peo Yame mobile app. Keep both devices on the same Wi-Fi network.</p><label class="profile-meta" for="connectionAddress">Choose a network</label><select id="connectionAddress" class="harvest-select"></select><div id="connectionQrError" class="dialog-error" role="status"></div><div style="display:grid;place-items:center;padding:12px"><div id="connectionQr" aria-label="One-time mobile sign-in QR code" hidden></div></div><p class="profile-meta" id="connectionUrl"></p><div class="dialog-actions"><button type="button" id="refreshConnectionQr">Create a new QR</button><button type="button" data-close-dialog="connectionDialog">Close</button></div></dialog>
@@ -252,6 +252,7 @@
       let farmerCrops = [];
       let farmerSensors = [];
       let availableFarmerSensors = [];
+      let cropGuidance = [];
       let pendingProfile = null;
       let authPhone = '';
       let authMode = 'pin';
@@ -296,14 +297,19 @@
         $('profileName').textContent = demoProfile.name;
         $('profilePhone').textContent = demoProfile.phone;
         $('profileEmail').textContent = demoProfile.email || '';
+        $('authSecurityHeader').hidden = demoMode;
+        $('authSecurityCard').hidden = demoMode;
+        $('logout').hidden = demoMode;
+        $('connectPhone').hidden = demoMode;
+        document.querySelector('[data-edit-profile]').hidden = demoMode;
         updateDemoControls();
         showView('dashboard');
         void loadFarmerData();
-        void loadAuthenticator();
+        if (!demoMode) void loadAuthenticator();
         refresh();
       }
       async function syncAccountProfile() {
-        if (!authToken || !demoProfile) return;
+        if ((!authToken && !demoMode) || !demoProfile) return;
         try {
           const profile = await getJson('/api/account');
           if (profile.name === demoProfile.name && profile.phone === demoProfile.phone && (profile.email || '') === (demoProfile.email || '')) return;
@@ -348,14 +354,22 @@
         showAuthPanel('credentialsPanel');
       }
       async function loadFarmerData() {
-        if (!authToken) return;
+        if (!authToken && !demoProfile) return;
         try {
           [farmerCrops, farmerSensors, availableFarmerSensors] = await Promise.all([getJson('/api/farmer/crops'), getJson('/api/farmer/sensors'), getJson('/api/farmer/available-sensors')]);
           $('accountCropCount').textContent = farmerCrops.length;
           $('accountSensorCount').textContent = farmerSensors.length;
           $('accountCropSummary').textContent = `${farmerCrops.length} crop locations · ${farmerSensors.length} assigned sensors`;
           const cropOptions = await getJson('/api/crops');
-          $('farmerCropSelect').innerHTML = cropOptions.map(crop => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('');
+          cropGuidance = cropOptions;
+          const groups = new Map();
+          for (const crop of cropOptions) {
+            const group = crop.cropGroup || 'Other';
+            if (!groups.has(group)) groups.set(group, []);
+            groups.get(group).push(crop);
+          }
+          $('farmerCropSelect').innerHTML = [...groups].map(([group, items]) => `<optgroup label="${escapeHtml(group)}">${items.map(crop => `<option value="${escapeHtml(crop.commodity)}">${escapeHtml(crop.commodity)}</option>`).join('')}</optgroup>`).join('');
+          updateFarmerCropGuide();
           $('farmerSensorCrop').innerHTML = farmerCrops.map(crop => `<option value="${crop.id}">${escapeHtml(crop.commodity)} · ${escapeHtml(crop.label)}</option>`).join('');
           $('farmerSensorCode').innerHTML = `<option value="" selected disabled>Select an available sensor</option>${availableFarmerSensors.map(sensor => `<option value="${escapeHtml(sensor.sensorCode)}" ${sensor.connected ? '' : 'disabled'}>${escapeHtml(sensor.sensorCode)} · ${sensor.connected ? 'Connected' : 'Offline'}</option>`).join('')}`;
           renderFarmerSensorChoices();
@@ -880,6 +894,11 @@
       $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
       $('addFarmerCrop').addEventListener('click', () => { $('farmerCropError').textContent = ''; $('farmerCropDialog').showModal(); });
       $('sensorSearch').addEventListener('input', renderFarmerCrops);
+      function updateFarmerCropGuide() {
+        const crop = cropGuidance.find(item => item.commodity === $('farmerCropSelect').value);
+        $('farmerCropGuide').textContent = !crop ? '' : `Room target: ${crop.minTemp}–${crop.maxTemp} °C and ${crop.minHumidity}–${crop.maxHumidity}% RH. ${crop.safeMoisturePct == null ? '' : `Grain moisture target: ≤${crop.safeMoisturePct}% (measure with a grain moisture meter). `}${crop.storageNote}`;
+      }
+      $('farmerCropSelect').addEventListener('change', updateFarmerCropGuide);
       $('farmerCropForm').addEventListener('submit', async event => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
@@ -920,8 +939,25 @@
         $('appMenuButton').setAttribute('aria-expanded', 'false');
         showAuthPanel('loginPanel');
       });
-      if (authToken) getJson('/api/account').then(activateProfile).catch(() => { authToken=''; localStorage.removeItem('peo_yame_farmer_token'); showAuthPanel('loginPanel'); });
-      else showAuthPanel('loginPanel');
+      getJson('/api/health').then(async health => {
+        demoMode = health.demoMode === true;
+        if (demoMode) {
+          authToken = '';
+          localStorage.removeItem('peo_yame_farmer_token');
+          activateProfile(await getJson('/api/account'));
+          return;
+        }
+        if (authToken) {
+          try { activateProfile(await getJson('/api/account')); }
+          catch (_) { authToken=''; localStorage.removeItem('peo_yame_farmer_token'); showAuthPanel('loginPanel'); }
+        } else showAuthPanel('loginPanel');
+      }).catch(() => {
+        demoMode = true;
+        authToken = '';
+        localStorage.removeItem('peo_yame_farmer_token');
+        activateProfile({name:'Demo Farmer', phone:'', email:''});
+        $('connectionHeader').innerHTML = '<span class="connected-dot" style="background:#cf5145"></span><strong>Backend</strong> · Offline<small>Waiting for demo service</small>';
+      });
       const updates = new EventSource('/api/events');
       updates.onmessage = (event) => {
         try {

@@ -31,62 +31,61 @@ extract it, and launch `Peo-Yame-Backend.exe`. Its notification-area icon may
 be under **Show hidden icons**. The menu can launch the web panel, restart or
 shut down the backend, or exit the launcher.
 
-## Sign in and pair the mobile app
+## Open the demo
 
-1. Create a farmer account on the web app using a phone number. The local demo
-   does not send SMS; after requesting phone verification, choose **Skip
-   verification (demo)**. The PIN is not returned or shown.
-2. Add an email and password to secure the account. Demo mode lets you skip
-   this step; accounts with credentials can sign in on the web using them.
-   Phone verification/Google Authenticator remains available as an alternate
-   sign-in path.
-3. On mobile, sign in either with **Phone number** using the number on an
-   existing farmer account, or scan a one-use QR issued by a signed-in web
-   account. Phone login uses the account's SMS code or authenticator code; the
-   local demo offers **Skip verification (demo)** because it sends no SMS.
-   New farmer accounts are created from the web app. QR pairing expires after
-   two minutes and also configures the backend address for the phone.
+The web dashboard and mobile app open directly into the shared demo account.
+There is no demo login, PIN, password, account setup, or QR pairing. Both apps
+use the same demo farmer and crop assignments when they connect to the same
+backend. Separate backend instances have separate databases. The Android
+emulator default is `http://10.0.2.2:3000`; physical phones can use **Settings →
+Backend address** to connect to the PC on the same Wi-Fi. Mobile navigation is
+Overview, Trends, **My Crops**, Alerts, Settings.
 
-Both clients use the same SQLite-backed farmer account when they connect to
-the same running backend. Separate backend instances have separate databases.
-The Android emulator default is `http://10.0.2.2:3000`; physical phones should
-use the web pairing QR. Mobile navigation is Overview, Trends, **My Crops**,
-Alerts, Settings.
+Production mode retains phone verification, password login, and one-use QR
+pairing. Production needs a configured SMS provider for phone verification.
 
 ## Demo behavior and limitations
 
 - Readings and historical baselines are synthetic. The simulator can be
   replaced later with an authenticated device integration.
-- Maize, Sorghum, and Tomato are seeded crop profiles; their configured limits
-  are demo values, not validated spoilage thresholds.
+- The backend seeds a Botswana starter catalog of grains, pulses, oilseeds,
+  vegetables, and fruits. Crop ranges are indicative room-monitoring targets;
+  they are not validated spoilage thresholds. Dry-grain moisture targets are
+  separate from room humidity and need a grain moisture meter. See the
+  [crop package and sources](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md).
 - The mobile crop-quality estimate is a heuristic for Maize and Sorghum using
   ambient temperature and RH. It does not measure grain moisture or inspect
   produce. It is not a quality or shelf-life prediction.
-- Farmer account, crop-location and sensor-assignment routes require a
-  seven-day bearer session. Session tokens are hashed in SQLite; passwords are
-  stored as salted scrypt hashes. Demo verification and demo credential-skip
-  are disabled in production mode.
+- Production farmer account, crop-location and sensor-assignment routes require
+  a seven-day bearer session. Demo mode uses a shared built-in demo farmer
+  without issuing or requiring a session token. Authentication routes are
+  disabled in demo mode.
 - The global monitoring/reading routes are not farmer-scoped. The backend uses
   plain HTTP by default. Do not expose it to untrusted networks or use real
   credentials in this local demo.
 - SMS entries are logged only; no SMS provider or physical sensor is
   connected.
 
+For a farmer-friendly setup and monitoring path, see the suggested
+[low-literacy workflow](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md#suggested-low-literacy-farmer-workflow).
+
 ## Run checks
 
 ```bash
 flutter test
-dart analyze lib
-cd backend && npm test
+flutter analyze --no-fatal-infos lib
+(cd backend && npm test && npm run check)
 ```
 
-GitHub Actions builds a debug APK and runs the Windows backend test/package
-job on pushes to the branch. See [the handoff](docs/HANDOFF.md) for the latest
+GitHub Actions runs Flutter tests/analysis and builds a debug APK; it also runs
+backend syntax/integration checks and packages the Windows backend on pushes.
+See [the handoff](docs/HANDOFF.md) for the latest
 verified commit, Actions run, and remaining interactive checks.
 
 ## Project documentation
 
 - [Current architecture](docs/ARCHITECTURE.md)
+- [Botswana crop storage package and workflow suggestion](docs/BOTSWANA_CROP_STORAGE_PACKAGE.md)
 - [Deployment notes](backend/DEPLOYMENT.md)
 - [Handoff and verification](docs/HANDOFF.md)
 - [Changes and history](docs/changes-2026-11-07.md)

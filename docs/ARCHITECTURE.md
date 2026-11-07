@@ -22,8 +22,10 @@ flowchart LR
   generates readings and publishes updates through server-sent events.
 - `backend/database.js` uses the `sqlite3` CLI. SQLite persists crop profiles,
   active-crop settings, readings, farmer accounts, password hashes, sessions,
-  farmer crop locations, and assigned sensor IDs. Existing account databases
-  are migrated on startup to add email/password columns.
+  farmer crop locations, and assigned sensor IDs. Crop profiles include a
+  crop group, room-temperature/RH alert ranges, optional safe grain moisture
+  guidance and a storage note. Existing databases are migrated on startup for
+  crop metadata and prior account columns.
 - Alert records, acknowledgement state, simulated SMS entries, incidents,
   OTP challenges, mobile QR challenges, rate-limit counters, and live event
   state are process memory and are lost on restart. Dashboard actions are
@@ -33,24 +35,23 @@ flowchart LR
 
 ## Authentication and mobile pairing
 
-- Web accounts are created with a phone number; account creation is finalized
-  after phone verification. In demo mode, there is no SMS delivery or PIN
-  disclosure. A **Skip verification (demo)** route is available only when
-  `NODE_ENV` is not production.
+- Demo mode opens both clients directly into a shared built-in demo farmer.
+  It does not issue or require session tokens, display login/verification
+  screens, or expose password/OTP/QR authentication endpoints. Crop locations
+  and sensor assignments in demo mode belong to that shared demo farmer.
+- Production mode retains phone verification, password credentials and
+  authenticator/QR routes. Phone verification requires an SMS provider.
 - An account without credentials can add an email/password after phone
   verification. Passwords are scrypt hashes with per-account random salts.
   Email/password sign-in is available from the web login page. Existing
   accounts can use phone/Google Authenticator sign-in where configured.
-- The credential setup screen's demo skip calls an authenticated backend route,
-  which confirms demo mode and persists the choice on the farmer account. Later
-  demo phone sign-ins bypass credential setup; production does not honor that
-  demo-only choice. The page shows an error if the demo session has expired.
-- The web dashboard issues a random one-use mobile pairing challenge only
-  after web authentication. A QR contains the backend address and challenge;
-  it expires in two minutes. Mobile exchanges the challenge for its own
-  seven-day session. The mobile sign-in screen also supports phone OTP or
-  Google Authenticator for existing farmer accounts. Demo mode offers a
-  verification bypass because no SMS is sent; production needs an SMS provider.
+- In production, the web dashboard issues a random one-use mobile pairing
+  challenge after web authentication. Mobile exchanges it for its own
+  seven-day session. A signed-in phone can also approve a one-use web login QR.
+  Both challenge directions expire in two minutes.
+- Sign-in QR pairing works in both directions through the same backend: a web
+  account can issue a phone login QR, and a signed-in phone can scan/approve a
+  web login QR. Challenges are single-use and expire after two minutes.
 - Session tokens are random bearer values; SQLite stores their SHA-256 hashes.
   Password hashes and session hashes are not returned by API responses.
 
@@ -81,13 +82,22 @@ is shown only for Maize and Sorghum and uses ambient temperature and relative
 humidity; it is a rough heuristic, not an inspection, grain-moisture reading,
 spoilage classifier, or shelf-life forecast. Crop limits are illustrative.
 
+The shared crop catalog is seeded by `backend/database.js` and grouped for
+selection in web and mobile farmer crop setup. It includes Botswana-relevant
+dry grains, pulses, oilseeds, vegetables and fruits. Farmer setup shows the
+selected profile's room target and storage note; grain moisture is displayed
+separately and is not inferred from RH. See
+[the crop package](BOTSWANA_CROP_STORAGE_PACKAGE.md) for its sources, limits
+and the proposed low-literacy workflow.
+
 ## Runtime and security boundaries
 
 - The default backend uses plain HTTP. Demo mode binds to loopback and detected
   private IPv4 interfaces; production defaults to loopback unless `HOST` is
   explicitly configured.
-- Production disables the demo reading simulator and demo verification skip.
-  OTP requests fail until SMS delivery is configured.
+- Production disables the demo reading simulator. Phone verification returns
+  an error until SMS delivery is configured. Demo authentication routes are
+  unavailable; demo requests use the shared demo farmer without a session.
 - Global monitoring APIs are not account-scoped. Do not expose this prototype
   to untrusted networks or use it as production identity or sensor security.
 - No physical sensor, carrier SMS, field pilot, calibrated threshold, or

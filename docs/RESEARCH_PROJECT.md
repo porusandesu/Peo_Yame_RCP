@@ -1,17 +1,24 @@
 # Peo Yame Storage Monitor: Technical Research Project
 
-**Repository state reviewed:** 7 November 2026
+> **Current worktree update (7 Nov 2026):** Demo mode now opens a shared Demo
+> Farmer directly in both clients and has no authentication or verification
+> flow. Auth routes are disabled in demo mode; production auth and QR SSO remain.
+> Older endpoint inventories and walkthroughs below describe the prior demo
+> login implementation and are historical.
+
+**Repository state reviewed:** 7 November 2026; crop starter package added after commit `6dff368`
 **Active branch:** `exe-work`
 **Purpose:** describe the implemented application, its technology choices, data and network flows, persistence, build and deployment paths, and security posture. This is an implementation study, not a claim that the prototype is a validated agricultural monitoring instrument.
 
-> Current as of commit `e2161c6`: farmer email/password sign-in, scrypt-hashed
-> passwords, SQLite-backed hashed sessions, and one-use mobile QR pairing
-> issued only from an authenticated web session are implemented. Demo PINs are
-> not returned to clients; demo mode has an explicit verification bypass. The
-> detailed OTP-QR and in-memory-session descriptions in earlier notes below
-> are superseded by the current [architecture](ARCHITECTURE.md) and
-> [handoff](HANDOFF.md). Global monitor APIs remain unscoped and default HTTP
-> is not suitable for untrusted networks.
+> **Current implementation note:** Farmer email/password sign-in, scrypt-hashed
+> passwords, SQLite-backed hashed sessions, and one-use QR pairing in both
+> directions are implemented. Demo PINs are not returned to clients; demo mode
+> has an explicit verification bypass. The built-in crop database now includes
+> Botswana-relevant grains, pulses, oilseeds, vegetables and fruit. Their
+> starter storage ranges are guidance, not validated spoilage rules. See the
+> current [architecture](ARCHITECTURE.md), [handoff](HANDOFF.md), and
+> [crop package](BOTSWANA_CROP_STORAGE_PACKAGE.md). Global monitor APIs remain
+> unscoped and default HTTP is not suitable for untrusted networks.
 
 ## 1. Project overview and scope
 
@@ -123,7 +130,7 @@ The schema is initialized idempotently with `CREATE TABLE IF NOT EXISTS` in `bac
 
 | Table | Columns and constraints | Role and persistence |
 |---|---|---|
-| `crops` | Integer primary key; case-insensitive unique `name`; temperature bounds constrained to −50…100; humidity bounds constrained to 0…100; minimum must be less than maximum; `created_at` default UTC timestamp | Crop/commodity catalogue and configured monitoring thresholds. Maize and Tomato seed rows are inserted with `INSERT OR IGNORE`. |
+| `crops` | Integer primary key; case-insensitive unique `name`; temperature bounds constrained to −50…100; humidity bounds constrained to 0…100; `crop_group`; optional `safe_moisture_pct`; `storage_note`; minimum must be less than maximum; `created_at` default UTC timestamp | Seeded Botswana crop catalog and configured monitoring ranges. Catalog rows refresh from the built-in package at backend startup; existing databases receive the added columns. These starter targets are not validated spoilage limits; see [crop package and sources](BOTSWANA_CROP_STORAGE_PACKAGE.md). |
 | `app_settings` | Text primary key `key`, required text `value` | Stores the selected global active crop and the one-time history-seed marker. |
 | `readings` | Integer primary key; required `site`; `crop_id` FK to `crops`; numeric temperature/humidity; required `data_source`; UTC `recorded_at`; humidity database check 0…100 | Durable readings, including generated demo data and submitted sensor-style data. Index on `recorded_at`. These rows are not tied to a farmer or registered sensor. |
 | `farmer_accounts` | Integer primary key; case-insensitive unique `phone`; required `name`; UTC `created_at` | Farmer profile identity. OTP-based local registration creates a row after successful verification. |

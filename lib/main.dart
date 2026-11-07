@@ -110,14 +110,33 @@ class _AppGateState extends State<_AppGate> {
       _authApi.baseUrl = normalizeApiBaseUrl(
         preferences.getString(apiBaseUrlPreferenceKey) ?? defaultApiBaseUrl,
       );
-      _authApi.authToken = preferences.getString('farmer_auth_token');
-      if (_authApi.authToken != null) {
-        final farmer = await _authApi.getAccount();
-        _account = AccountInfo(
-          name: farmer['name'] as String,
-          phone: farmer['phone'] as String,
-          email: farmer['email'] as String? ?? '',
-        );
+      try {
+        await _authApi.checkConnection();
+      } catch (_) {}
+      if (_authApi.isDemoMode) {
+        _authApi.authToken = null;
+        await preferences.remove('farmer_auth_token');
+        _account = AccountInfo(name: 'Demo Farmer', phone: '', email: '');
+        try {
+          final farmer = await _authApi.getAccount();
+          _account = AccountInfo(
+            name: farmer['name'] as String,
+            phone: farmer['phone'] as String? ?? '',
+            email: farmer['email'] as String? ?? '',
+          );
+        } catch (_) {
+          // Keep the demo home visible while its backend is unavailable.
+        }
+      } else {
+        _authApi.authToken = preferences.getString('farmer_auth_token');
+        if (_authApi.authToken != null) {
+          final farmer = await _authApi.getAccount();
+          _account = AccountInfo(
+            name: farmer['name'] as String,
+            phone: farmer['phone'] as String? ?? '',
+            email: farmer['email'] as String? ?? '',
+          );
+        }
       }
     } catch (_) {
       _authApi.authToken = null;
@@ -151,11 +170,32 @@ class _AppGateState extends State<_AppGate> {
     _authApi.baseUrl = nextAddress;
     if (!changed) return;
     _authApi.authToken = null;
+    AccountInfo? demoAccount;
+    try {
+      await _authApi.checkConnection();
+      if (_authApi.isDemoMode) {
+        demoAccount = const AccountInfo(
+          name: 'Demo Farmer',
+          phone: '',
+          email: '',
+        );
+        try {
+          final farmer = await _authApi.getAccount();
+          demoAccount = AccountInfo(
+            name: farmer['name'] as String,
+            phone: farmer['phone'] as String? ?? '',
+            email: farmer['email'] as String? ?? '',
+          );
+        } catch (_) {
+          // Keep demo navigation available while this backend is offline.
+        }
+      }
+    } catch (_) {}
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove('farmer_auth_token');
     if (!mounted) return;
     setState(() {
-      _account = null;
+      _account = demoAccount;
     });
   }
 
@@ -167,7 +207,12 @@ class _AppGateState extends State<_AppGate> {
     final data = jsonDecode(raw) as Map<String, dynamic>;
     final backendUrl = data['backend'] as String;
     final backend = Uri.tryParse(backendUrl);
-    if ((data['type'] != 'peo-yame-mobile-login' && data['type'] != 'peo-yame-web-login') || backend == null || backend.host.isEmpty || data['challenge'] is! String) throw Exception('This is not a valid Peo Yame sign-in QR code.');
+    if ((data['type'] != 'peo-yame-mobile-login' &&
+            data['type'] != 'peo-yame-web-login') ||
+        backend == null ||
+        backend.host.isEmpty ||
+        data['challenge'] is! String)
+      throw Exception('This is not a valid Peo Yame sign-in QR code.');
     await _connectBackend(backendUrl);
     if (data['type'] == 'peo-yame-web-login') {
       await _authApi.approveWebLoginQr(data['challenge'] as String);
@@ -182,7 +227,7 @@ class _AppGateState extends State<_AppGate> {
     setState(() {
       _account = AccountInfo(
         name: farmer['name'] as String,
-        phone: farmer['phone'] as String,
+        phone: farmer['phone'] as String? ?? '',
         email: farmer['email'] as String? ?? '',
       );
     });
@@ -265,6 +310,7 @@ class _AppGateState extends State<_AppGate> {
     if (account != null) {
       return DashboardPage(
         account: account,
+        isDemoMode: _authApi.isDemoMode,
         onLogout: _logout,
         onScanSignInQr: _signInWithQr,
         onEditProfile: _editProfile,
@@ -712,6 +758,7 @@ class _AuthBrandHeader extends StatelessWidget {
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     required this.account,
+    required this.isDemoMode,
     required this.onLogout,
     required this.onScanSignInQr,
     required this.onEditProfile,
@@ -731,6 +778,7 @@ class DashboardPage extends StatefulWidget {
   });
 
   final AccountInfo account;
+  final bool isDemoMode;
   final VoidCallback onLogout;
   final Future<void> Function() onScanSignInQr;
   final Future<void> Function(String name, String phone, String email)
@@ -744,7 +792,7 @@ class DashboardPage extends StatefulWidget {
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<String>> Function() onLoadCropOptions;
+  final Future<List<Threshold>> Function() onLoadCropOptions;
   final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
   final Future<void> Function({
     required String commodity,
@@ -1221,22 +1269,29 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             ),
             actions: [
-              IconButton(
-                tooltip: 'Approve web sign-in QR',
-                onPressed: () async {
-                  try {
-                    await widget.onScanSignInQr();
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Web sign-in approved.')),
-                    );
-                  } catch (error) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not approve sign-in: $error')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-              ),
+              if (!widget.isDemoMode)
+                IconButton(
+                  onPressed: () async {
+                    try {
+                      await widget.onScanSignInQr();
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Web sign-in approved.'),
+                          ),
+                        );
+                    } catch (error) {
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Could not approve sign-in: $error'),
+                          ),
+                        );
+                    }
+                  },
+                  tooltip: 'Approve web sign-in QR',
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                ),
               _ConnectionPill(
                 connected: connected,
                 known: _controller.hasConnectionStatus,
@@ -1316,6 +1371,7 @@ class _DashboardPageState extends State<DashboardPage> {
   List<Widget> _homeContent(StatusResponse? status) => [
     _FarmerGreeting(
       userName: widget.account.name,
+      isDemoMode: widget.isDemoMode,
       onAccountTap: () => _selectSection(4),
       onLogout: widget.onLogout,
     ),
@@ -1566,53 +1622,59 @@ class _DashboardPageState extends State<DashboardPage> {
       style: TextStyle(color: Color(0xFF65776F), fontSize: 13),
     ),
     const SizedBox(height: 16),
-    const _SectionTitle(title: 'Account information'),
-    const SizedBox(height: 8),
-    Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          children: [
-            _AccountDetailRow(
-              icon: Icons.person_outline_rounded,
-              label: 'Name',
-              value: widget.account.name,
-            ),
-            const Divider(height: 1),
-            _AccountDetailRow(
-              icon: Icons.phone_outlined,
-              label: 'Number',
-              value: widget.account.phone,
-            ),
-            const Divider(height: 1),
-            _AccountDetailRow(
-              icon: Icons.email_outlined,
-              label: 'Email',
-              value: widget.account.email.isEmpty
-                  ? 'Not provided'
-                  : widget.account.email,
-            ),
-            const Divider(height: 1),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _editFarmerProfile,
-                icon: const Icon(Icons.edit_outlined, size: 17),
-                label: const Text('Edit full profile'),
+    if (widget.isDemoMode)
+      const DemoNotice(
+        text: 'Demo mode is ready to use. No account or sign-in is needed.',
+      )
+    else ...[
+      const _SectionTitle(title: 'Account information'),
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            children: [
+              _AccountDetailRow(
+                icon: Icons.person_outline_rounded,
+                label: 'Name',
+                value: widget.account.name,
               ),
-            ),
-          ],
+              const Divider(height: 1),
+              _AccountDetailRow(
+                icon: Icons.phone_outlined,
+                label: 'Number',
+                value: widget.account.phone,
+              ),
+              const Divider(height: 1),
+              _AccountDetailRow(
+                icon: Icons.email_outlined,
+                label: 'Email',
+                value: widget.account.email.isEmpty
+                    ? 'Not provided'
+                    : widget.account.email,
+              ),
+              const Divider(height: 1),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _editFarmerProfile,
+                  icon: const Icon(Icons.edit_outlined, size: 17),
+                  label: const Text('Edit full profile'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-    const SizedBox(height: 16),
-    _AuthenticatorSettings(
-      onLoad: widget.onLoadAuthenticator,
-      onSetup: widget.onSetupAuthenticator,
-      onEnable: widget.onEnableAuthenticator,
-      onDisable: widget.onDisableAuthenticator,
-    ),
-    const SizedBox(height: 16),
+      const SizedBox(height: 16),
+      _AuthenticatorSettings(
+        onLoad: widget.onLoadAuthenticator,
+        onSetup: widget.onSetupAuthenticator,
+        onEnable: widget.onEnableAuthenticator,
+        onDisable: widget.onDisableAuthenticator,
+      ),
+      const SizedBox(height: 16),
+    ],
     const _SectionTitle(title: 'Hardware package'),
     const SizedBox(height: 8),
     Card(
@@ -2452,11 +2514,13 @@ class _SimulationBanner extends StatelessWidget {
 class _FarmerGreeting extends StatelessWidget {
   const _FarmerGreeting({
     required this.userName,
+    required this.isDemoMode,
     required this.onAccountTap,
     required this.onLogout,
   });
 
   final String userName;
+  final bool isDemoMode;
   final VoidCallback onAccountTap;
   final VoidCallback onLogout;
 
@@ -2486,16 +2550,17 @@ class _FarmerGreeting extends StatelessWidget {
                 ],
               ),
             ),
-            const PopupMenuItem<String>(
-              value: 'logout',
-              child: Row(
-                children: [
-                  Icon(Icons.logout_rounded, size: 18),
-                  SizedBox(width: 10),
-                  Text('Log out'),
-                ],
+            if (!isDemoMode)
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 18),
+                    SizedBox(width: 10),
+                    Text('Log out'),
+                  ],
+                ),
               ),
-            ),
           ],
           child: Container(
             width: 42,

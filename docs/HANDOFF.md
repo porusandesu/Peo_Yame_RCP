@@ -2,6 +2,11 @@
 
 Updated: 7 November 2026
 
+**Current worktree auth change:** Demo authentication has been removed. Web and
+mobile open the shared Demo Farmer directly; stored tokens are cleared, all
+sign-in/verification/QR auth routes are disabled in demo mode, and QR sign-in is
+hidden. Production auth remains available.
+
 ## Workspace
 
 - Project: `/home/porusandesu/Documents/storage_monitor_flutter`
@@ -11,6 +16,22 @@ Updated: 7 November 2026
 
 ## Current worktree
 
+The current worktree adds a Botswana crop starter package for grains, pulses,
+oilseeds, vegetables and fruits. The backend seeds profile groups, room
+temperature/RH ranges, notes and dry-grain moisture targets into SQLite; both
+clients display selected-crop guidance. Existing databases receive a startup
+migration. See [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md)
+for the package sources and limits.
+
+The web crop selector groups entries by type, and the mobile selector labels
+each crop with its type. A suggested low-literacy farmer workflow is documented
+as future usability work; it has not been field tested or fully implemented.
+The checked-in backend integration test now covers demo login removal, crop
+catalog groups and demo crop create/list/delete through the API.
+
+Commit `6dff368` adds phone-to-web QR sign-in approval through the backend; the
+crop and demo-auth work described here is newer than that commit.
+
 The committed application includes QR pairing and cross-device account refresh,
 farmer crop and sensor assignments, Google Authenticator sign-in, and the
 branded Windows launcher. See [changes-2026-11-07.md](changes-2026-11-07.md)
@@ -18,31 +39,26 @@ for the recent commit history and current local work.
 
 Code commit `e2161c6` centers **My Crops** in the five-tab mobile
 navigation, makes refresh compact, and tolerates two missed 20-second backend
-polls before showing offline. The signed-out mobile page offers two sign-in
-routes: phone verification for an existing farmer account, or one-use QR
-pairing issued by an authenticated web account. Phone sign-in supports PIN or
-Google Authenticator verification; demo mode offers a bypass because no SMS
-is sent. New farmer accounts are created on the web.
+polls before showing offline. In production, the signed-out mobile page offers
+phone verification for an existing farmer account or one-use QR pairing issued
+by an authenticated web account. Phone sign-in supports PIN or Google
+Authenticator verification. New farmer accounts are created on the web.
 
-The same code commit adds web email/password sign-in, password setup after phone
-verification for accounts without credentials, and a demo-only skip for phone
-verification and credential setup. Passwords use Node's scrypt with random
+The same code commit adds web email/password sign-in and password setup after
+phone verification for accounts without credentials. Passwords use Node's scrypt with random
 salts; the demo PIN is no longer returned to the browser. The login page's
 **Sign in with QR code** section explains mobile pairing; the actual QR remains
 behind the signed-in web session. Email is part of farmer account records and
 is migrated for existing databases. See the latest section in
 [changes-2026-11-07.md](changes-2026-11-07.md) for validation status.
 
-The account-security skip now confirms demo mode through an authenticated
-backend route and persists the choice in SQLite, so repeat demo phone sign-ins
-do not reopen credential setup. The production flow ignores this demo-only
-choice. This change is included in the current commit; CI and browser
-interaction validation are pending.
+The account-security skip described in earlier change notes is no longer part
+of the demo flow. Demo mode does not create or restore authenticated sessions.
 
-Local checks passed the Flutter widget test, backend authenticator test,
-JavaScript syntax checks (including the web page's inline script), and an
-isolated backend flow covering demo skip, credential setup and password login.
-`dart analyze lib` reports no errors and 14 style/context lint infos. GitHub
+Recent local checks passed the Flutter widget test, all five backend tests,
+backend and web inline-script syntax checks, `git diff --check`, and a debug APK
+build. `flutter analyze --no-pub --no-fatal-infos lib` passes with 22 existing
+style/context informational notices. GitHub
 Actions run [42360332399](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/42360332399)
 passed both Android APK build and Windows backend tests/package. GitHub noted
 that the workflow's v4 actions currently run under Node 24 despite targeting
@@ -75,6 +91,19 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 
 ## Build and verification evidence
 
+- Current local validation: `flutter test --no-pub` passed the demo-home widget
+  test; `backend/npm test` passed five checks including demo API auth/crop
+  integration; `flutter analyze --no-pub --no-fatal-infos lib` completed with
+  informational lints; `flutter build apk --debug --no-pub` produced
+  `build/app/outputs/flutter-apk/app-debug.apk` in 136.5 seconds.
+- The demo integration test exposed an SQLite output-buffer crash on startup
+  after seeding the expanded catalog. The CLI output limit is now 32 MB and the
+  integration test passes. The widget test exposed an uncancellable event-stream
+  retry timer; the reconnect timer is now cancelled on controller disposal.
+- The expanded GitHub Actions workflow adds Flutter widget tests and analysis,
+  backend syntax/integration checks, Android APK build/artifact upload, and
+  Windows backend tests/package. A run for the current changes is pending push.
+
 - [ANDROID_BUILD_2026-11-06.md](ANDROID_BUILD_2026-11-06.md) records a successful
   root Flutter release APK build (52.8 MB) and SHA-256
   `652dc1899dcfd1ac01e1acdfde5be739fd86d124c92cb6a1ad562e07f5dda980`.
@@ -90,12 +119,12 @@ and Peo Yame branding. See [changes-2026-11-06.md](changes-2026-11-06.md) and
 
 ## Suggested continuation
 
-1. Exercise the complete browser login, demo skip, credential setup, and
-   email/password flows in an interactive browser.
-2. Exercise phone-number sign-in and QR pairing on an Android emulator and
-   physical phone; verify that profile and crop assignments sync between
-   clients on the same backend.
-3. Exercise the packaged Windows tray menu interactively.
+1. Review the GitHub Actions run after pushing; fix any platform-specific build
+   or Windows packaging failures and rerun the affected job.
+2. Exercise production phone/email and bidirectional QR SSO on an Android
+   emulator and browser; demo mode intentionally bypasses those screens.
+3. Verify the crop package on a real existing database and evaluate the
+   low-literacy workflow with Botswana farmers before claiming usability.
 4. Keep the prototype on a controlled local network. Plain HTTP and unscoped
    global monitor APIs are not intended for exposure.
 

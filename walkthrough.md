@@ -15,25 +15,25 @@ npm ci
 npm run demo
 ```
 
-Open <http://localhost:3000>. For a physical phone, connect it to the same
-Wi-Fi. In the Flutter app, choose **Sign in with phone number** to use an
-existing farmer account's phone/authenticator verification, or choose **Scan
-sign-in QR** after signing in on the web app and opening **Connect mobile app**.
-The local demo does not send SMS; phone sign-in offers **Skip verification
-(demo)**. New farmer accounts must first be created on the web. QR sign-in is
-issued by an authenticated web session and expires after two minutes.
+Open <http://localhost:3000>. The web dashboard opens directly. For a physical
+phone, connect it to the same Wi-Fi and open the mobile app; it also opens
+directly into the shared Demo Farmer account. Use **Settings → Backend
+address** if the phone is pointed at a different backend. The demo has no
+sign-in, verification, password, logout or QR pairing flow.
 
 ## Demonstration flow
 
-1. Create or sign in to a farmer account in the web app. The local demo does
-   not send SMS or reveal a demo PIN; use **Skip verification (demo)**.
-2. Set an email/password after verification, or use the demo-only skip. Show
-   email/password login on a later sign-in.
-3. Pair the mobile app from the signed-in web dashboard and confirm both
-   clients show the same farmer account and crop assignments.
-4. Review Overview, Trends, the centered **My Crops** tab, Alerts, and
+1. Confirm both clients open on **Demo Farmer** without prompting for
+   credentials.
+2. Add a crop location in **My Crops** and confirm both clients see it when
+   connected to the same backend.
+3. Review Overview, Trends, the centered **My Crops** tab, Alerts, and
    Settings. Explain that sensor IDs are assigned metadata, not verified
    physical-device identities.
+4. In **My Crops**, add a crop. The web and mobile selectors group the starter
+   catalog into grains, pulses, oilseeds, vegetables and fruits. Explain the
+   selected room target; dry-grain moisture is a separate value that requires
+   a grain moisture meter.
 5. Change the active crop or trigger a demo breach. Describe status as a
    configured-limit comparison; don't present it as evidence of spoilage.
 6. In Alerts, the mobile quality estimate is available only for Maize and
@@ -46,12 +46,17 @@ issued by an authenticated web session and expires after two minutes.
 - Alerts, incidents, and simulated SMS log entries are held in memory; they
   disappear when the backend restarts. Readings, crop data, accounts and
   assignments are stored in SQLite.
-- Farmer account/crop routes require a bearer session. Global monitoring and
-  sensor-ingestion routes are not farmer-scoped.
+- Demo farmer/crop routes use the shared Demo Farmer without a bearer session;
+  production farmer routes require a session. Global monitoring and sensor
+  ingestion routes are not farmer-scoped.
 - The demo uses plain HTTP and is for a controlled network only. Do not use
   real credentials on an untrusted network.
 - No hardware calibration, real SMS delivery, field pilot, or validated
   spoilage model has been established.
+- The crop storage ranges are starter references and have not been validated
+  with local cultivars, storage facilities or Botswana extension officers.
+- The low-literacy workflow in the crop package is a design recommendation,
+  not a field-tested feature set.
 
 See the [README](README.md), [architecture](docs/ARCHITECTURE.md),
 [handoff](docs/HANDOFF.md), and [test report](docs/TEST_REPORT.md) for

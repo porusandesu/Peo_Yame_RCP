@@ -1,6 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Threshold;
+
+import 'models.dart';
 
 const _forest = Color(0xFF176B4A);
 const _ink = Color(0xFF172923);
@@ -35,7 +37,7 @@ class AccountsScreen extends StatelessWidget {
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<String>> Function() onLoadCropOptions;
+  final Future<List<Threshold>> Function() onLoadCropOptions;
   final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
   final Future<void> Function({
     required String commodity,
@@ -236,7 +238,7 @@ class AccountsScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        const _DemoNotice(
+        const DemoNotice(
           text:
               'Sensors appear in setup after the backend receives a sensor reading. Device identity is currently based on the submitted sensor ID.',
         ),
@@ -262,7 +264,7 @@ class MyCropsScreen extends StatefulWidget {
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
   final Future<void> Function(int id) onDeleteFarmerCrop;
-  final Future<List<String>> Function() onLoadCropOptions;
+  final Future<List<Threshold>> Function() onLoadCropOptions;
   final Future<List<Map<String, dynamic>>> Function() onLoadAvailableSensors;
   final Future<void> Function({
     required String commodity,
@@ -375,7 +377,7 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
         _AccountScopeBanner(name: widget.name),
         const SizedBox(height: 10),
         if (_loadError != null)
-          _DemoNotice(text: 'Could not load crop locations: $_loadError'),
+          DemoNotice(text: 'Could not load crop locations: $_loadError'),
         FilledButton.icon(
           onPressed: _showAddCropSetup,
           icon: const Icon(Icons.add_rounded),
@@ -485,7 +487,9 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
       if (crops.isEmpty)
         throw Exception('No crops are configured in the backend yet.');
       final labelController = TextEditingController();
-      var commodity = crops.first;
+      var commodity = crops.first.commodity;
+      Threshold selectedCrop() =>
+          crops.firstWhere((crop) => crop.commodity == commodity);
       var errorMessage = '';
       final selectedSensors = <String>{};
       final created = await showDialog<bool>(
@@ -504,10 +508,12 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
                       initialValue: commodity,
                       decoration: const InputDecoration(labelText: 'Crop'),
                       items: crops
-                          .map(
+                          .map<DropdownMenuItem<String>>(
                             (crop) => DropdownMenuItem(
-                              value: crop,
-                              child: Text(crop),
+                              value: crop.commodity,
+                              child: Text(
+                                '${crop.commodity} · ${crop.cropGroup}',
+                              ),
                             ),
                           )
                           .toList(),
@@ -516,6 +522,15 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
                           setDialogState(() => commodity = value);
                       },
                     ),
+                    if (selectedCrop().safeMoisturePct != null ||
+                        selectedCrop().storageNote.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '${selectedCrop().cropGroup} room target: ${selectedCrop().minTemp.toStringAsFixed(0)}–${selectedCrop().maxTemp.toStringAsFixed(0)} °C and ${selectedCrop().minHumidity.toStringAsFixed(0)}–${selectedCrop().maxHumidity.toStringAsFixed(0)}% RH. ${selectedCrop().safeMoisturePct == null ? '' : 'Grain moisture target: ≤${selectedCrop().safeMoisturePct!.toStringAsFixed(1)}% (measure with a grain moisture meter). '}${selectedCrop().storageNote}',
+                          style: const TextStyle(fontSize: 12, color: _muted),
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: labelController,
@@ -542,7 +557,7 @@ class _MyCropsScreenState extends State<MyCropsScreen> {
                         if (sensors.isEmpty)
                           const Padding(
                             padding: EdgeInsets.all(10),
-                            child: _DemoNotice(
+                            child: DemoNotice(
                               text:
                                   'No sensor has sent a reading to this backend yet. Once a sensor sends a reading, its ID appears here automatically.',
                             ),
@@ -923,8 +938,8 @@ class _AccountScopeBanner extends StatelessWidget {
   );
 }
 
-class _DemoNotice extends StatelessWidget {
-  const _DemoNotice({required this.text});
+class DemoNotice extends StatelessWidget {
+  const DemoNotice({required this.text});
   final String text;
 
   @override

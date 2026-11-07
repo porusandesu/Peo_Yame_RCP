@@ -34,6 +34,8 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = Number(process.env.PORT || 3000);
 const isPackagedWindowsDemo = Boolean(process.pkg) && process.platform === "win32";
 const isDemoMode = process.env.NODE_ENV !== "production" || isPackagedWindowsDemo;
+const demoFarmerRecord = isDemoMode ? cropDatabase.getOrCreateDemoFarmer() : null;
+const demoFarmer = demoFarmerRecord && { ...demoFarmerRecord, phone: "", email: "", passwordEnabled: false, demoSecuritySkipped: false, authenticatorEnabled: false };
 const HOSTS = process.env.HOST
   ? [process.env.HOST]
   : isDemoMode
@@ -80,12 +82,16 @@ function farmerFromRequest(req) {
   return farmer;
 }
 function requireFarmer(req, res, next) {
-  req.farmer = farmerFromRequest(req);
+  req.farmer = isDemoMode ? demoFarmer : farmerFromRequest(req);
   if (!req.farmer) return res.status(401).json({ error: "Sign in to your farmer account to continue." });
   next();
 }
+function requireAuthenticationEnabled(req, res, next) {
+  if (isDemoMode) return res.status(404).json({ error: "Sign-in and account security are disabled in demo mode." });
+  next();
+}
 
-app.post("/api/account/mobile-login-qr", requireFarmer, (req, res) => {
+app.post("/api/account/mobile-login-qr", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const now = Date.now();
   for (const [challenge, entry] of mobileLoginChallenges) {
     if (entry.expiresAt <= now || entry.accountId === req.farmer.id) {
@@ -100,7 +106,7 @@ app.post("/api/account/mobile-login-qr", requireFarmer, (req, res) => {
   res.json({ challenge, expiresInSeconds: 120 });
 });
 
-app.post("/api/auth/mobile-qr", (req, res) => {
+app.post("/api/auth/mobile-qr", requireAuthenticationEnabled, (req, res) => {
   const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
   const entry = mobileLoginChallenges.get(challenge);
   if (!entry || entry.expiresAt <= Date.now()) {
@@ -115,13 +121,13 @@ app.post("/api/auth/mobile-qr", (req, res) => {
 
 // A signed-in phone can issue a one-use challenge for web sign-in. The browser
 // polls the challenge and receives the same backend session after QR scan.
-app.post("/api/auth/web-login-qr", (req, res) => {
+app.post("/api/auth/web-login-qr", requireAuthenticationEnabled, (req, res) => {
   const challenge = crypto.randomBytes(32).toString("base64url");
   mobileLoginChallenges.set(challenge, { expiresAt: Date.now() + 2 * 60 * 1000, direction: "web" });
   res.json({ challenge, expiresInSeconds: 120 });
 });
 
-app.post("/api/account/web-login-qr/approve", requireFarmer, (req, res) => {
+app.post("/api/account/web-login-qr/approve", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
   const entry = mobileLoginChallenges.get(challenge);
   if (entry && entry.direction === "web" && !entry.accountId && entry.expiresAt > Date.now()) {
@@ -135,7 +141,7 @@ app.post("/api/account/web-login-qr/approve", requireFarmer, (req, res) => {
   res.json({ approved: true });
 });
 
-app.post("/api/auth/web-qr-session", (req, res) => {
+app.post("/api/auth/web-qr-session", requireAuthenticationEnabled, (req, res) => {
   const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
   const entry = mobileLoginChallenges.get(challenge);
   if (!entry || entry.direction !== "web" || !entry.accountId || entry.expiresAt <= Date.now()) {
@@ -148,7 +154,7 @@ app.post("/api/auth/web-qr-session", (req, res) => {
   res.json(createSession(farmer));
 });
 
-app.post("/api/auth/request-otp", (req, res) => {
+app.post("/api/auth/request-otp", requireAuthenticationEnabled, (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
   const email = typeof req.body?.email === "string" ? req.body.email.trim().slice(0, 254) : "";
@@ -165,7 +171,7 @@ app.post("/api/auth/request-otp", (req, res) => {
   res.json({ sent: true, phone, expiresInSeconds: 300, demoMode: isDemoMode, delivery: isDemoMode ? "demo-skip-available" : "sms" });
 });
 
-app.post("/api/auth/verify-otp", (req, res) => {
+app.post("/api/auth/verify-otp", requireAuthenticationEnabled, (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   let farmer = cropDatabase.findFarmer(phone);
@@ -199,7 +205,7 @@ app.post("/api/auth/verify-otp", (req, res) => {
   res.json(createSession(farmer));
 });
 
-app.post("/api/auth/demo/skip-verification", (req, res) => {
+app.post("/api/auth/demo/skip-verification", requireAuthenticationEnabled, (req, res) => {
   if (!isDemoMode) return res.status(404).json({ error: "Demo verification is unavailable." });
   const phone = normalizePhone(req.body?.phone);
   const challenge = otpChallenges.get(phone);
@@ -215,7 +221,7 @@ app.post("/api/auth/demo/skip-verification", (req, res) => {
   res.json(createSession(farmer));
 });
 
-app.post("/api/auth/password", async (req, res) => {
+app.post("/api/auth/password", requireAuthenticationEnabled, async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   for (const [entryKey, entry] of passwordFailures) {
@@ -244,7 +250,7 @@ app.post("/api/auth/password", async (req, res) => {
   res.json(createSession(farmer));
 });
 
-app.put("/api/account/credentials", requireFarmer, async (req, res) => {
+app.put("/api/account/credentials", requireAuthenticationEnabled, requireFarmer, async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
@@ -263,18 +269,18 @@ app.put("/api/account/credentials", requireFarmer, async (req, res) => {
   res.json(publicFarmer(farmer));
 });
 
-app.post("/api/account/credentials/skip", requireFarmer, (req, res) => {
+app.post("/api/account/credentials/skip", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   if (!isDemoMode) return res.status(404).json({ error: "Skipping account security is available only in demo mode." });
   const farmer = cropDatabase.markFarmerDemoSecuritySkipped(req.farmer.id);
   if (!farmer) return res.status(404).json({ error: "Farmer account not found." });
   res.json(publicFarmer(farmer));
 });
 
-app.get("/api/account/authenticator", requireFarmer, (req, res) => {
+app.get("/api/account/authenticator", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
   res.json({ enabled: Boolean(setup?.secret) });
 });
-app.post("/api/account/authenticator/setup", requireFarmer, (req, res) => {
+app.post("/api/account/authenticator/setup", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
   if (setup?.secret) return res.status(409).json({ error: "Authenticator sign-in is already enabled." });
   const secret = encodeBase32(crypto.randomBytes(20));
@@ -284,7 +290,7 @@ app.post("/api/account/authenticator/setup", requireFarmer, (req, res) => {
   const otpauthUrl = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
   res.json({ secret, otpauthUrl });
 });
-app.post("/api/account/authenticator/enable", requireFarmer, (req, res) => {
+app.post("/api/account/authenticator/enable", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
   if (!setup?.pendingSecret || !verifyAuthenticatorCode(setup.pendingSecret, code)) {
@@ -293,7 +299,7 @@ app.post("/api/account/authenticator/enable", requireFarmer, (req, res) => {
   cropDatabase.enableAuthenticator(req.farmer.id);
   res.json({ enabled: true });
 });
-app.post("/api/account/authenticator/disable", requireFarmer, (req, res) => {
+app.post("/api/account/authenticator/disable", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
   if (!setup?.secret || !verifyAuthenticatorCode(setup.secret, code)) {
@@ -304,12 +310,13 @@ app.post("/api/account/authenticator/disable", requireFarmer, (req, res) => {
 });
 
 app.get("/api/account", requireFarmer, (req, res) => res.json(req.farmer));
-app.post("/api/auth/logout", requireFarmer, (req, res) => {
+app.post("/api/auth/logout", requireAuthenticationEnabled, requireFarmer, (req, res) => {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (token) cropDatabase.removeFarmerSession(sessionHash(token));
   res.json({ signedOut: true });
 });
 app.patch("/api/account", requireFarmer, (req, res) => {
+  if (isDemoMode) return res.status(404).json({ error: "Demo profile editing is not available." });
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   const phone = normalizePhone(req.body?.phone ?? req.farmer.phone);
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : req.farmer.email || "";
@@ -639,7 +646,7 @@ app.get("/api/status", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
+  res.json({ status: "ok", time: new Date().toISOString(), demoMode: isDemoMode });
 });
 
 function lanIpv4Addresses() {
@@ -770,7 +777,7 @@ app.post("/api/readings", (req, res) => {
       ? Object.keys(thresholds).find((name) => name.toLowerCase() === commodity.trim().toLowerCase())
       : undefined;
     if (!requested) {
-      return res.status(400).json({ error: "commodity must be Maize or Tomato" });
+      return res.status(400).json({ error: `commodity must match a configured crop: ${Object.keys(thresholds).join(", ")}.` });
     }
     if (requested !== threshold.commodity) {
       return res.status(409).json({

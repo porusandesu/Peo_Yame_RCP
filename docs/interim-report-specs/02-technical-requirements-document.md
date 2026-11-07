@@ -1,5 +1,9 @@
 # Technical Requirements Document (TRD)
 
+> **Current runtime update (7 Nov 2026):** Demo API calls use the shared Demo
+> Farmer without a session. Authentication endpoints are disabled in demo mode;
+> production authentication and QR SSO remain available.
+
 > **Historical planning snapshot (24 October 2026).** Route and authentication status here predates the current implementation. For current contracts and verified behavior, see the [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md).
 
 **System:** Peo Yame low-cost storage-monitoring prototype
@@ -8,6 +12,14 @@
 **Related documents:** `01-product-requirements-document.md`, `03-app-flow-and-user-flows.md`, `05-backend-schema-security-and-threat-model.md`, `06-implementation-plan.md`.
 
 > **Implementation truth:** The inspected current `backend/database.js` creates SQLite `crops`, `app_settings` and `readings` tables; `backend/server.js` still keeps alerts, SMS log and incidents in memory and action history in JSONL. This is a mixed persistence design. The login screen has no server authentication. HTTP/CORS configuration is demo-oriented. Physical sensors and real SMS are absent.
+
+> **Later schema update (7 November 2026):** The crop table now also has
+> `crop_group`, nullable `safe_moisture_pct` and `storage_note` fields, added to
+> existing databases at startup. The built-in catalog covers grains, pulses,
+> oilseeds, fruits and vegetables. Storage ranges are starter guidance, and
+> grain moisture is separate from room RH. See the current
+> [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md); the October endpoint and
+> implementation descriptions below are historical where they conflict.
 
 ## 1. Technical objectives
 

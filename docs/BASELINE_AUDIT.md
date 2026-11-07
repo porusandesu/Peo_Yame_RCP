@@ -12,6 +12,14 @@
 > [TEST_REPORT.md](TEST_REPORT.md). Its proposal and crop-limit cautions remain
 > relevant; its runtime inventory and test-status statements do not.
 
+> **Crop catalog follow-up (7 November 2026):** A later change adds a seeded
+> Botswana-oriented crop package for grains, pulses, oilseeds, vegetables and
+> fruits, with room conditions and optional grain-moisture guidance. This
+> October audit remains historical; see
+> [BOTSWANA_CROP_STORAGE_PACKAGE.md](BOTSWANA_CROP_STORAGE_PACKAGE.md) and the
+> current [architecture](ARCHITECTURE.md) for the later implementation. The
+> starter ranges are not validated operating limits.
+
 ## Executive finding
 
 The branch contains a working **simulated presentation prototype**, not an end-to-end IoT storage system. It has a Node/Express API, responsive web dashboard, Flutter client, random simulated readings, a simulated sensor POST utility, in-memory threshold/alert/history/incident collections, a persistent append-only dashboard action log, and CSV/Markdown exports. It does not contain a SQLite database, ESP32 firmware, a Wokwi project, physical sensor integration, real SMS dispatch, authentication, or meaningful automated backend test suites.

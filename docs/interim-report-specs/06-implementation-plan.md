@@ -1,6 +1,17 @@
 # Implementation Plan — Front End and Back End
 
+> **Current runtime update (7 Nov 2026):** Demo-mode authentication and
+> verification are removed. Both clients open the shared Demo Farmer directly;
+> production auth/QR SSO remain. Earlier login tasks below are historical.
+
 > **Historical planning snapshot (24 October 2026).** Tasks and implementation status reflect an earlier checkout. Reconcile completion claims with current code and the [test report](../TEST_REPORT.md); keep this file as planning history.
+
+> **Later implementation update (7 November 2026):** A built-in Botswana crop
+> catalog now covers grains, pulses, oilseeds, vegetables and fruit, with
+> grouped selection and storage guidance in farmer crop setup. It has not yet
+> been integration tested or evaluated with farmers. See the
+> [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md) for data provenance and
+> the proposed low-literacy workflow.
 
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Turn requirements into a staged, demonstrable plan for Interim Report 2.

@@ -40,6 +40,8 @@ class DashboardController extends ChangeNotifier {
   int _missedRefreshes = 0;
 
   Timer? _timer;
+  Timer? _eventRetryTimer;
+  Completer<void>? _eventRetryCompleter;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
   Completer<void>? _eventDisconnect;
   bool _disposed = false;
@@ -101,7 +103,14 @@ class DashboardController extends ChangeNotifier {
         }
         if (!_disposed) {
           if (receivedEvent) retrySeconds = 2;
-          await Future<void>.delayed(Duration(seconds: retrySeconds));
+          final retry = Completer<void>();
+          _eventRetryCompleter = retry;
+          _eventRetryTimer = Timer(Duration(seconds: retrySeconds), () {
+            if (!retry.isCompleted) retry.complete();
+          });
+          await retry.future;
+          _eventRetryTimer = null;
+          _eventRetryCompleter = null;
           retrySeconds = (retrySeconds * 2).clamp(2, 30).toInt();
         }
       }
@@ -250,6 +259,9 @@ class DashboardController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _eventRetryTimer?.cancel();
+    final retry = _eventRetryCompleter;
+    if (retry != null && !retry.isCompleted) retry.complete();
     final disconnect = _eventDisconnect;
     if (disconnect != null && !disconnect.isCompleted) {
       disconnect.complete();

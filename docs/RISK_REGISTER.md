@@ -1,14 +1,18 @@
 # Baseline risk register
 
+> **Current demo boundary:** Demo mode has no authentication and uses a shared
+> Demo Farmer. Keep it on a controlled network and use synthetic data only;
+> production authentication remains a separate flow.
+
 Ratings are qualitative engineering assessments from repository inspection, not a completed institutional risk assessment. Reassess with the supervisor and intended site before deployment.
 
 | ID | Risk / evidence | Likelihood / impact | Priority | Incremental treatment |
 |---|---|---|---|---|
-| R1 | False confidence in spoilage: one temperature/RH crossing creates an alert, but limits are illustrative and there is no moisture, duration, stage or spoilage observation model | High / High | Critical | Rename as threshold condition alert; validate crop/stage limits; include grain moisture where relevant; do not call alert confirmed spoilage |
+| R1 | False confidence in spoilage: one temperature/RH crossing creates an alert, but the seeded grain and fresh-produce ranges are starter guidance; there is no measured grain moisture, exposure duration, cultivar/maturity profile or spoilage observation model | High / High | Critical | Call it a condition alert; validate limits with Botswana extension officers and storage operators; measure grain moisture separately; do not call an alert confirmed spoilage |
 | R2 | Readings, crops and account data persist in SQLite, but alerts/acknowledgements, incidents and simulated SMS entries are in memory and are lost on restart | Certain / High | High | Add persistence only for approved records; test restart/recovery and describe current entity-specific behavior |
 | R3 | No physical sensing or calibration; all generated readings are synthetic | Certain / High | Critical | Integrate hardware and compare readings against a reference instrument; clearly label synthetic data in interim evaluations |
 | R4 | “SMS” is only an in-memory `logged` entry; no provider/modem, delivery acknowledgement, or failure handling | Certain / High | Critical | Implement the approved GSM/SMS path and record queued/sent/delivered/failed states with evidence; never report simulated log entries as messages sent |
-| R5 | Farmer account/crop routes use bearer sessions, but global monitor, alert and sensor-ingestion APIs are not farmer-scoped; default HTTP is unencrypted | High / High | Critical | Keep isolated for demo; scope global routes, define roles/device identity, deploy HTTPS, restrict CORS/network exposure, and test denial cases |
+| R5 | Demo farmer/crop routes are unauthenticated and shared; production farmer routes use bearer sessions, but global monitor, alert and sensor-ingestion APIs are not farmer-scoped; default HTTP is unencrypted | High / High | Critical | Keep demo isolated and synthetic; scope global routes, define roles/device identity, deploy HTTPS, restrict CORS/network exposure, and test denial cases |
 | R6 | No stale-reading logic; clients can present the last available reading as current after a source stops | High / High | High | Calculate age from `recordedAt`, set stale state, expose source/heartbeat status and test outage/recovery cases |
 | R7 | Dashboard hard-codes “Synced 5 mins ago”, which can falsely imply freshness | High / Medium | High | Derive the label from a real successful sync timestamp or remove it |
 | R8 | “Storage time estimate” is a handful of fixed day values based on normalized distance from threshold midpoint | High / High | High | Label explicitly as unvalidated demo heuristic or hide it; do not use it for operational decisions or research findings |

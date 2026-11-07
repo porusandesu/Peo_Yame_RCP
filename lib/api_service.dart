@@ -12,6 +12,7 @@ class ApiService {
 
   String baseUrl;
   String? authToken;
+  bool isDemoMode = true;
   final http.Client _client;
 
   Map<String, String> get _authHeaders =>
@@ -30,6 +31,7 @@ class ApiService {
     if (result['status'] != 'ok') {
       throw const FormatException('This address is not a Peo Yame backend.');
     }
+    isDemoMode = result['demoMode'] == true;
   }
 
   Future<Map<String, dynamic>> signInWithMobileQr({
@@ -181,8 +183,7 @@ class ApiService {
         .cast<Map<String, dynamic>>();
   }
 
-  Future<List<String>> getCropOptions() async =>
-      (await getCrops()).map((crop) => crop.commodity).toList();
+  Future<List<Threshold>> getCropOptions() => getCrops();
 
   Future<List<Map<String, dynamic>>> getAvailableFarmerSensors() async {
     final response = await _client

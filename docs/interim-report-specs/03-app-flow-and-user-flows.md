@@ -1,6 +1,22 @@
 # App Flow and User Flows
 
+> **Current runtime update (7 Nov 2026):** In demo mode, both apps open the
+> shared Demo Farmer directly. The login, OTP and QR steps below are historical
+> flows; production retains its authentication and QR SSO flow. If demo
+> backend discovery times out, clients remain on the demo home/offline state
+> instead of opening verification.
+
 > **Historical planning snapshot (24 October 2026).** The OTP/account flow descriptions below predate the current implementation. Mobile now signs in by scanning a one-use QR issued from an authenticated web account; web supports phone verification and email/password. See the [current walkthrough](../../walkthrough.md) and [architecture](../ARCHITECTURE.md).
+
+> **Later flow update (7 November 2026):** Crop setup now loads grouped crop
+> profiles and shows the selected room range plus storage notes. The suggested
+> low-literacy farmer journey is documented in
+> [BOTSWANA_CROP_STORAGE_PACKAGE.md](../BOTSWANA_CROP_STORAGE_PACKAGE.md).
+> It proposes picture-led crop choice, saved store names, sensor discovery,
+> one-action status cards and short local-language/audio instructions. These
+> enhancements need farmer testing and are not all implemented.
+> Sign-in QR pairing also supports a signed-in phone approving the web
+> login-page QR through the backend.
 
 **Product:** Peo Yame storage-monitoring prototype
 **Purpose:** Describe current user journeys and target flows for Interim Report 2 design/evaluation

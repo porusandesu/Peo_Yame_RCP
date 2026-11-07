@@ -1,6 +1,17 @@
 # Backend Schema, Security Design and Threat Model
 
+> **Current runtime update (7 Nov 2026):** Demo API access maps to one shared
+> Demo Farmer and does not use authentication. Auth endpoints are disabled in
+> demo mode. Treat demo data as shared; production retains authentication.
+
 > **Historical planning snapshot (24 October 2026).** Its schema and authentication inventory predates farmer accounts, password hashes, persisted session hashes and signed-in one-use QR pairing. Use the current [architecture](../ARCHITECTURE.md) and [risk register](../RISK_REGISTER.md) for live implementation/security claims.
+
+> **Later crop-schema update (7 November 2026):** The current crop table also
+> includes `crop_group`, nullable `safe_moisture_pct` and `storage_note`, with
+> startup migration for existing databases. The built-in Botswana catalog
+> supplies fruit and vegetable profiles as well as dry crops. Read the
+> [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md) for source limitations;
+> these ranges are not validated safety cutoffs.
 
 **System:** Peo Yame low-cost storage-monitoring prototype
 **Status:** Current SQLite schema transcribed from backend/database.js; volatile entities from backend/server.js. Future tables and controls are proposals, not present implementation.
@@ -36,6 +47,9 @@
 | max_temp | REAL NOT NULL, CHECK -50 to 100 | Upper temperature boundary, °C |
 | min_humidity | REAL NOT NULL, CHECK 0 to 100 | Lower RH boundary, percent |
 | max_humidity | REAL NOT NULL, CHECK 0 to 100 | Upper RH boundary, percent |
+| crop_group | TEXT NOT NULL, default `Other` | Grain, Pulse, Oilseed, Vegetable, or Fruit selector group |
+| safe_moisture_pct | REAL, nullable, CHECK 0 to 100 | Optional dry-grain moisture target; not ambient RH |
+| storage_note | TEXT NOT NULL, default empty | Handling caveat shown during crop setup |
 | created_at | TEXT NOT NULL, UTC SQLite default | Profile creation timestamp |
 | Table checks | min_temp < max_temp; min_humidity < max_humidity | Ensure ordered ranges |
 

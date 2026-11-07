@@ -1,5 +1,9 @@
 # Product Requirements Document (PRD)
 
+> **Current runtime update (7 Nov 2026):** Demo mode opens directly without
+> authentication; the historical login requirements below are not current demo
+> behavior. Production auth and QR SSO remain available.
+
 > **Historical planning snapshot (24 October 2026).** Its implementation-status passages predate the current account, email/password, persistent session and signed-in QR pairing work. Use the current [README](../../README.md), [architecture](../ARCHITECTURE.md), [test report](../TEST_REPORT.md) and [handoff](../HANDOFF.md) for implementation claims; retain this file for requirements history.
 
 **Product:** Peo Yame — low-cost post-harvest storage monitoring prototype
@@ -10,6 +14,15 @@
 **Evidence basis:** Project context, top-level repository README, Flutter/Express source, project architecture and audit notes. Reconcile objectives and wording against the approved proposal and supervisor directions before submission.
 
 > **Claim boundary:** Peo Yame in the current repository is a software prototype that demonstrates simulated readings, crop-bound comparisons, a web dashboard, a Flutter client, and local data handling. It is not connected to physical sensors and does not send real SMS. A threshold breach is not proof of spoilage, a validated risk probability, or loss prevention. Clearly mark verified behavior, simulated behavior, future scope, and unverified items in all reports.
+
+> **Later implementation update (7 November 2026):** The backend now seeds a
+> Botswana crop catalog for grains, pulses, oilseeds, vegetables and fruits.
+> Web and mobile crop setup show the selected profile's storage guidance.
+> These researched starter values are not validated operating thresholds. The
+> low-literacy workflow in the [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md)
+> is a recommendation that needs farmer evaluation. Earlier implementation
+> status text in this October planning snapshot is superseded by the current
+> [handoff](../HANDOFF.md) and [architecture](../ARCHITECTURE.md).
 
 ## 1. Executive summary
 
@@ -106,7 +119,7 @@ Status meanings: **Implemented (source observed)** means behavior exists in insp
 | FR-06 | On configured bound breach, the system shall create an alert linked to the triggering reading and show it to the operator. | Must | Implemented in runtime logic; alert storage currently in-memory | Known breach produces alert with crop, reading, limits, time and acknowledgement state; restart limitation is recorded |
 | FR-07 | The system shall record simulated SMS dispatch intent/status without claiming carrier delivery. | Must for demo | Partial; `status: logged` in memory; no gateway | Breach creates a log entry explicitly labeled simulated/not sent; documentation and UI avoid “delivered” language |
 | FR-08 | The user shall be able to acknowledge a visible alert. | Should | Route exists; verify UI behavior | Acknowledgement state changes and is visible; unknown IDs return not found |
-| FR-09 | The user shall select a saved crop profile and see its limits. | Must | Implemented; current profiles include Maize/Tomato; global state | Selection updates active threshold and clients; values match API; limits labeled illustrative |
+| FR-09 | The user shall select a saved crop profile and see its limits. | Must | Implemented for seeded grains, pulses, oilseeds, vegetables and fruit; global monitor selection is not farmer/site scoped | Selection updates active threshold and clients; values match API; limits labeled illustrative |
 | FR-10 | An authorized administrator shall be able to create a crop profile with valid bounds. | Could / confirm scope | API route exists without auth; unsafe for deployment | Valid limits save; invalid/duplicate names and invalid ranges receive safe errors; unauthorized request denied after auth scope implemented |
 | FR-11 | The user shall export readings and activity evidence. | Should | CSV and Markdown routes exist | Export opens with expected fields; sensitive data excluded; CSV formula handling and escaping reviewed |
 | FR-12 | The client shall explain connection/loading/error states. | Must | Partial; API error handling exists; verify visual states | Offline/backend unavailable state is distinct from a safe reading; retry path is clear |

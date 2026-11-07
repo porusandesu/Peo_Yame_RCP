@@ -24,7 +24,7 @@ function sql(statement, asJson = false) {
   // Set the CLI timeout with its dot command. `PRAGMA busy_timeout` returns a
   // result row, which would otherwise be concatenated with SELECT results in
   // `-json` mode and make the combined output invalid JSON.
-  const output = execFileSync(sqliteCommand, args, { input: `.timeout 5000\nPRAGMA foreign_keys=ON;\n${statement}\n`, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+  const output = execFileSync(sqliteCommand, args, { input: `.timeout 5000\nPRAGMA foreign_keys=ON;\n${statement}\n`, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
   // sqlite3 emits no output (rather than `[]`) for a JSON query with no rows.
   return asJson ? (output.trim() ? JSON.parse(output) : []) : output;
 }
@@ -35,6 +35,9 @@ sql(`CREATE TABLE IF NOT EXISTS crops (
   max_temp REAL NOT NULL CHECK(max_temp BETWEEN -50 AND 100),
   min_humidity REAL NOT NULL CHECK(min_humidity BETWEEN 0 AND 100),
   max_humidity REAL NOT NULL CHECK(max_humidity BETWEEN 0 AND 100),
+  safe_moisture_pct REAL CHECK(safe_moisture_pct BETWEEN 0 AND 100),
+  storage_note TEXT NOT NULL DEFAULT '',
+  crop_group TEXT NOT NULL DEFAULT 'Other',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   CHECK(min_temp < max_temp), CHECK(min_humidity < max_humidity)
 );
@@ -78,9 +81,13 @@ if (!farmerColumns.has("password_hash")) sql("ALTER TABLE farmer_accounts ADD CO
 if (!farmerColumns.has("totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN totp_secret TEXT;");
 if (!farmerColumns.has("pending_totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN pending_totp_secret TEXT;");
 if (!farmerColumns.has("demo_security_skipped")) sql("ALTER TABLE farmer_accounts ADD COLUMN demo_security_skipped INTEGER NOT NULL DEFAULT 0 CHECK(demo_security_skipped IN (0,1));");
+const cropColumns = new Set(sql("PRAGMA table_info(crops);", true).map((column) => column.name));
+if (!cropColumns.has("safe_moisture_pct")) sql("ALTER TABLE crops ADD COLUMN safe_moisture_pct REAL CHECK(safe_moisture_pct BETWEEN 0 AND 100);");
+if (!cropColumns.has("storage_note")) sql("ALTER TABLE crops ADD COLUMN storage_note TEXT NOT NULL DEFAULT '';");
+if (!cropColumns.has("crop_group")) sql("ALTER TABLE crops ADD COLUMN crop_group TEXT NOT NULL DEFAULT 'Other';");
 
 function toCrop(row) {
-  return row && { id: row.id, commodity: row.name, minTemp: row.min_temp, maxTemp: row.max_temp, minHumidity: row.min_humidity, maxHumidity: row.max_humidity };
+  return row && { id: row.id, commodity: row.name, cropGroup: row.crop_group || 'Other', minTemp: row.min_temp, maxTemp: row.max_temp, minHumidity: row.min_humidity, maxHumidity: row.max_humidity, safeMoisturePct: row.safe_moisture_pct ?? null, storageNote: row.storage_note || '' };
 }
 function findCrop(name) {
   return sql(`SELECT * FROM crops WHERE name=${quote(name)} COLLATE NOCASE LIMIT 1;`, true)[0];
@@ -93,12 +100,36 @@ function availableBackendSensors() {
 
 const SENSOR_ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
+const grainNote = "Indicative room-monitoring alerts only. Safe moisture is a grain target, not room humidity; measure it with a grain moisture meter. Drying, aeration, cleanliness, pest control, packaging, and storage duration also affect quality.";
+const freshNote = "Cold-store starter target for intact produce. Cultivar, maturity/ripeness, curing, intended use, packaging, airflow, and storage duration affect the suitable setting; avoid condensation and separate incompatible produce.";
 for (const crop of [
-  { commodity: "Maize", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 70 },
-  { commodity: "Sorghum", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 70 },
-  { commodity: "Tomato", minTemp: 10, maxTemp: 20, minHumidity: 85, maxHumidity: 95 },
+  { commodity: "Maize", group: "Grain", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 13, note: grainNote },
+  { commodity: "Sorghum", group: "Grain", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 13, note: grainNote },
+  { commodity: "Millet", group: "Grain", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 13, note: grainNote },
+  { commodity: "Cowpea", group: "Pulse", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 14, note: grainNote },
+  { commodity: "Common beans", group: "Pulse", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 14, note: grainNote },
+  { commodity: "Pigeon pea", group: "Pulse", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 14, note: grainNote },
+  { commodity: "Groundnuts (shelled)", group: "Oilseed", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 7, note: grainNote },
+  { commodity: "Sunflower seed", group: "Oilseed", minTemp: 10, maxTemp: 27, minHumidity: 30, maxHumidity: 65, safeMoisturePct: 8, note: grainNote },
+  { commodity: "Tomato", group: "Vegetable", minTemp: 10, maxTemp: 12, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} Use for mature tomatoes; avoid chilling green or ripening fruit.` },
+  { commodity: "Potato", group: "Vegetable", minTemp: 7, maxTemp: 10, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: `${freshNote} Keep in darkness. Processing potatoes may need a warmer setting to reduce cold-induced sweetening.` },
+  { commodity: "Cabbage", group: "Vegetable", minTemp: 0, maxTemp: 1, minHumidity: 95, maxHumidity: 100, safeMoisturePct: null, note: freshNote },
+  { commodity: "Onion (dry bulb)", group: "Vegetable", minTemp: 0, maxTemp: 2, minHumidity: 70, maxHumidity: 75, safeMoisturePct: null, note: `${freshNote} Cure and dry outer skins before storage; keep airflow high and avoid damp conditions.` },
+  { commodity: "Carrot", group: "Vegetable", minTemp: 0, maxTemp: 1, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: freshNote },
+  { commodity: "Spinach and leafy greens", group: "Vegetable", minTemp: 0, maxTemp: 2, minHumidity: 95, maxHumidity: 100, safeMoisturePct: null, note: `${freshNote} Highly perishable; cool promptly and keep leaves from wilting.` },
+  { commodity: "Green pepper", group: "Vegetable", minTemp: 8, maxTemp: 12, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: freshNote },
+  { commodity: "Sweet potato", group: "Vegetable", minTemp: 13, maxTemp: 15, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} Cure harvested roots before longer storage; tropical roots can be injured by chilling.` },
+  { commodity: "Orange", group: "Fruit", minTemp: 6, maxTemp: 8, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: freshNote },
+  { commodity: "Lemon", group: "Fruit", minTemp: 10, maxTemp: 13, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: freshNote },
+  { commodity: "Mango", group: "Fruit", minTemp: 10, maxTemp: 13, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} Avoid colder settings that can cause chilling injury.` },
+  { commodity: "Avocado", group: "Fruit", minTemp: 12, maxTemp: 16, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: `${freshNote} Target varies with cultivar and maturity; avoid chilling sensitive fruit.` },
+  { commodity: "Banana (green)", group: "Fruit", minTemp: 13, maxTemp: 14, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} For green fruit; ripening and ripe-fruit settings differ.` },
+  { commodity: "Watermelon", group: "Fruit", minTemp: 10, maxTemp: 15, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} Avoid very cold storage because chilling injury is possible.` },
+  { commodity: "Mandarin (naartjie)", group: "Fruit", minTemp: 4, maxTemp: 8, minHumidity: 90, maxHumidity: 95, safeMoisturePct: null, note: freshNote },
+  { commodity: "Grapefruit", group: "Fruit", minTemp: 14, maxTemp: 15, minHumidity: 85, maxHumidity: 90, safeMoisturePct: null, note: `${freshNote} This target follows guidance for fruit from dry regions; harvest and cultivar still matter.` },
 ]) {
-  sql(`INSERT OR IGNORE INTO crops(name,min_temp,max_temp,min_humidity,max_humidity) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity});`);
+  const moisture = crop.safeMoisturePct === null ? "NULL" : crop.safeMoisturePct;
+  sql(`INSERT INTO crops(name,min_temp,max_temp,min_humidity,max_humidity,safe_moisture_pct,storage_note,crop_group) VALUES(${quote(crop.commodity)},${crop.minTemp},${crop.maxTemp},${crop.minHumidity},${crop.maxHumidity},${moisture},${quote(crop.note)},${quote(crop.group)}) ON CONFLICT(name) DO UPDATE SET min_temp=excluded.min_temp,max_temp=excluded.max_temp,min_humidity=excluded.min_humidity,max_humidity=excluded.max_humidity,safe_moisture_pct=excluded.safe_moisture_pct,storage_note=excluded.storage_note,crop_group=excluded.crop_group;`);
 }
 sql("INSERT OR IGNORE INTO app_settings(key,value) VALUES('active_crop','Maize');");
 
@@ -172,6 +203,10 @@ module.exports = {
   },
   recentReadings: (limit = 200) => sql(`SELECT r.id,r.site,c.name AS commodity,r.temperature,r.humidity,r.data_source AS dataSource,r.recorded_at AS recordedAt FROM readings r JOIN crops c ON c.id=r.crop_id ORDER BY r.recorded_at DESC,r.id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 200, 2000))};`, true).reverse(),
   findFarmer: (phone) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
+  getOrCreateDemoFarmer: () => {
+    sql(`INSERT OR IGNORE INTO farmer_accounts(phone,name,email) VALUES('DEMO','Demo Farmer','');`);
+    return sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone='DEMO';`, true)[0] || null;
+  },
   findFarmerById: (id) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,demo_security_skipped AS demoSecuritySkipped FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null,
   findFarmerByEmail: (email) => sql(`SELECT id,name,phone,email,(password_hash IS NOT NULL) AS passwordEnabled,password_salt AS passwordSalt,password_hash AS passwordHash FROM farmer_accounts WHERE email=${quote(email)} COLLATE NOCASE AND password_hash IS NOT NULL;`, true)[0] || null,
   findFarmerByEmailAddress: (email) => sql(`SELECT id FROM farmer_accounts WHERE email=${quote(email)} COLLATE NOCASE LIMIT 1;`, true)[0] || null,

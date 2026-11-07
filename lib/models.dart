@@ -49,26 +49,35 @@ class TrendPoint {
 
 class Threshold {
   final String commodity;
+  final String cropGroup;
   final double minTemp;
   final double maxTemp;
   final double minHumidity;
   final double maxHumidity;
+  final double? safeMoisturePct;
+  final String storageNote;
 
   const Threshold({
     required this.commodity,
+    this.cropGroup = 'Other',
     required this.minTemp,
     required this.maxTemp,
     required this.minHumidity,
     required this.maxHumidity,
+    this.safeMoisturePct,
+    this.storageNote = '',
   });
 
   factory Threshold.fromJson(Map<String, dynamic> json) {
     return Threshold(
       commodity: json['commodity'] as String,
+      cropGroup: json['cropGroup'] as String? ?? 'Other',
       minTemp: (json['minTemp'] as num).toDouble(),
       maxTemp: (json['maxTemp'] as num).toDouble(),
       minHumidity: (json['minHumidity'] as num).toDouble(),
       maxHumidity: (json['maxHumidity'] as num).toDouble(),
+      safeMoisturePct: (json['safeMoisturePct'] as num?)?.toDouble(),
+      storageNote: json['storageNote'] as String? ?? '',
     );
   }
 }

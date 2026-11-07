@@ -33,6 +33,12 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Run Flutter widget tests
+        run: flutter test
+
+      - name: Analyze Dart code
+        run: flutter analyze --no-fatal-infos lib
+
       - name: Build Android APK
         run: flutter build apk --debug
 
@@ -43,6 +49,29 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  backend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Check backend JavaScript syntax
+        run: npm run check
+
+      - name: Test backend and demo workflows
+        run: npm test
 
   windows-backend:
     runs-on: windows-latest

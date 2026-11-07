@@ -1,13 +1,24 @@
 # UI/UX Design Brief
 
+> **Current runtime update (7 Nov 2026):** Demo mode bypasses login and opens
+> the shared Demo Farmer directly. Login-related screens below are historical
+> design requirements; production authentication remains available.
+
 > **Historical planning snapshot (24 October 2026).** Current account and navigation behavior has changed since this design brief. Refer to the [current walkthrough](../../walkthrough.md) and [README](../../README.md) before using it to describe the shipped UI.
+
+> **Later crop UX update (7 November 2026):** Crop choice is grouped by food
+> type and setup shows the selected crop's room target and storage notes. The
+> proposed farmer workflow emphasizes pictures, plain-language steps, saved
+> store names, sensor discovery and one clear next action. It is a design
+> recommendation, not a completed field-tested redesign; see the
+> [crop package](../BOTSWANA_CROP_STORAGE_PACKAGE.md).
 
 **Product:** Peo Yame storage monitoring web and Flutter mobile prototype
 **Audience:** Small agricultural aggregator staff, project demonstrators and evaluators
 **Purpose:** Document current visual language and screen behavior for Interim Report 2
 **Status:** Existing style tokens/components are inferred from `lib/main.dart` and `backend/public/index.html`; suggested specifications below should be validated against rendered screenshots and intended users. They are not evidence of a usability study.
 
-**Implementation update:** The web artifact now includes a local demo phone/OTP gate and Accounts/My Crops views alongside the existing responsive monitoring dashboard. It uses browser-local profile state and static sample sensor fixtures; no web authentication or account-linked device data is implemented. The web dashboard's quality and storage-duration estimates were removed; storage status is explicitly tied to configured crop limits. The Flutter prototype still contains illustrative estimate UI, so do not present those values as validated findings.
+**Historical implementation update (October 2026):** This paragraph describes an earlier local-demo revision. Current browser login, farmer crop assignments and mobile pairing use the backend. See the handoff and architecture for the current implementation; use the crop package for storage-profile details and limits.
 
 ## 1. Design intent
 
