@@ -70,7 +70,7 @@ Do these in order, updating this handoff as tasks finish:
 - Five destinations now appear in this order: **Overview, Trends, My Crops, Alerts, Settings**, with **My Crops in the center**. Demo catalog and crop selection use shared APIs; the Flutter widget test and APK build pass in run `42388143703`.
 - Mobile farmer-owned site creation/deletion and real-sensor discovery/assignment/unlink are implemented in the current unverified increment. They remain separate from Demo's shared catalog; do not expose fabricated sensors.
 - Existing scanner exchanges phone QR while signed out and approves browser QR only from authenticated phone. Verify backend URL/token preservation and scanner/client disposal. Add reverse mobile QR flow if needed by UX.
-- Mobile Accounts and Settings now edit the farmer name through the authenticated profile endpoint; the profile name refreshes on screen after the server confirms. The new endpoint assertion and current UI are pending the latest CI run. Sign-out should revoke session and clear saved token even if server unreachable.
+- Mobile Accounts and Settings edit the farmer name through the authenticated profile endpoint; the profile name refreshes on screen after the server confirms. Flutter navigation and backend endpoint assertions pass in run `42394803726`. Sign-out should revoke session and clear saved token even if server unreachable.
 - Check phone UI for Botswana formatting, errors, password validation, loading, keyboard behavior, saved backend address, app lifecycle, camera permission/denial and QR expiry. Demo must work even if backend check times out.
 - Inspect `DashboardController` SSE and polling fallback. Add bounded retry/backoff/failure status and offline freshness/last-seen. Never present stale data as current. Avoid unrelated complexity.
 - Add mobile profile edit and authenticator disable controls if required; check account destination callback indexes after navigation changes.
@@ -131,4 +131,4 @@ The mobile My Crops view now loads farmer-owned storage locations, adds a crop/l
 
 ## 2026-11-07 mobile profile edit
 
-Authenticated farmers can edit their name from Accounts or Settings. The app saves through `PATCH /api/account`, retains the backend's account email/phone and updates the displayed profile name only after a successful response. Demo remains read-only. The Flutter navigation test and backend profile-update assertion are pending the current Actions run; no local tests/builds were run.
+Authenticated farmers can edit their name from Accounts or Settings. The app saves through `PATCH /api/account`, retains the backend's account email/phone and updates the displayed profile name only after a successful response. Demo remains read-only. Flutter navigation and the backend profile-update assertion pass in run `42394803726`; no local tests/builds were run.

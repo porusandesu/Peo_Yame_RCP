@@ -240,6 +240,7 @@ class _FarmerLocationsPanelState extends State<FarmerLocationsPanel> {
         _api.dispose();
         _api = ApiService(baseUrl: widget.baseUrl, authToken: widget.token);
       }
+      _loadRevision++;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _load();
       });
