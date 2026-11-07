@@ -30,9 +30,9 @@ void main() {
     expect(find.textContaining('No crop locations or linked physical sensors'), findsOneWidget);
 
     await tester.tap(find.text('Alerts').last);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.drag(find.byType(ListView).last, const Offset(0, -800));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Trigger demo breach'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
