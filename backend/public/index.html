@@ -154,7 +154,7 @@
       </div>
       <div class="auth-card" id="otpPanel" hidden>
         <div class="auth-brand"><img src="/icons/peo-yame-128.png" alt="" /> Peo Yame <span style="margin-left:auto;color:var(--muted);font-size:11px">Demo</span></div>
-        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p>Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
+        <button class="auth-link" id="backToLogin" type="button">← Back to login</button><h2>Verify your number</h2><p id="otpPrompt">Enter the 6-digit one-time PIN for <strong id="phonePreview"></strong></p>
         <div class="auth-notice" id="otpNotice">A six-digit PIN is required.</div>
         <div id="authQr" hidden aria-label="Temporary sign-in QR code"></div>
         <p id="authQrHint" class="profile-meta" hidden>Scan with Peo Yame mobile app to sign in. This QR expires with your PIN.</p>
@@ -207,6 +207,7 @@
     <section class="view" id="settingsView" hidden>
       <div class="view-heading"><h2>Settings</h2><button type="button" data-edit-profile>Edit profile</button></div>
       <article class="profile-card"><div class="profile-line"><div class="profile-avatar" id="profileInitial">F</div><div><strong id="profileName">Farmer</strong><div class="profile-meta" id="profilePhone"></div><div class="profile-meta">Farmer account</div></div></div><div class="count-row"><div><strong id="accountCropCount">0</strong><span class="profile-meta">Crop locations</span></div><div><strong id="accountSensorCount">0</strong><span class="profile-meta">Linked sensors</span></div></div></article>
+      <h2 style="margin-top:18px">Two-step sign-in</h2><article class="profile-card"><strong id="authenticatorStatus">Authenticator app is off</strong><p class="profile-meta">Use Google Authenticator for a new 6-digit sign-in code every 30 seconds.</p><button type="button" id="startAuthenticator">Set up Google Authenticator</button><div id="authenticatorSetup" hidden><div id="authenticatorQr" style="display:grid;place-items:center;padding:12px"></div><p class="profile-meta">Or add this setup key manually in Google Authenticator:</p><code id="authenticatorSecret" style="display:block;word-break:break-all"></code></div><label id="authenticatorCodeLabel" hidden style="display:grid;gap:6px;margin-top:10px">6-digit code<input id="authenticatorCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="dialog-error" id="authenticatorError" role="status"></div><button type="button" id="confirmAuthenticator" hidden>Confirm and turn on</button><button type="button" id="disableAuthenticator" hidden>Turn off authenticator sign-in</button></article>
       <div class="view-heading"><h2>Demo controls</h2></div><button type="button" id="trigger" hidden>⚠ Trigger alert simulation</button>
       <h2 style="margin-top:18px">Data &amp; exports</h2><div class="view-actions"><button type="button" id="exportActions">⇩ &nbsp; Download activity log <small>Markdown file</small></button><button type="button" id="exportData">▦ &nbsp; Download sensor data <small>CSV spreadsheet</small></button></div>
       <h2 style="margin-top:18px">Crops &amp; sensors</h2><div class="view-actions"><button type="button" data-open-view="crops">🌱 &nbsp; My Crops <small id="accountCropSummary">View crop locations and assigned sensors</small></button><button type="button" id="linkSensor">＋ &nbsp; Link a sensor <small>Assign a sensor to one of your crop locations</small></button></div><div class="profile-meta" id="accountActionNotice" role="status" aria-live="polite"></div>
@@ -241,6 +242,7 @@
       let availableFarmerSensors = [];
       let pendingProfile = null;
       let authPhone = '';
+      let authMode = 'pin';
       let currentView = 'dashboard';
       let connectionPort = 3000;
       function renderCrops(crops, selected) {
@@ -283,6 +285,7 @@
         updateDemoControls();
         showView('dashboard');
         void loadFarmerData();
+        void loadAuthenticator();
         refresh();
       }
       async function syncAccountProfile() {
@@ -330,6 +333,18 @@
           $('linkSensor').disabled = farmerCrops.length === 0 || !availableFarmerSensors.some(sensor => sensor.connected);
           renderFarmerCrops();
         } catch (error) { $('cropActionNotice').textContent = error.message; }
+      }
+      async function loadAuthenticator() {
+        try {
+          const status = await getJson('/api/account/authenticator');
+          $('authenticatorStatus').textContent = status.enabled ? 'Authenticator app is on' : 'Authenticator app is off';
+          $('startAuthenticator').hidden = status.enabled;
+          $('disableAuthenticator').hidden = !status.enabled;
+          $('authenticatorCodeLabel').hidden = !status.enabled;
+          $('confirmAuthenticator').hidden = true;
+          $('authenticatorSetup').hidden = true;
+          $('authenticatorError').textContent = '';
+        } catch (error) { $('authenticatorError').textContent = error.message; }
       }
       function renderFarmerSensorChoices() {
         $('farmerCropSensors').innerHTML = availableFarmerSensors.length
@@ -627,11 +642,15 @@
       async function requestOtp(phone, name = '') {
         const result = await postJson('/api/auth/request-otp', { phone, name });
         authPhone = result.phone;
+        authMode = result.authenticatorRequired ? 'authenticator' : 'pin';
         $('phonePreview').textContent = authPhone;
-        $('otpNotice').textContent = result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
+        $('otpPrompt').firstChild.textContent = authMode === 'authenticator' ? 'Open Google Authenticator and enter its current 6-digit code for ' : 'Enter the 6-digit one-time PIN for ';
+        $('otpNotice').textContent = authMode === 'authenticator' ? 'This code changes every 30 seconds. No PIN needs to be sent.' : result.demoCode ? `Local demo PIN: ${result.demoCode}. It expires in five minutes; no SMS provider is connected.` : 'A PIN was requested. Check your messages.';
+        $('resendPin').hidden = authMode === 'authenticator';
+        document.querySelectorAll('.pin-row input').forEach((input, index) => input.setAttribute('aria-label', `${authMode === 'authenticator' ? 'Authenticator' : 'PIN'} digit ${index + 1}`));
         $('authQr').hidden = true;
         $('authQrHint').hidden = true;
-        if (result.demoCode) {
+        if (result.demoCode && authMode !== 'authenticator') {
           try {
             const info = await getJson('/api/connection-info');
             const address = info.addresses.find(item => item.address === location.hostname)?.address || info.addresses[0]?.address;
@@ -704,6 +723,34 @@
           updateDemoControls();
           $('accountActionNotice').textContent = 'Profile saved.';
         } catch (error) { $('editProfileError').textContent = error.message; }
+      });
+      $('startAuthenticator').addEventListener('click', async () => {
+        try {
+          const setup = await postJson('/api/account/authenticator/setup', {});
+          $('authenticatorSecret').textContent = setup.secret;
+          const qr = qrcode(0, 'M');
+          qr.addData(setup.otpauthUrl); qr.make();
+          $('authenticatorQr').innerHTML = qr.createSvgTag({cellSize:5,margin:4,scalable:true});
+          $('authenticatorSetup').hidden = false;
+          $('authenticatorCodeLabel').hidden = false;
+          $('confirmAuthenticator').hidden = false;
+          $('authenticatorCode').value = '';
+          $('authenticatorError').textContent = '';
+        } catch (error) { $('authenticatorError').textContent = error.message; }
+      });
+      $('confirmAuthenticator').addEventListener('click', async () => {
+        try {
+          await postJson('/api/account/authenticator/enable', {code:$('authenticatorCode').value.trim()});
+          $('authenticatorCode').value = '';
+          await loadAuthenticator();
+        } catch (error) { $('authenticatorError').textContent = error.message; }
+      });
+      $('disableAuthenticator').addEventListener('click', async () => {
+        try {
+          await postJson('/api/account/authenticator/disable', {code:$('authenticatorCode').value.trim()});
+          $('authenticatorCode').value = '';
+          await loadAuthenticator();
+        } catch (error) { $('authenticatorError').textContent = error.message; }
       });
       $('linkSensor').addEventListener('click', async () => { await loadFarmerData(); $('farmerSensorError').textContent = ''; $('farmerSensorDialog').showModal(); });
       $('addFarmerCrop').addEventListener('click', () => { $('farmerCropError').textContent = ''; $('farmerCropDialog').showModal(); });

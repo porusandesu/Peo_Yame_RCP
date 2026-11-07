@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "demo": "node server.js",
+    "test": "node --test test/*.test.js",
     "simulate:sensor": "node simulate-sensor.js",
     "build:windows": "pwsh -ExecutionPolicy Bypass -File ./build-windows.ps1"
   },

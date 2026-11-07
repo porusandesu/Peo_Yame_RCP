@@ -22,6 +22,7 @@ const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { dataDirectory } = require("./runtime_paths");
 const cropDatabase = require("./database");
+const { encodeBase32, verifyAuthenticatorCode } = require("./authenticator");
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
@@ -42,6 +43,7 @@ const MAX_ACTIONS = 2500;
 fs.mkdirSync(path.dirname(ACTION_LOG_PATH), { recursive: true });
 const eventClients = new Set();
 const otpChallenges = new Map();
+const authenticatorFailures = new Map();
 
 function sessionHash(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -65,11 +67,12 @@ function requireFarmer(req, res, next) {
 }
 
 app.post("/api/auth/request-otp", (req, res) => {
-  if (!isDemoMode) return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
   const phone = normalizePhone(req.body?.phone);
   const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 80) : "";
   if (!/^\+?[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number with its country code." });
   const farmer = cropDatabase.findFarmer(phone);
+  if (farmer?.authenticatorEnabled) return res.json({ sent: true, phone, authenticatorRequired: true, expiresInSeconds: 30 });
+  if (!isDemoMode) return res.status(503).json({ error: "SMS delivery is not configured on this server yet. Contact the administrator to connect a text-message provider." });
   if (!farmer && !name) return res.status(404).json({ error: "No farmer account uses that number. Choose Create account to register." });
   const previous = otpChallenges.get(phone);
   if (previous && Date.now() - previous.createdAt < 30000) return res.status(429).json({ error: "Please wait 30 seconds before requesting another PIN." });
@@ -83,22 +86,70 @@ app.post("/api/auth/request-otp", (req, res) => {
 app.post("/api/auth/verify-otp", (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const code = typeof req.body?.code === "string" ? req.body.code : "";
-  const challenge = otpChallenges.get(phone);
-  if (!challenge || Date.now() - challenge.createdAt > 300000 || challenge.attempts >= 5) {
-    otpChallenges.delete(phone);
-    return res.status(401).json({ error: "That PIN expired. Request a new one." });
-  }
-  challenge.attempts++;
-  const hash = crypto.createHash("sha256").update(code).digest("hex");
-  if (!/^\d{6}$/.test(code) || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(challenge.hash))) {
-    return res.status(401).json({ error: "That PIN is incorrect. Check it and try again." });
-  }
   let farmer = cropDatabase.findFarmer(phone);
-  if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name);
-  otpChallenges.delete(phone);
+  if (farmer?.authenticatorEnabled) {
+    const failures = authenticatorFailures.get(phone);
+    if (failures && Date.now() - failures.startedAt < 300000 && failures.count >= 5) {
+      return res.status(429).json({ error: "Too many incorrect authenticator codes. Wait five minutes and try again." });
+    }
+    const account = cropDatabase.farmerAuthenticator(farmer.id);
+    if (!verifyAuthenticatorCode(account?.secret, code)) {
+      const next = failures && Date.now() - failures.startedAt < 300000 ? failures : { startedAt: Date.now(), count: 0 };
+      next.count++;
+      authenticatorFailures.set(phone, next);
+      return res.status(401).json({ error: "That authenticator code is incorrect or expired. Enter the current code from Google Authenticator." });
+    }
+    authenticatorFailures.delete(phone);
+  } else {
+    const challenge = otpChallenges.get(phone);
+    if (!challenge || Date.now() - challenge.createdAt > 300000 || challenge.attempts >= 5) {
+      otpChallenges.delete(phone);
+      return res.status(401).json({ error: "That PIN expired. Request a new one." });
+    }
+    challenge.attempts++;
+    const hash = crypto.createHash("sha256").update(code).digest("hex");
+    if (!/^\d{6}$/.test(code) || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(challenge.hash))) {
+      return res.status(401).json({ error: "That PIN is incorrect. Check it and try again." });
+    }
+    if (!farmer) farmer = cropDatabase.createFarmer(phone, challenge.name);
+    otpChallenges.delete(phone);
+  }
   const token = crypto.randomBytes(32).toString("base64url");
   cropDatabase.createFarmerSession(sessionHash(token), farmer.id, Date.now() + 7 * 24 * 60 * 60 * 1000);
   res.json({ token, expiresInSeconds: 604800, farmer });
+});
+
+app.get("/api/account/authenticator", requireFarmer, (req, res) => {
+  const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
+  res.json({ enabled: Boolean(setup?.secret) });
+});
+app.post("/api/account/authenticator/setup", requireFarmer, (req, res) => {
+  const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
+  if (setup?.secret) return res.status(409).json({ error: "Authenticator sign-in is already enabled." });
+  const secret = encodeBase32(crypto.randomBytes(20));
+  cropDatabase.setPendingAuthenticator(req.farmer.id, secret);
+  const label = encodeURIComponent(`Peo Yame:${req.farmer.phone}`);
+  const issuer = encodeURIComponent("Peo Yame");
+  const otpauthUrl = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+  res.json({ secret, otpauthUrl });
+});
+app.post("/api/account/authenticator/enable", requireFarmer, (req, res) => {
+  const code = typeof req.body?.code === "string" ? req.body.code : "";
+  const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
+  if (!setup?.pendingSecret || !verifyAuthenticatorCode(setup.pendingSecret, code)) {
+    return res.status(400).json({ error: "Enter the current 6-digit code from your authenticator app to finish setup." });
+  }
+  cropDatabase.enableAuthenticator(req.farmer.id);
+  res.json({ enabled: true });
+});
+app.post("/api/account/authenticator/disable", requireFarmer, (req, res) => {
+  const code = typeof req.body?.code === "string" ? req.body.code : "";
+  const setup = cropDatabase.farmerAuthenticator(req.farmer.id);
+  if (!setup?.secret || !verifyAuthenticatorCode(setup.secret, code)) {
+    return res.status(401).json({ error: "Enter the current 6-digit authenticator code to turn it off." });
+  }
+  cropDatabase.disableAuthenticator(req.farmer.id);
+  res.json({ enabled: false });
 });
 
 app.get("/api/account", requireFarmer, (req, res) => res.json(req.farmer));

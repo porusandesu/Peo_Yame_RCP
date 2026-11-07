@@ -62,6 +62,9 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
 
+      - name: Test authenticator codes
+        run: npm test
+
       - name: Build portable Windows app
         run: ./build-windows.ps1
         shell: pwsh

@@ -87,6 +87,48 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getAuthenticatorStatus() async {
+    final response = await _client
+        .get(_uri('/api/account/authenticator'), headers: _authHeaders)
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> setupAuthenticator() async {
+    final response = await _client
+        .post(
+          _uri('/api/account/authenticator/setup'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: '{}',
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<void> enableAuthenticator(String code) async {
+    final response = await _client
+        .post(
+          _uri('/api/account/authenticator/enable'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: jsonEncode({'code': code}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+  }
+
+  Future<void> disableAuthenticator(String code) async {
+    final response = await _client
+        .post(
+          _uri('/api/account/authenticator/disable'),
+          headers: {'Content-Type': 'application/json', ..._authHeaders},
+          body: jsonEncode({'code': code}),
+        )
+        .timeout(const Duration(seconds: 8));
+    _ensureOk(response);
+  }
+
   Future<List<Map<String, dynamic>>> getFarmerCrops() async {
     final response = await _client
         .get(_uri('/api/farmer/crops'), headers: _authHeaders)

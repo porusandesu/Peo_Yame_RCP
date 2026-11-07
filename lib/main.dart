@@ -101,6 +101,7 @@ class _AppGateState extends State<_AppGate> {
   AccountInfo? _account;
   String? _pendingPhone;
   String? _pendingDemoCode;
+  bool _authenticatorRequired = false;
   bool _loadingSession = true;
 
   @override
@@ -129,16 +130,22 @@ class _AppGateState extends State<_AppGate> {
     if (mounted) setState(() => _loadingSession = false);
   }
 
-  void _requestCode(DemoSignInRequest request, String? demoCode) {
+  void _requestCode(
+    DemoSignInRequest request,
+    String? demoCode, {
+    bool authenticatorRequired = false,
+  }) {
     setState(() {
       _pendingPhone = request.phone;
       _pendingDemoCode = demoCode;
+      _authenticatorRequired = authenticatorRequired;
     });
   }
 
   void _backToLogin() => setState(() {
     _pendingPhone = null;
     _pendingDemoCode = null;
+    _authenticatorRequired = false;
   });
 
   Future<void> _connectBackend(String address) async {
@@ -174,6 +181,7 @@ class _AppGateState extends State<_AppGate> {
       );
       _pendingPhone = null;
       _pendingDemoCode = null;
+      _authenticatorRequired = false;
     });
   }
 
@@ -188,6 +196,7 @@ class _AppGateState extends State<_AppGate> {
         _account = null;
         _pendingPhone = null;
         _pendingDemoCode = null;
+        _authenticatorRequired = false;
       });
   }
 
@@ -232,6 +241,10 @@ class _AppGateState extends State<_AppGate> {
         onLogout: _logout,
         onEditProfile: _editProfile,
         onRefreshAccount: _refreshAccount,
+        onLoadAuthenticator: _authApi.getAuthenticatorStatus,
+        onSetupAuthenticator: _authApi.setupAuthenticator,
+        onEnableAuthenticator: _authApi.enableAuthenticator,
+        onDisableAuthenticator: _authApi.disableAuthenticator,
         onBackendChanged: (address) =>
             _authApi.baseUrl = normalizeApiBaseUrl(address),
         onLoadFarmerCrops: _authApi.getFarmerCrops,
@@ -247,12 +260,18 @@ class _AppGateState extends State<_AppGate> {
       return OtpVerificationPage(
         phone: pendingPhone,
         demoCode: _pendingDemoCode,
+        authenticatorRequired: _authenticatorRequired,
         onBack: _backToLogin,
         onContinue: _continueDemo,
         onResend: () async {
           final result = await _authApi.requestOtp(phone: pendingPhone);
           final code = result['demoCode'] as String?;
-          if (mounted) setState(() => _pendingDemoCode = code);
+          if (mounted) {
+            setState(() {
+              _pendingDemoCode = code;
+              _authenticatorRequired = result['authenticatorRequired'] == true;
+            });
+          }
           return code;
         },
         onScanQr: () async {
@@ -319,6 +338,7 @@ class _AppGateState extends State<_AppGate> {
               phone: result['phone'] as String,
             ),
             result['demoCode'] as String?,
+            authenticatorRequired: result['authenticatorRequired'] == true,
           );
         } catch (error) {
           if (context.mounted)
@@ -609,6 +629,7 @@ class OtpVerificationPage extends StatefulWidget {
   const OtpVerificationPage({
     required this.phone,
     required this.demoCode,
+    required this.authenticatorRequired,
     required this.onBack,
     required this.onContinue,
     required this.onResend,
@@ -618,6 +639,7 @@ class OtpVerificationPage extends StatefulWidget {
 
   final String phone;
   final String? demoCode;
+  final bool authenticatorRequired;
   final VoidCallback onBack;
   final Future<void> Function(String code) onContinue;
   final Future<String?> Function() onResend;
@@ -733,8 +755,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   ),
                 ),
                 const SizedBox(height: 7),
-                const Text(
-                  'Enter the 6-digit one-time PIN for',
+                Text(
+                  widget.authenticatorRequired
+                      ? 'Open Google Authenticator and enter its current 6-digit code for'
+                      : 'Enter the 6-digit one-time PIN for',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
                 ),
@@ -783,8 +807,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'One-time PIN',
+                        Text(
+                          widget.authenticatorRequired
+                              ? 'Authenticator code'
+                              : 'One-time PIN',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -870,17 +896,18 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: () async {
-                            try {
-                              await widget.onScanQr();
-                            } catch (error) {
-                              _showDemoMessage('$error');
-                            }
-                          },
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          label: const Text('Scan sign-in QR code'),
-                        ),
+                        if (!widget.authenticatorRequired)
+                          TextButton.icon(
+                            onPressed: () async {
+                              try {
+                                await widget.onScanQr();
+                              } catch (error) {
+                                _showDemoMessage('$error');
+                              }
+                            },
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                            label: const Text('Scan sign-in QR code'),
+                          ),
                         const SizedBox(height: 12),
                         FilledButton.icon(
                           onPressed:
@@ -908,23 +935,26 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Didn’t receive a PIN?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 10, color: Color(0xFF65776F)),
-                ),
-                TextButton(
-                  onPressed: _resendPin,
-                  child: const Text(
-                    'Resend PIN',
-                    style: TextStyle(color: _forest, fontSize: 11),
+                if (!widget.authenticatorRequired) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Didn’t receive a PIN?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 10, color: Color(0xFF65776F)),
                   ),
-                ),
+                  TextButton(
+                    onPressed: _resendPin,
+                    child: const Text(
+                      'Resend PIN',
+                      style: TextStyle(color: _forest, fontSize: 11),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
-                const _AuthDemoNotice(
-                  text:
-                      'The local backend displays a temporary demo PIN above. SMS delivery needs a connected messaging provider.',
+                _AuthDemoNotice(
+                  text: widget.authenticatorRequired
+                      ? 'Enter the current code from Google Authenticator. Codes change every 30 seconds.'
+                      : 'The local backend displays a temporary demo PIN above. SMS delivery needs a connected messaging provider.',
                 ),
               ],
             ),
@@ -1005,6 +1035,10 @@ class DashboardPage extends StatefulWidget {
     required this.onLogout,
     required this.onEditProfile,
     required this.onRefreshAccount,
+    required this.onLoadAuthenticator,
+    required this.onSetupAuthenticator,
+    required this.onEnableAuthenticator,
+    required this.onDisableAuthenticator,
     required this.onBackendChanged,
     required this.onLoadFarmerCrops,
     required this.onLoadFarmerSensors,
@@ -1019,6 +1053,10 @@ class DashboardPage extends StatefulWidget {
   final VoidCallback onLogout;
   final Future<void> Function(String name, String phone) onEditProfile;
   final Future<void> Function() onRefreshAccount;
+  final Future<Map<String, dynamic>> Function() onLoadAuthenticator;
+  final Future<Map<String, dynamic>> Function() onSetupAuthenticator;
+  final Future<void> Function(String code) onEnableAuthenticator;
+  final Future<void> Function(String code) onDisableAuthenticator;
   final ValueChanged<String> onBackendChanged;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerCrops;
   final Future<List<Map<String, dynamic>>> Function() onLoadFarmerSensors;
@@ -1837,6 +1875,13 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     ),
     const SizedBox(height: 16),
+    _AuthenticatorSettings(
+      onLoad: widget.onLoadAuthenticator,
+      onSetup: widget.onSetupAuthenticator,
+      onEnable: widget.onEnableAuthenticator,
+      onDisable: widget.onDisableAuthenticator,
+    ),
+    const SizedBox(height: 16),
     const _SectionTitle(title: 'Hardware package'),
     const SizedBox(height: 8),
     Card(
@@ -2006,6 +2051,219 @@ class _ConnectionPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AuthenticatorSettings extends StatefulWidget {
+  const _AuthenticatorSettings({
+    required this.onLoad,
+    required this.onSetup,
+    required this.onEnable,
+    required this.onDisable,
+  });
+
+  final Future<Map<String, dynamic>> Function() onLoad;
+  final Future<Map<String, dynamic>> Function() onSetup;
+  final Future<void> Function(String code) onEnable;
+  final Future<void> Function(String code) onDisable;
+
+  @override
+  State<_AuthenticatorSettings> createState() => _AuthenticatorSettingsState();
+}
+
+class _AuthenticatorSettingsState extends State<_AuthenticatorSettings> {
+  final _codeController = TextEditingController();
+  bool _enabled = false;
+  bool _loading = true;
+  bool _working = false;
+  String? _secret;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    try {
+      final result = await widget.onLoad();
+      if (mounted) setState(() => _enabled = result['enabled'] == true);
+    } catch (error) {
+      if (mounted)
+        setState(() => _message = 'Could not read sign-in settings: $error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _startSetup() async {
+    setState(() {
+      _working = true;
+      _message = null;
+    });
+    try {
+      final result = await widget.onSetup();
+      if (mounted) setState(() => _secret = result['secret'] as String?);
+    } catch (error) {
+      if (mounted) setState(() => _message = '$error');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _save(bool enable) async {
+    final code = _codeController.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(
+        () => _message = 'Enter the current 6-digit authenticator code.',
+      );
+      return;
+    }
+    setState(() {
+      _working = true;
+      _message = null;
+    });
+    try {
+      if (enable) {
+        await widget.onEnable(code);
+        _secret = null;
+      } else {
+        await widget.onDisable(code);
+      }
+      _codeController.clear();
+      if (mounted)
+        setState(() {
+          _enabled = enable;
+          _message = enable
+              ? 'Authenticator sign-in is on.'
+              : 'Authenticator sign-in is off.';
+        });
+    } catch (error) {
+      if (mounted) setState(() => _message = '$error');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const _SectionTitle(title: 'Two-step sign-in'),
+      const SizedBox(height: 8),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.verified_user_outlined, color: _forest),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _loading
+                          ? 'Checking sign-in settings…'
+                          : _enabled
+                          ? 'Google Authenticator is on'
+                          : 'Google Authenticator is off',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (_loading || _working)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Use a rotating 6-digit code for future sign-ins. Existing PIN sign-in keeps working until setup is confirmed.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF65776F)),
+              ),
+              if (_secret != null) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'In Google Authenticator, choose Add account → Enter a setup key.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _secret!,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: _secret!));
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Setup key copied.')),
+                        );
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 17),
+                    label: const Text('Copy setup key'),
+                  ),
+                ),
+              ],
+              if (_secret != null || _enabled) ...[
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _codeController,
+                  keyboardType: TextInputType.number,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: '6-digit authenticator code',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: _working ? null : () => _save(!_enabled),
+                  child: Text(
+                    _enabled ? 'Turn off authenticator' : 'Confirm and turn on',
+                  ),
+                ),
+              ] else if (!_loading)
+                OutlinedButton.icon(
+                  onPressed: _working ? null : _startSetup,
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: const Text('Set up Google Authenticator'),
+                ),
+              if (_message != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _message!,
+                  style: TextStyle(
+                    color:
+                        _message!.contains('on.') || _message!.contains('off.')
+                        ? _forest
+                        : const Color(0xFF9E332B),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _AccountDetailRow extends StatelessWidget {

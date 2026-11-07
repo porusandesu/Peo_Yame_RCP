@@ -56,7 +56,9 @@ testing, not a Play Store release.
 
 On the web app, choose **Create account**, enter the farmer name and phone
 number, then enter the one-time PIN shown by the local server. Returning farmers
-can sign in with their saved phone number. The temporary PIN also appears as a
+can sign in with their saved phone number. In Settings, you can set up Google
+Authenticator; after confirming the setup code, future sign-ins use its rotating
+6-digit code. The temporary PIN also appears as a
 QR code on the web sign-in screen; tap **Scan sign-in QR** in the Flutter app to
 authenticate without requesting or typing another PIN. To connect a phone,
 open Settings in the mobile app and scan the backend QR code.

@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS readings (
 );
 CREATE TABLE IF NOT EXISTS farmer_accounts (
   id INTEGER PRIMARY KEY, phone TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  name TEXT NOT NULL, totp_secret TEXT, pending_totp_secret TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE TABLE IF NOT EXISTS farmer_sessions (
   token_hash TEXT PRIMARY KEY,
@@ -67,6 +68,10 @@ CREATE TABLE IF NOT EXISTS farmer_sensors (
   UNIQUE(account_id,sensor_code)
 );
 CREATE INDEX IF NOT EXISTS readings_recorded_at_idx ON readings(recorded_at);`);
+
+const farmerColumns = new Set(sql("PRAGMA table_info(farmer_accounts);", true).map((column) => column.name));
+if (!farmerColumns.has("totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN totp_secret TEXT;");
+if (!farmerColumns.has("pending_totp_secret")) sql("ALTER TABLE farmer_accounts ADD COLUMN pending_totp_secret TEXT;");
 
 function toCrop(row) {
   return row && { id: row.id, commodity: row.name, minTemp: row.min_temp, maxTemp: row.max_temp, minHumidity: row.min_humidity, maxHumidity: row.max_humidity };
@@ -159,7 +164,7 @@ module.exports = {
     sql(`INSERT INTO readings(id,site,crop_id,temperature,humidity,data_source,recorded_at) VALUES(${reading.id},${quote(reading.site)},${crop.id},${reading.temperature},${reading.humidity},${quote(reading.dataSource)},${quote(reading.recordedAt)});`);
   },
   recentReadings: (limit = 200) => sql(`SELECT r.id,r.site,c.name AS commodity,r.temperature,r.humidity,r.data_source AS dataSource,r.recorded_at AS recordedAt FROM readings r JOIN crops c ON c.id=r.crop_id ORDER BY r.recorded_at DESC,r.id DESC LIMIT ${Math.max(1, Math.min(Number(limit) || 200, 2000))};`, true).reverse(),
-  findFarmer: (phone) => sql(`SELECT id,name,phone FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
+  findFarmer: (phone) => sql(`SELECT id,name,phone,totp_secret IS NOT NULL AS authenticatorEnabled FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0] || null,
   createFarmer: (phone, name) => {
     sql(`INSERT INTO farmer_accounts(phone,name) VALUES(${quote(phone)},${quote(name)});`);
     return sql(`SELECT id,name,phone FROM farmer_accounts WHERE phone=${quote(phone)} COLLATE NOCASE;`, true)[0];
@@ -168,6 +173,10 @@ module.exports = {
     sql(`UPDATE farmer_accounts SET name=${quote(name)},phone=${quote(phone)} WHERE id=${Number(id)};`);
     return sql(`SELECT id,name,phone FROM farmer_accounts WHERE id=${Number(id)};`, true)[0] || null;
   },
+  farmerAuthenticator: (accountId) => sql(`SELECT totp_secret AS secret,pending_totp_secret AS pendingSecret FROM farmer_accounts WHERE id=${Number(accountId)};`, true)[0] || null,
+  setPendingAuthenticator: (accountId, secret) => sql(`UPDATE farmer_accounts SET pending_totp_secret=${quote(secret)} WHERE id=${Number(accountId)} AND totp_secret IS NULL;`),
+  enableAuthenticator: (accountId) => sql(`UPDATE farmer_accounts SET totp_secret=pending_totp_secret,pending_totp_secret=NULL WHERE id=${Number(accountId)} AND pending_totp_secret IS NOT NULL;`),
+  disableAuthenticator: (accountId) => sql(`UPDATE farmer_accounts SET totp_secret=NULL,pending_totp_secret=NULL WHERE id=${Number(accountId)};`),
   createFarmerSession: (tokenHash, accountId, expiresAt) => {
     sql(`DELETE FROM farmer_sessions WHERE expires_at<=${Number(Date.now())}; INSERT INTO farmer_sessions(token_hash,account_id,expires_at) VALUES(${quote(tokenHash)},${Number(accountId)},${Number(expiresAt)});`);
   },
