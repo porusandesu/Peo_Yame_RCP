@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const { once } = require("node:events");
 const test = require("node:test");
 const { authenticatorCode } = require("../authenticator");
@@ -168,6 +168,21 @@ test("phone account registration, password login, session restore, logout, and d
   const ownedSensors = await fetch(`${base}/api/farmer/sensors`, { headers: { authorization: `Bearer ${created.token}` } });
   assert.equal((await ownedSensors.json())[0].siteLabel, "Main store");
 
+  const earlySecondRegistration = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Sensor Contender", phone: "73334455", password: "another-correct-password" }),
+  });
+  assert.equal(earlySecondRegistration.status, 201);
+  const contender = await earlySecondRegistration.json();
+  const contestedLink = await fetch(`${base}/api/farmer/sensors`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${contender.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ sensorId: "sensor-001" }),
+  });
+  assert.equal(contestedLink.status, 409);
+  assert.match((await contestedLink.json()).error, /already linked/i);
+
   const selectionUpdates = Promise.all([
     webEvents.nextEventOfType("selection"),
     mobileEvents.nextEventOfType("selection"),
@@ -286,6 +301,13 @@ test("phone account registration, password login, session restore, logout, and d
     body: JSON.stringify({ phone: "71234567", password: "correct-horse-battery" }),
   });
   assert.equal(missingAuthenticator.status, 401);
+  const wrongAuthenticator = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: "71234567", password: "correct-horse-battery", authenticatorCode: "000000" }),
+  });
+  assert.equal(wrongAuthenticator.status, 401);
+  assert.match((await wrongAuthenticator.json()).error, /authenticator/i);
   const code = authenticatorCode(setup.secret);
   const protectedLogin = await fetch(`${base}/api/auth/login`, {
     method: "POST",
@@ -294,6 +316,25 @@ test("phone account registration, password login, session restore, logout, and d
   });
   assert.equal(protectedLogin.status, 200);
   const phoneSession = await protectedLogin.json();
+
+  const expiredWebChallengeResponse = await fetch(`${base}/api/auth/qr/web-challenge`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ serverBaseUrl: base }),
+  });
+  assert.equal(expiredWebChallengeResponse.status, 201);
+  const expiredWebChallenge = await expiredWebChallengeResponse.json();
+  execFileSync("sqlite3", [
+    path.join(directory, "accounts.sqlite"),
+    "UPDATE auth_challenges SET expires_at='2000-01-01T00:00:00.000Z';",
+  ]);
+  const expiredWebPoll = await fetch(`${base}/api/auth/qr/web-challenge/${expiredWebChallenge.challenge}`);
+  assert.equal(expiredWebPoll.status, 410);
+  const expiredApprove = await fetch(`${base}/api/auth/qr/web-challenge/${expiredWebChallenge.challenge}/approve`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${phoneSession.token}` },
+  });
+  assert.equal(expiredApprove.status, 410);
 
   const webChallengeResponse = await fetch(`${base}/api/auth/qr/web-challenge`, {
     method: "POST",
@@ -310,6 +351,11 @@ test("phone account registration, password login, session restore, logout, and d
     headers: { authorization: `Bearer ${phoneSession.token}` },
   });
   assert.equal(approveChallenge.status, 202);
+  const concurrentApprove = await fetch(`${base}/api/auth/qr/web-challenge/${webChallenge.challenge}/approve`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${phoneSession.token}` },
+  });
+  assert.equal(concurrentApprove.status, 409);
   const webLogin = await fetch(`${base}/api/auth/qr/web-challenge/${webChallenge.challenge}`);
   assert.equal(webLogin.status, 200);
   const webSession = await webLogin.json();

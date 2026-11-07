@@ -38,6 +38,8 @@ class DashboardController extends ChangeNotifier {
   bool demoMode = false;
   List<Threshold> crops = const [];
   String? errorMessage;
+  DateTime? lastSuccessfulAt;
+  bool get isOffline => _consecutiveFailures >= _offlineFailureThreshold;
 
   Timer? _timer;
   StreamSubscription<Map<String, dynamic>>? _eventSubscription;
@@ -48,10 +50,16 @@ class DashboardController extends ChangeNotifier {
   int _refreshGeneration = 0;
   bool _refreshInFlight = false;
   bool _refreshQueued = false;
+  int _consecutiveFailures = 0;
+  int _eventReconnectDelaySeconds = 2;
+  static const int _offlineFailureThreshold = 2;
+  static const int _maxEventReconnectDelaySeconds = 30;
 
   void startPolling({required bool demoMode}) {
     _timer?.cancel();
     this.demoMode = demoMode;
+    _consecutiveFailures = 0;
+    _eventReconnectDelaySeconds = 2;
     _refresh();
     _connectEvents();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
@@ -65,9 +73,12 @@ class DashboardController extends ChangeNotifier {
         StreamSubscription<Map<String, dynamic>>? subscription;
         final disconnected = Completer<void>();
         _eventDisconnect = disconnected;
+        var connected = false;
         try {
           final stream = await _api.watchUpdates();
           if (_disposed) break;
+          connected = true;
+          _eventReconnectDelaySeconds = 2;
           subscription = stream.listen(
             (event) {
               if (_disposed) return;
@@ -102,7 +113,13 @@ class DashboardController extends ChangeNotifier {
           }
         }
         if (!_disposed) {
-          await Future<void>.delayed(const Duration(seconds: 2));
+          if (!connected) {
+            _eventReconnectDelaySeconds = (_eventReconnectDelaySeconds * 2)
+                .clamp(2, _maxEventReconnectDelaySeconds);
+          }
+          await Future<void>.delayed(
+            Duration(seconds: _eventReconnectDelaySeconds),
+          );
         }
       }
     } finally {
@@ -223,12 +240,19 @@ class DashboardController extends ChangeNotifier {
       alerts = results[1] as List<Alert>;
       smsLog = results[2] as List<Map<String, dynamic>>;
       history = results[3] as List<Reading>;
+      _consecutiveFailures = 0;
+      lastSuccessfulAt = DateTime.now();
       errorMessage = null;
       await _loadTrends(notify: false);
     } catch (_) {
       if (_disposed || generation != _refreshGeneration) return;
-      errorMessage =
-          'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
+      _consecutiveFailures += 1;
+      // Tolerate one missed poll before treating the dashboard as offline so
+      // brief network blips do not present stale readings as a hard outage.
+      if (_consecutiveFailures >= _offlineFailureThreshold) {
+        errorMessage =
+            'No readings right now. Check your Wi-Fi and make sure the storage monitor is switched on.';
+      }
     } finally {
       _refreshInFlight = false;
       final shouldRefreshAgain = _refreshQueued && !_disposed;

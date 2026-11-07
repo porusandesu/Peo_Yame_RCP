@@ -6,7 +6,7 @@
 **Prior user base:** `43773e1` (`Add QR sign-in and account management actions`)
 **Prior `exe-work` tip before this port:** `c8926b7`
 **Source of verified fixes:** `pauls-branch` at `467e847` (rebuilt after `exe-work` login/OTP failures)
-**Current state:** The working demo, phone/password auth, QR SSO, branding, web/mobile parity, and Windows package from `pauls-branch` are now on `exe-work`. Old OTP request/skip-demo-verification paths from the post-`43773e1` `exe-work` line are removed. Remaining parity gaps and limits are listed below; physical-device and live-sensor end-to-end behavior are not verified.
+**Current state:** The working demo, phone/password auth, QR SSO, branding, web/mobile parity, and Windows package from `pauls-branch` are now on `exe-work`. Old OTP request/skip-demo-verification paths from the post-`43773e1` `exe-work` line are removed. Port commit `8a84056` CI run `42405581867` passed. Current worktree hardens offline freshness, login client-key throttling, and auth edge-case tests. Physical-device camera, live-sensor, and interactive tray checks remain unverified.
 
 ## User goal and durable constraints
 
@@ -51,29 +51,24 @@ Do these in order, updating this handoff as tasks finish:
 
 ### 1. Reconcile backend auth/session behavior and tests
 
-- Review `backend/server.js`, `database.js`, `farmer_auth.js`, and the entire `farmer-auth.test.js`; verify every route uses intended auth middleware and owner scoping. Confirm `AUTH_ENABLED` false in development leaves demo direct while farmer access clearly reports disabled; production auth must be usable.
-- Check server health route returns `authEnabled: AUTH_ENABLED` (Flutter checks `health['authEnabled']`; integration test asserts it).
-- Verify static hosting with `pkg`: `process.pkg` public path behavior may differ from `__dirname`; the packaged Windows health/dashboard/crop smoke test passed in run `42388143703`.
-- Continue reviewing expiry comparisons, rate limiting, duplicate registration races, invalid body handling and database errors. QR consumption/replay, session, ownership and normal auth integration cases pass; this is not an independent security audit.
-- Ensure one global sensor cannot be linked to multiple farmers. Current schema primary key on sensor_id prevents second ownership; check error and test it.
-- Broaden integration cases for TOTP required/wrong/correct, expired/concurrent QR challenges, restart/expiry edge cases and malformed values as needed.
-- Rate limiter is in-memory and per `clientKey` (review what `clientKey` actually receives; it may be a constant/default). If ineffective per caller, fix with a small auditable strategy or document limitation; never claim production-grade security.
+- Auth routes use `requireFarmer` / `AUTH_ENABLED` gating; health returns `authEnabled`.
+- Integration coverage now includes duplicate sensor ownership (409), missing/wrong/correct TOTP, expired QR, concurrent approve, and replay rejection.
+- Login throttling keys on `loginClientKey(req)` (`req.ip`, or first `X-Forwarded-For` hop when `TRUST_PROXY=true`). Remains process-local; documented in `backend/DEPLOYMENT.md`.
+- Packaged Windows health/dashboard/crop smoke test passed in run `42405581867`. This is not an independent security audit.
 
 ### 2. Review and verify the Web experience
 
-- Gate, registration/login, `sessionStorage` restore/logout, browser QR polling, phone QR creation, profile edit, and owner-scoped site/sensor controls are wired. Backend and static-entry CI passed; review browser interactions, expiry cleanup, XSS-safe interpolation and failure states.
-- Keep shared Demo session-free and visibly separate. Global readings/status remain shared demo telemetry, not farmer-isolated data.
-- Browser TOTP setup/disable is not implemented; do not imply the browser supports account security controls it does not have.
+- Gate, registration/login, session restore/logout, both QR directions, profile edit, TOTP setup/disable, and owner-scoped site/sensor controls are wired with escaped HTML interpolation.
+- Shared Demo stays session-free and visibly separate. Global readings remain shared demo telemetry.
+- Browser interactive acceptance is still outstanding.
 
 ### 3. Finish mobile feature parity
 
-- Five destinations now appear in this order: **Overview, Trends, My Crops, Alerts, Settings**, with **My Crops in the center**. Demo catalog and crop selection use shared APIs; the Flutter widget test and APK build pass in run `42388143703`.
-- Mobile farmer-owned site creation/deletion and real-sensor discovery/assignment/unlink are implemented in the current unverified increment. They remain separate from Demo's shared catalog; do not expose fabricated sensors.
-- Existing scanner exchanges phone QR while signed out and approves browser QR only from authenticated phone. Verify backend URL/token preservation and scanner/client disposal. Add reverse mobile QR flow if needed by UX.
-- Mobile Accounts and Settings edit the farmer name through the authenticated profile endpoint; the profile name refreshes on screen after the server confirms. Flutter navigation and backend endpoint assertions pass in run `42394803726`. Sign-out should revoke session and clear saved token even if server unreachable.
-- Check phone UI for Botswana formatting, errors, password validation, loading, keyboard behavior, saved backend address, app lifecycle, camera permission/denial and QR expiry. Demo must work even if backend check times out.
-- Inspect `DashboardController` SSE and polling fallback. Add bounded retry/backoff/failure status and offline freshness/last-seen. Never present stale data as current. Avoid unrelated complexity.
-- Add mobile profile edit and authenticator disable controls if required; check account destination callback indexes after navigation changes.
+- Five destinations: **Overview, Trends, My Crops, Alerts, Settings** with My Crops centered.
+- Owned site/sensor management, profile edit, authenticator setup/disable, and Accounts QR flows are implemented.
+- `DashboardController` now uses a two-failure offline threshold, records `lastSuccessfulAt`, labels last-known readings when offline, and applies bounded SSE reconnect backoff.
+- Sign-out clears the saved token even if the server is unreachable.
+- Physical camera, permission denial, and live-sensor connectivity remain unverified.
 
 ### 4. Windows executable/tray
 
@@ -94,7 +89,7 @@ Do these in order, updating this handoff as tasks finish:
 ### 6. CI, commit and push
 
 - After implementation review, inspect `git diff --check`, `git status --short`, full diff in chunks; ensure old `backend/vendor/sqlite3.exe` is not staged.
-- Do not run local tests/builds. Push to `pauls-branch` (persistent user authorization), let GitHub Actions run Android + Linux backend + Windows tests/package, then inspect every job/log/artifact. Existing approved command prefixes include `git push`, `gh run list`, `gh run view`, `gh run watch`; if network is blocked, use the tool’s escalated command path.
+- Do not run local tests/builds. Push to `exe-work` (user-authorized), let GitHub Actions run Android + Linux backend + Windows tests/package, then inspect every job/log/artifact. Existing approved command prefixes include `git push`, `gh run list`, `gh run view`, `gh run watch`; if network is blocked, use the tool’s escalated command path.
 - Fix failures and push corrections. Don’t stop at Linux pass if Windows is red; the Windows executable/tray is a product requirement.
 - Commit only coherent reviewed changes and avoid committing user/local files.
 

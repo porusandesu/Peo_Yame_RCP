@@ -293,6 +293,18 @@ function authUnavailable(res) {
   res.status(404).json({ error: "Farmer sign-in is disabled for this demo backend." });
 }
 
+function loginClientKey(req) {
+  // In-memory limiter is per process only. Behind a reverse proxy set
+  // TRUST_PROXY=true so the first X-Forwarded-For hop is used; otherwise the
+  // direct socket address is used. This is a basic abuse brake, not a
+  // production-grade distributed rate limit.
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (forwarded) return forwarded.slice(0, 128);
+  }
+  return req.ip || req.socket?.remoteAddress || "unknown";
+}
+
 function bearerToken(req) {
   const header = req.get("authorization") || "";
   const match = header.match(/^Bearer\s+([A-Za-z0-9_-]{32,128})$/i);
@@ -329,7 +341,7 @@ app.post("/api/auth/register", (req, res) => {
 app.post("/api/auth/login", (req, res) => {
   if (!AUTH_ENABLED) return authUnavailable(res);
   try {
-    const session = farmerAuth.login({ ...(req.body || {}), clientKey: req.ip });
+    const session = farmerAuth.login({ ...(req.body || {}), clientKey: loginClientKey(req) });
     return res.json(session);
   } catch (error) { return authFailure(res, error); }
 });

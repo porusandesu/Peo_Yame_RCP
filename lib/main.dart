@@ -1072,7 +1072,7 @@ class _DashboardPageState extends State<DashboardPage> {
       animation: _controller,
       builder: (context, _) {
         final connected =
-            _controller.status != null && _controller.errorMessage == null;
+            _controller.status != null && !_controller.isOffline;
         final status = _controller.status;
         return Scaffold(
           appBar: AppBar(
@@ -1146,7 +1146,7 @@ class _DashboardPageState extends State<DashboardPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
       children: [
-        if (_controller.errorMessage != null) ...[
+        if (_controller.isOffline && _controller.errorMessage != null) ...[
           _ErrorBanner(message: _controller.errorMessage!),
           const SizedBox(height: 12),
         ],
@@ -1168,7 +1168,11 @@ class _DashboardPageState extends State<DashboardPage> {
     ),
     const SizedBox(height: 16),
     if (status != null) ...[
-      _StatusHero(status: status, offline: _controller.errorMessage != null),
+      _StatusHero(
+        status: status,
+        offline: _controller.isOffline,
+        lastSuccessfulAt: _controller.lastSuccessfulAt,
+      ),
       const SizedBox(height: 14),
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1412,7 +1416,11 @@ class _DashboardPageState extends State<DashboardPage> {
       ] else if (status?.breached ?? false) ...[
         const _SectionTitle(title: 'Needs attention'),
         const SizedBox(height: 8),
-        _StatusHero(status: status!, offline: _controller.errorMessage != null),
+        _StatusHero(
+          status: status!,
+          offline: _controller.isOffline,
+          lastSuccessfulAt: _controller.lastSuccessfulAt,
+        ),
         const SizedBox(height: 16),
       ],
       _SectionTitle(
@@ -1607,9 +1615,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       Text(
-                        status != null && _controller.errorMessage == null
+                        status != null && !_controller.isOffline
                             ? 'Demo readings are coming in'
-                            : 'Waiting for the storage monitor',
+                            : _controller.isOffline
+                                ? 'Monitor offline · last known readings kept'
+                                : 'Waiting for the storage monitor',
                         style: const TextStyle(
                           color: Color(0xFF65776F),
                           fontSize: 12,
@@ -1621,7 +1631,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 Icon(
                   Icons.circle,
                   size: 9,
-                  color: status != null && _controller.errorMessage == null
+                  color: status != null && !_controller.isOffline
                       ? const Color(0xFF46A56A)
                       : const Color(0xFFD9A441),
                 ),
@@ -2095,10 +2105,15 @@ class _FarmerGreeting extends StatelessWidget {
 }
 
 class _StatusHero extends StatelessWidget {
-  const _StatusHero({required this.status, this.offline = false});
+  const _StatusHero({
+    required this.status,
+    this.offline = false,
+    this.lastSuccessfulAt,
+  });
 
   final StatusResponse status;
   final bool offline;
+  final DateTime? lastSuccessfulAt;
 
   @override
   Widget build(BuildContext context) {
@@ -2109,6 +2124,15 @@ class _StatusHero extends StatelessWidget {
         : breached
         ? const Color(0xFF8E342E)
         : _forest;
+    final freshnessLabel = offline
+        ? lastSuccessfulAt != null
+            ? 'Last live sync ${_relativeTime(lastSuccessfulAt!.toIso8601String())} · showing last known'
+            : latest == null
+                ? 'Waiting for the first reading'
+                : 'Last reading ${_relativeTime(latest.recordedAt)} · reconnecting'
+        : latest == null
+            ? 'Waiting for the first reading'
+            : 'Last synced ${_relativeTime(latest.recordedAt)}';
     return Container(
       padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
@@ -2161,11 +2185,7 @@ class _StatusHero extends StatelessWidget {
           ),
           const SizedBox(height: 7),
           Text(
-            latest == null
-                ? 'Waiting for the first reading'
-                : offline
-                ? 'Last reading ${_relativeTime(latest.recordedAt)} · reconnecting'
-                : 'Last synced ${_relativeTime(latest.recordedAt)}',
+            freshnessLabel,
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
           if (latest != null) ...[

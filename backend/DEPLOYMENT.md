@@ -11,7 +11,7 @@ Download the `peo-yame-backend-windows` artifact from a successful Actions run. 
 ## Run for production
 
 1. Install dependencies with `npm ci` and install SQLite 3 on the host.
-2. Set `NODE_ENV=production`, `PORT`, `HOST`, `DATABASE_PATH`, and `CORS_ORIGINS` (comma-separated exact browser origins, if the browser dashboard is used).
+2. Set `NODE_ENV=production`, `PORT`, `HOST`, `DATABASE_PATH`, and `CORS_ORIGINS` (comma-separated exact browser origins, if the browser dashboard is used). Set `TRUST_PROXY=true` only when a trusted reverse proxy forwards `X-Forwarded-For`, so login throttling keys on the client address rather than the proxy.
 3. Put the API behind an HTTPS reverse proxy and allow sensor/app traffic only through the intended network path.
 4. Back up the database using SQLite's online backup API or a coordinated backup procedure. Do not copy only the main database file while it is actively using WAL mode.
 
