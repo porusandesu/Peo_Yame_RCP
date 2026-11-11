@@ -4,13 +4,15 @@
 
 The user reports the Windows app still does not launch and has explicitly
 directed that the backend and web dashboard be consolidated into one executable
-that starts everything without setup or prompts. Work is underway on commit
-`a30686b` plus uncommitted changes: embed Node, SQLite dependencies, backend,
-dashboard and icon in a self-contained Windows executable; extract into
-LocalAppData silently; select an available loopback port; start the backend and
-open the browser automatically. The isolated one-file startup check is pending
-GitHub Actions. Do not tell the user this new executable works until that CI
-check passes and artifact exists. v81 verifies the preceding ZIP build only.
+that starts everything without setup or prompts. Commit `a7e8e41` implements
+embedding Node, SQLite dependencies, backend, dashboard and icon in a
+self-contained executable; silent extraction into LocalAppData; free loopback
+port selection; backend start; and automatic browser launch. v82 Windows CI
+failed at publish because MSBuild resolved the resource paths relative to the
+`windows/` project directory. The workflow now passes absolute bundle and icon
+paths; that correction is pending push and CI. Do not tell the user the new
+executable works until isolated startup verification passes and an artifact
+exists. v81 only verifies the preceding ZIP build.
 
 Active session management has now passed CI v81 (backend, Android analysis,
 widget test and APK; Windows package still used prior ZIP layout). v80 failed

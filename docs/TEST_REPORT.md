@@ -50,6 +50,17 @@ Commit: `a30686b7558ff23eab6ed31ab8fb47e8d6a0475d`.
 - Windows backend packaging and lifecycle self-test passed; artifact `Peo Yame v81 Windows` uploaded. This is still the ZIP format and does not verify the new standalone executable.
 - No local app builds or tests were run.
 
+## GitHub Actions v82 — Windows publish failed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43090910626
+Commit: `a7e8e417d5b78492a3adf4ba4b6079bcd2a19c32`.
+
+- Backend tests passed.
+- Android analysis passed; the release build was still running when Windows publish failed.
+- Windows prepared the embedded bundle, then publish failed because MSBuild resolved the relative embedded-resource paths from `windows/` and could not find `PeoYame.bundle.zip`. No standalone artifact or startup check was produced.
+- The workflow now resolves the bundle and icon to absolute paths before publish. This correction is not yet CI-verified.
+- No local app builds or tests were run.
+
 ## GitHub Actions v69
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43050967745

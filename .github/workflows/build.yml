@@ -92,7 +92,7 @@ jobs:
           $icon.Dispose()
           $brand.Dispose()
       - name: Publish one-file app
-        run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:BuildNumber=${{ github.run_number }} -p:PeoYameBundlePath=PeoYame.bundle.zip -p:PeoYameIconPath=PeoYame.ico -o publish
+        run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:BuildNumber=${{ github.run_number }} "-p:PeoYameBundlePath=$((Resolve-Path 'PeoYame.bundle.zip').Path)" "-p:PeoYameIconPath=$((Resolve-Path 'PeoYame.ico').Path)" -o publish
       - name: Verify standalone executable startup and package artifact
         shell: pwsh
         run: |
