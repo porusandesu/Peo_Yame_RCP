@@ -11,6 +11,15 @@ Commit: `c1f01a3e737a12aebc3a880eccced887c17cabe4`.
 - This run verifies the backend regex and Android compile/API corrections. It does not cover the pending design pass, full QR security, installer, encryption, sensors, or manual visual/device checks.
 - No local app builds or tests were run.
 
+## GitHub Actions v78 — failed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43086745905
+Commit: `7a29c8368d1979e0bd4a2d84f1082d77f6e39117`.
+
+- Backend and Windows jobs failed because a static web assertion expected the mobile-only Welcome heading on the web split sign-in gate. The backend estimate assertions passed.
+- Android widget compilation failed because the welcome logo container used an integer for `Container.padding` instead of `EdgeInsets`.
+- Both source issues are corrected in the following revision; v79 is pending. No local app builds or tests were run.
+
 ## GitHub Actions v69
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43050967745

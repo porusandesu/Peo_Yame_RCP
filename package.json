@@ -1,0 +1,8 @@
+{
+  "name": "peo-yame",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix backend start",
+    "test": "npm --prefix backend test"
+  }
+}

@@ -40,6 +40,11 @@ test/analyzer/release APK, and Windows packaged backend lifecycle checks. Both
 Android and Windows ZIP artifacts were uploaded. This verifies the compile
 blocker fix, not the pending visual changes or the full product scope.
 
+Run `43086745905` (v78), commit `7a29c8368d1979e0bd4a2d84f1082d77f6e39117`,
+failed: the web static test asserted a mobile welcome heading on the web sign-in
+gate, and Android compilation found an integer `Container.padding`. Both are
+fixed in the next commit; v79 is pending.
+
 Latest run: `43057685000`, commit `ed281252abed97c99977194f681bf00c6cd8821d`, branch `exe-work`. All three jobs failed:
 - Backend job `130651439714`: `backend/src/server.js:53` throws `SyntaxError: Invalid regular expression flags`. CI displayed a malformed escaped regex in `lanBase` (including the public URL trailing slash regex and private IPv4 patterns). This prevents server startup and causes the API test failure “backend did not start”.
 - Android job `130651439605`: Dart compile errors in `mobile/lib/main.dart`: line 22 malformed `catch`; line 61 “Not a constant expression”; `LocalAuthentication.authenticate` has no named parameter `options` for the selected dependency version. Android release build was skipped.
