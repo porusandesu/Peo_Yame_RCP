@@ -8,11 +8,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:local_auth/local_auth.dart';
 
 void main()=>runApp(const PeoYameApp());
-const brand=Color(0xff245f49);
+const brand=Color(0xff176b4d);
 const secure=FlutterSecureStorage();
 class PeoYameApp extends StatelessWidget{
   const PeoYameApp({super.key});
-  @override Widget build(BuildContext context)=>MaterialApp(title:'Peo Yame',theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:brand),useMaterial3:true),home:const Home());
+  @override Widget build(BuildContext context)=>MaterialApp(title:'Peo Yame',theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:brand),scaffoldBackgroundColor:const Color(0xfff1f6f2),appBarTheme:const AppBarTheme(backgroundColor:Color(0xff112821),foregroundColor:Colors.white),inputDecorationTheme:const InputDecorationTheme(border:OutlineInputBorder(borderSide:BorderSide(color:Color(0xff768a80)))),useMaterial3:true),home:const Home());
 }
 class Home extends StatefulWidget{const Home({super.key});@override State<Home> createState()=>_HomeState();}
 class _HomeState extends State<Home>{
@@ -52,14 +52,14 @@ class _HomeState extends State<Home>{
   void _message(Object e)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));
   String? get estimateText{final e=status['estimate'];if(offline||status['stale']==true||e==null)return null;final r=e['rangeWeeks'];if(r is! List||r.length<2)return null;return 'About '+r[0].toString()+'–'+r[1].toString()+' weeks';}
   Widget card(Widget child)=>Card(child:Padding(padding:const EdgeInsets.all(16),child:child));
-  Widget button(String label,VoidCallback action,{bool primary=false})=>SizedBox(width:double.infinity,child:Padding(padding:const EdgeInsets.only(top:8),child:FilledButton(style:primary?null:FilledButton.styleFrom(backgroundColor:const Color(0xffe4efe8),foregroundColor:brand),onPressed:busy?null:action,child:Text(label))));
+  Widget button(String label,VoidCallback action,{bool primary=false})=>SizedBox(width:double.infinity,child:Padding(padding:const EdgeInsets.only(top:8),child:FilledButton(style:primary?null:FilledButton.styleFrom(backgroundColor:const Color(0xffe1f0e6),foregroundColor:brand),onPressed:busy?null:action,child:Text(label))));
   Widget input(String label,TextEditingController c,{bool secret=false,String? hint,TextInputType? type})=>Padding(padding:const EdgeInsets.only(bottom:12),child:TextField(controller:c,obscureText:secret,keyboardType:type,decoration:InputDecoration(labelText:label,hintText:hint,border:const OutlineInputBorder(),isDense:true)));
   @override Widget build(BuildContext context){
     if(screen=='camera-rationale')return _rationale();
     if(screen=='scanner')return _scanner();
     if(screen=='waiting')return _waiting();
     if(screen=='app')return _app();
-    return Scaffold(backgroundColor:const Color(0xfff5f7f3),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:520),child:ListView(padding:const EdgeInsets.all(24),shrinkWrap:true,children:[
+    return Scaffold(backgroundColor:const Color(0xfff1f6f2),body:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:520),child:ListView(padding:const EdgeInsets.all(24),shrinkWrap:true,children:[
       Image.asset('assets/brand/PeoYame-Sorghum-Logo-Master.png',width:72,height:72,alignment:Alignment.centerLeft),
       const SizedBox(height:12),const Text('Welcome to\nPeo Yame',style:TextStyle(fontSize:34,fontWeight:FontWeight.w700,color:brand)),
       const SizedBox(height:10),const Text('Monitor storage conditions and check your crops by hand.'),
