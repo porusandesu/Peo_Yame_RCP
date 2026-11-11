@@ -52,7 +52,7 @@ jobs:
           flutter test
           flutter analyze --no-fatal-infos
           flutter build apk --release
-          python3 -c 'import zipfile; z=zipfile.ZipFile("build/app/outputs/flutter-apk/app-release.apk"); n=z.namelist(); assert any(x.endswith("/mipmap-xxxhdpi-v4/ic_launcher.png") for x in n); assert any("mipmap-anydpi-v26" in x and "ic_launcher" in x for x in n)'
+          python3 -c 'import re,zipfile; z=zipfile.ZipFile("build/app/outputs/flutter-apk/app-release.apk"); n=z.namelist(); assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher\.png$",x) for x in n), "xxxhdpi launcher icon missing from APK"; assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher_round\.png$",x) for x in n), "round launcher icon missing from APK"; assert any(re.search(r"/mipmap-anydpi-v26(-v\d+)?/ic_launcher\.xml$",x) for x in n), "adaptive launcher icon missing from APK"'
       - run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v4
         with:
@@ -125,7 +125,17 @@ jobs:
               if (Test-Path $log) { Get-Content $log }
               throw "Normal Windows launch did not bring up backend/dashboard."
             }
-            if (!(Get-Content $trace -Raw).Contains("Dashboard launch target: http://127.0.0.1:31886/")) { throw "Dashboard launch not requested." }
+            $traceOk = $false
+            for ($i = 0; $i -lt 20 -and !$traceOk; $i++) {
+              if (Test-Path $trace) { $traceOk = (Get-Content $trace -Raw).Contains("Dashboard launch target: http://127.0.0.1:31886/") }
+              if (!$traceOk) { Start-Sleep -Milliseconds 500 }
+            }
+            if (!$traceOk) {
+              if (Test-Path $trace) { Write-Host "--- launch trace ---"; Get-Content $trace }
+              $log = Join-Path $data "logs/app.log"
+              if (Test-Path $log) { Write-Host "--- app log ---"; Get-Content $log }
+              throw "Dashboard launch not requested."
+            }
             $body = @{ name="Windows Launch Check"; phone="71234567"; password="windows-launch-check-password" } | ConvertTo-Json
             $account = Invoke-RestMethod "http://127.0.0.1:31886/api/account/register" -Method Post -ContentType "application/json" -Body $body
             if (!$account.token) { throw "Windows account registration failed." }
