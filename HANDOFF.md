@@ -1,8 +1,11 @@
 # Peo Yame — build handoff and resume plan
 
-## Current state: PAUSED by user
+## Current state: ACTIVE — user resumed on 2026-11-11
 
-The user said: “stop write all your next steps into the hand off file as well as the context of the conersation so i can pick up where i left off later on”. Do not continue implementation, fix the current build, launch Actions, or claim completion until the user resumes the build. The user previously authorized all actions through a successful build, but this most recent instruction pauses active work. This document is the restart point.
+The user resumed the build and directed Codex to follow the supplied CSS files
+and SVG designs. The previous pause is lifted. Continue on the current scratch
+rebuild only; do not reuse the retired application code. Do not run local app
+builds or tests. Use GitHub Actions and keep this handoff current.
 
 ## Conversation context and binding instructions
 
@@ -30,6 +33,12 @@ New requirements just added by the user:
 3. The backend must ultimately be integrated into a Windows installer so installation sets up and launches the complete app.
 
 ## Latest GitHub Actions evidence
+
+Run `43081552333` (Peo Yame v77), commit
+`c1f01a3e737a12aebc3a880eccced887c17cabe4`, passed backend tests, Android widget
+test/analyzer/release APK, and Windows packaged backend lifecycle checks. Both
+Android and Windows ZIP artifacts were uploaded. This verifies the compile
+blocker fix, not the pending visual changes or the full product scope.
 
 Latest run: `43057685000`, commit `ed281252abed97c99977194f681bf00c6cd8821d`, branch `exe-work`. All three jobs failed:
 - Backend job `130651439714`: `backend/src/server.js:53` throws `SyntaxError: Invalid regular expression flags`. CI displayed a malformed escaped regex in `lanBase` (including the public URL trailing slash regex and private IPv4 patterns). This prevents server startup and causes the API test failure “backend did not start”.

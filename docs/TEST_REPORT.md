@@ -1,5 +1,16 @@
 # Test report
 
+## GitHub Actions v77
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43081552333
+Commit: `c1f01a3e737a12aebc3a880eccced887c17cabe4`.
+
+- Backend tests: passed.
+- Android widget test and analyzer: passed; Android release APK built and uploaded as `Peo Yame v77 Android`.
+- Windows packaged backend lifecycle test: passed; ZIP uploaded as `Peo Yame v77 Windows`.
+- This run verifies the backend regex and Android compile/API corrections. It does not cover the pending design pass, full QR security, installer, encryption, sensors, or manual visual/device checks.
+- No local app builds or tests were run.
+
 ## GitHub Actions v69
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43050967745
