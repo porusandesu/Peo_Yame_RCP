@@ -1,5 +1,5 @@
 name: Peo Yame build
-run-name: Peo Yame v${{ github.run_number }}
+run-name: Peo Yame v${{ github.run_number }} — Windows launch validation
 on:
   push:
     branches: [exe-work]
@@ -7,10 +7,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: peo-yame-build
+  group: peo-yame-launch-validation
   cancel-in-progress: false
 jobs:
   backend:
+    name: Backend API tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +24,7 @@ jobs:
           npm install
           npm test
   android:
+    name: Android APK with Peo Yame launcher icon
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,30 +35,31 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Generate Android project
-        working-directory: mobile
-        run: flutter create --platforms=android --org com.peoyame --project-name monitor .
-      - name: Configure demo LAN access and brand icon
+      - name: Generate Android project and install launcher assets
         working-directory: mobile
         run: |
+          flutter create --platforms=android --org com.peoyame --project-name monitor .
           python3 android-configure.py
           mkdir -p android/app/src/main/res/drawable
           cp ../assets/peo-yame-512.png android/app/src/main/res/drawable/peo_yame_logo.png
-      - name: Test and analyze Android client
+          grep -q 'android:icon="@mipmap/ic_launcher"' android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+      - name: Test, analyze, build APK, and verify packaged launcher icons
         working-directory: mobile
         run: |
           flutter pub get
           flutter test
           flutter analyze --no-fatal-infos
-      - name: Build Android release
-        working-directory: mobile
-        run: flutter build apk --release
-      - name: Name Android release
-        run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
+          flutter build apk --release
+          python3 -c 'import zipfile; z=zipfile.ZipFile("build/app/outputs/flutter-apk/app-release.apk"); n=z.namelist(); assert any(x.endswith("/mipmap-xxxhdpi-v4/ic_launcher.png") for x in n); assert any("mipmap-anydpi-v26" in x and "ic_launcher" in x for x in n)'
+      - run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Peo Yame v${{ github.run_number }} Android
           path: Peo Yame v${{ github.run_number }}.apk
+          if-no-files-found: error
+          compression-level: 0
   windows:
     runs-on: windows-latest
     steps:
@@ -67,54 +70,83 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Install backend dependencies and test
+      - name: Install backend dependencies
         working-directory: backend
-        run: |
-          npm install
-          npm test
-      - name: Embed backend runtime and brand assets
+        run: npm install
+      - name: Embed backend and icon
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path runtime/src, runtime/public, runtime/node_modules | Out-Null
           Copy-Item backend/src/server.js runtime/src/server.js
           Copy-Item backend/public/* runtime/public -Recurse -Force
-          Copy-Item assets/peo-yame-512.png runtime/public/assets/peo-yame-512.png -Force
           Copy-Item backend/node_modules/* runtime/node_modules -Recurse -Force
           Copy-Item (Get-Command node).Source runtime/node.exe
           Compress-Archive -Path runtime/* -DestinationPath PeoYame.bundle.zip -Force
-          Add-Type -AssemblyName System.Drawing
-          $brand = [System.Drawing.Image]::FromFile((Resolve-Path "assets/peo-yame-512.png"))
-          $iconHandle = $brand.GetHicon()
-          $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
-          $iconStream = [System.IO.File]::Create("PeoYame.ico")
-          $icon.Save($iconStream)
-          $iconStream.Dispose()
-          $icon.Dispose()
-          $brand.Dispose()
-      - name: Publish one-file app
-        run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:BuildNumber=${{ github.run_number }} "-p:PeoYameBundlePath=$((Resolve-Path 'PeoYame.bundle.zip').Path)" "-p:PeoYameIconPath=$((Resolve-Path 'PeoYame.ico').Path)" -o publish
-      - name: Verify standalone executable startup and package artifact
+          if ((Get-Item windows/assets/PeoYame.ico).Length -lt 1024) { throw "Approved Windows icon missing." }
+      - name: Publish single-file Windows app
         shell: pwsh
         run: |
-          $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peo-yame-lifecycle"
-          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $env:RUNNER_TEMP "peo-yame-self-test.log"
-          if (Test-Path "publish/backend") { throw "Backend files must be embedded in the standalone executable." }
-          $standalone = Join-Path $env:RUNNER_TEMP "peoyame-standalone"
-          New-Item -ItemType Directory -Force -Path $standalone | Out-Null
-          Copy-Item "publish/Peo Yame.exe" (Join-Path $standalone "Peo Yame.exe")
-          $selfTest = Start-Process -FilePath (Join-Path $standalone "Peo Yame.exe") -WorkingDirectory $standalone -ArgumentList "--self-test" -PassThru -Wait
-          if ($selfTest.ExitCode -ne 0) {
-            if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }
-            $testFile = Join-Path $env:TEMP "PeoYame-self-test.log"
-            if (Test-Path $testFile) { Get-Content $testFile }
-            Get-ChildItem $env:TEMP -Filter "self-test.log" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }
-            throw "Windows backend lifecycle check failed"
+          $bundle = (Resolve-Path PeoYame.bundle.zip).Path
+          $icon = (Resolve-Path windows/assets/PeoYame.ico).Path
+          dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:BuildNumber=${{ github.run_number }} "-p:PeoYameBundlePath=$bundle" "-p:PeoYameIconPath=$icon" -o publish
+      - name: Launch normal app from isolated executable and verify service
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "peoyame-launch"
+          $data = Join-Path $env:RUNNER_TEMP "peoyame-launch-data"
+          $exe = Join-Path $root "Peo Yame.exe"
+          $trace = Join-Path $root "launch.log"
+          New-Item -ItemType Directory -Force -Path $root, $data | Out-Null
+          Copy-Item "publish/Peo Yame.exe" $exe
+          if (@(Get-ChildItem $root -Force).Count -ne 1) { throw "Isolated launch folder must contain only the executable." }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if ($null -eq $icon) { throw "Windows executable icon is missing." }
+          $icon.Dispose()
+          $env:PEO_YAME_DATA_DIR = $data
+          $env:PEO_YAME_SELF_TEST_LOG = $trace
+          $env:PEO_YAME_NO_BROWSER = "true"
+          $env:PORT = "31886"
+          $app = Start-Process -FilePath $exe -WorkingDirectory $root -PassThru
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($app.HasExited) { break }
+              try {
+                $health = Invoke-RestMethod "http://127.0.0.1:31886/api/health" -TimeoutSec 2
+                $page = Invoke-WebRequest "http://127.0.0.1:31886/" -TimeoutSec 2
+                if ($health.ok -and $page.Content.Contains("<title>Peo Yame</title>")) { $ok = $true; break }
+              } catch {}
+              Start-Sleep 1
+            }
+            if (!$ok) {
+              if (Test-Path $trace) { Get-Content $trace }
+              $log = Join-Path $data "logs/app.log"
+              if (Test-Path $log) { Get-Content $log }
+              throw "Normal Windows launch did not bring up backend/dashboard."
+            }
+            if (!(Get-Content $trace -Raw).Contains("Dashboard launch target: http://127.0.0.1:31886/")) { throw "Dashboard launch not requested." }
+            $body = @{ name="Windows Launch Check"; phone="71234567"; password="windows-launch-check-password" } | ConvertTo-Json
+            $account = Invoke-RestMethod "http://127.0.0.1:31886/api/account/register" -Method Post -ContentType "application/json" -Body $body
+            if (!$account.token) { throw "Windows account registration failed." }
+            Write-Host "WINDOWS_NORMAL_LAUNCH_OK"
+          } finally {
+            if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue }
+            Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -like "*src/server.js*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
           }
-          if (!(Get-Content $env:PEO_YAME_SELF_TEST_LOG -Raw).Contains("Dashboard launch target: http://127.0.0.1:")) {
-            throw "Standalone executable did not request opening the dashboard."
-          }
+      - name: Verify backend restart/reset lifecycle
+        shell: pwsh
+        run: |
+          $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peoyame-self-test"
+          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $env:RUNNER_TEMP "peoyame-self-test.log"
+          $env:PEO_YAME_NO_BROWSER = "true"
+          $env:PORT = "31887"
+          $test = Start-Process -FilePath "publish/Peo Yame.exe" -WorkingDirectory (Get-Location).Path -ArgumentList "--self-test" -PassThru -Wait
+          if ($test.ExitCode -ne 0) { if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }; throw "Backend lifecycle test failed." }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: Peo Yame v${{ github.run_number }} Windows
           path: publish/Peo Yame v${{ github.run_number }}.exe
+          if-no-files-found: error
+          compression-level: 0

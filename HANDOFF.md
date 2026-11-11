@@ -1,22 +1,18 @@
 # Peo Yame — build handoff and resume plan
 
+## Correction to the Windows launch history — 2026-11-11
+
+The user reports that the v83 Windows app did not launch its backend in actual Windows use. The earlier v83 “passed startup” wording was wrong for the user's reported outcome: v83 CI passed only the special --self-test path and did not launch the normal tray app. v84 also tested a dashboard URL marker from that self-test rather than normal app startup; v85 reused that insufficient check. Do not treat v83–v85 as proof the normal Windows app works. The new workflow must start the unmodified single executable normally from a clean folder on Windows and verify its live backend and dashboard.
+
+The Android APK was using Flutter-generated launcher icons; its brand PNG only appeared in app content. The Windows executable embedded a tray icon but did not set its executable icon. Current source now installs the supplied Android density/adaptive launcher assets and sets the supplied Windows ICO as both executable and tray icon. Verify those assets in the next CI build.
+
+Source baseline is commit 9519a2d (v87 export changes) in /home/porusandesu/Documents/Peo_Yame_Rebuilt; this pending change adds the rebuilt Windows launch check and corrected app icons. Runs v85–v87 used the old Actions concurrency group; v85's Android artifact upload was still active and v86/v87 were queued. The replacement workflow uses a different group. It launches the normal executable, checks health/dashboard/account registration, then separately checks restart/reset/stop. Android CI checks branded launcher resources in the APK. No local app builds or tests.
+
 ## Current state: ACTIVE — user resumed on 2026-11-11; latest update 2026-11-11
 
 The user reports the Windows app still does not launch and has explicitly
 directed that the backend and web dashboard be consolidated into one executable
-that starts everything without setup or prompts. Commit `a7e8e41` implements
-embedding Node, SQLite dependencies, backend, dashboard and icon in a
-self-contained executable; silent extraction into LocalAppData; free loopback
-port selection; backend start; and automatic browser launch. v82 Windows CI
-failed at publish because MSBuild resolved the resource paths relative to the
-`windows/` project directory. v83 passed the standalone executable publish and
-isolated startup/health/dashboard checks and produced `Peo Yame v83 Windows`
-(107,262,737 bytes). v84 passed the assertion that the standalone executable
-requests opening the browser URL and produced `Peo Yame v84 Windows`
-(107,264,219 bytes). Android tests and APK build also passed. The CI host does
-not visually observe a browser window. A fresh crop-inspection reminder feature
-is in source and is pending verification in v85. v81 only verifies the
-preceding ZIP build.
+that starts everything without setup or prompts. The v82 Windows publish failed because MSBuild resolved embedded resource paths relative to the windows project. The user reports that the v83 Windows app did not launch its backend in normal use. v83-v85 CI checks used the special self-test path, not normal tray startup, so those checks were insufficient. A replacement Windows workflow now tests normal launch from a clean folder. v81 only verifies the preceding ZIP build.
 
 Active session management has now passed CI v81 (backend, Android analysis,
 widget test and APK; Windows package still used prior ZIP layout). v80 failed

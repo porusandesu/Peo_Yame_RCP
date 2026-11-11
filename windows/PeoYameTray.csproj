@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Peo Yame</AssemblyName>
     <Version Condition="'$(BuildNumber)' != ''">1.0.$(BuildNumber)</Version>
+    <ApplicationIcon Condition="'$(PeoYameIconPath)' != ''">$(PeoYameIconPath)</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup Condition="'$(PeoYameBundlePath)' != ''">
     <EmbeddedResource Include="$(PeoYameBundlePath)" LogicalName="PeoYame.bundle.zip" />

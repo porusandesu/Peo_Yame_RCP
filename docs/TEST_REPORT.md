@@ -1,5 +1,9 @@
 # Test report
 
+## Correction: Windows startup claims for v83–v85
+
+The user reports that the v83 Windows app did not launch its backend in normal Windows use. The prior CI result covered only the special --self-test code path and did not launch the normal tray app. v84's dashboard launch-target assertion also ran within --self-test. Those results do not establish that the actual Windows app starts correctly. The v85 normal-launch result remains unverified for the same reason. A replacement workflow is pending that starts the executable normally from a clean folder and verifies live health, dashboard HTML, and account registration. CI suppresses the visible browser window; it checks that the app requested the dashboard URL.
+
 ## GitHub Actions v77
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43081552333
@@ -133,3 +137,7 @@ Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43095622399
 ## GitHub Actions v87 (reading exports)
 
 Pending commit and CI. Source adds account-scoped CSV and Markdown endpoints, web downloads, Android clipboard export, and API format checks. No result is claimed yet.
+
+## GitHub Actions v88 (Windows normal-launch and logo verification)
+
+Pending commit and CI. The rebuilt workflow runs backend tests, Android analysis/release build plus APK launcher-resource checks, and a Windows job that launches the normal single-file app from a clean folder, verifies live backend health/dashboard/account registration, and runs lifecycle checks. The workflow also checks the approved Windows executable icon and uses the supplied Android launcher icons. No result is claimed yet.
