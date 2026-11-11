@@ -103,6 +103,7 @@ class _HomeState extends State<Home>{
     final reading = status['reading'] as Map<String, dynamic>?;
     final estimate = estimateText;
     final stale = offline || status['stale'] == true;
+    final bands = status['targetBands'] as Map<String, dynamic>?;
     final sensorCount = sites.fold<int>(
       0,
       (count, site) => count + ((site['sensors'] as List?)?.length ?? 0),
@@ -144,14 +145,18 @@ class _HomeState extends State<Home>{
               card(Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Chip(label: Text('In range')),
-                  const Text('Within configured limits; this does not establish crop safety.'),
+                  Chip(label: Text((status['statusLabel'] ?? 'In range').toString())),
+                  Text(status['statusLabel'] == 'Outside target band'
+                      ? 'Conditions are outside the target band. Check your crop now.'
+                      : 'Within configured limits; this does not establish crop safety.'),
                   const SizedBox(height: 12),
                   Text('Temperature  ' + (reading?['temperature'] ?? '18.2').toString() + ' °C',
                       style: const TextStyle(fontSize: 22)),
                   Text('Humidity  ' + (reading?['humidity'] ?? '62').toString() + ' %',
                       style: const TextStyle(fontSize: 22)),
-                  const Text('Low · Target · High'),
+                  Text('Low · Target · High · temperature range '
+                      + ((bands?['temperatureC'] as List?)?.join('–') ?? '12–25') + ' °C; humidity range '
+                      + ((bands?['humidityPercent'] as List?)?.join('–') ?? '50–70') + ' %'),
                 ],
               )),
               card(Column(
