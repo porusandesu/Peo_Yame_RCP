@@ -118,3 +118,9 @@ The implementation currently has a fresh Express/SQLite backend, web UI, Flutter
 - Do not build/run/test application code on the local machine.
 - Do not reuse code from old branches or old app versions.
 - Do not state that QR, tray actions, installer, encryption, crop catalog, or other feature is complete without functional evidence from CI.
+
+## Current continuation status (2026-11-11)
+
+The current rebuild is in `/home/porusandesu/Documents/Peo_Yame_Rebuilt`, detached at commit `dc68607` (v85 crop-inspection work). Run `43094194736` passed backend tests, Windows single-executable publish/lifecycle checks, Android analysis/tests, and Android release build; Android artifact upload was in progress at the last poll. Do not run local app builds or tests.
+
+Uncommitted sensor-management work is being developed in backend, web and Android source. It adds account-owned sensor records, manual ID registration, location link/unlink, reading ingestion, simulated `PY-DEMO-1` readings, and ownership checks. Physical sensor discovery/pairing is not implemented. Backend sensor coverage and Android compile/analyzer evidence must come from the next GitHub Actions run. After source review, run `git diff --check`, update this handoff and parity/test reports with exact evidence, commit, and push to `exe-work`. The user has asked to continue building without waiting for manual testing.

@@ -112,3 +112,13 @@ Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43052045739
 Pending at the time of this report. No result is claimed.
 
 No app build or test commands were run on the development machine.
+
+## GitHub Actions v85
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43094194736
+
+- Backend API test job passed, including the crop-inspection reminder scenarios.
+- Windows backend packaging and isolated single-executable lifecycle verification passed; artifact upload completed.
+- Android test/analyzer and release build passed; APK upload was in progress at the last status check.
+- v85 does not include sensor management changes; those are pending a subsequent Actions run.
+- No app build or test commands were run on the development machine.
