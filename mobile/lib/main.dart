@@ -63,7 +63,46 @@ Future<void> scanPhoneQr()async{final rationale=await showDialog<bool>(context:c
 Future<bool> waitForApproval(String codeId,String verifier,String match,String expiry)async{final expires=DateTime.tryParse(expiry)??DateTime.now().add(const Duration(seconds:90));final done=Completer<bool>();showDialog<void>(context:context,barrierDismissible:false,builder:(c)=>AlertDialog(title:const Text('Approve on your computer'),content:Column(mainAxisSize:MainAxisSize.min,children:[Text(match,style:const TextStyle(fontSize:56,fontWeight:FontWeight.w700,color:darkGreen)),const Text('Enter this number on your computer.'),const SizedBox(height:8),const Text('Expires in 90 seconds')]),actions:[TextButton(onPressed:(){Navigator.pop(c);if(!done.isCompleted)done.complete(false);},child:const Text('Cancel'))]));unawaited(()async{while(DateTime.now().isBefore(expires)&&!done.isCompleted){await Future<void>.delayed(const Duration(seconds:1));try{final state=Map<String,dynamic>.from(await request('/qr/phone/status?codeId='+Uri.encodeComponent(codeId)+'&verifier='+Uri.encodeComponent(verifier),auth:false));final value=state['state'];if(value=='approved'||value=='denied'||value=='expired'){if(mounted&&Navigator.canPop(context))Navigator.pop(context);if(!done.isCompleted)done.complete(value=='approved');return;}}catch(_){}}if(!done.isCompleted){if(mounted&&Navigator.canPop(context))Navigator.pop(context);done.complete(false);}}());return done.future;}
 Future<void> approveWeb(String codeId)async{final info=Map<String,dynamic>.from(await request('/qr/web/scan',method:'POST',body:{'codeId':codeId,'deviceName':'Peo Yame Android'}));final match=TextEditingController();final approve=await showModalBottomSheet<bool>(context:context,isScrollControlled:true,builder:(c)=>Padding(padding:EdgeInsets.fromLTRB(24,20,24,MediaQuery.of(c).viewInsets.bottom+24),child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Approve sign-in on computer?',style:TextStyle(fontSize:20,fontWeight:FontWeight.w700)),Text('Browser: '+(info['browser']??'Web browser').toString()+'\nAddress: '+(info['address']??'Computer').toString()),TextField(controller:match,keyboardType:TextInputType.number,maxLength:2,decoration:const InputDecoration(labelText:'Enter the number shown on your computer')),const _Banner('Only approve if you started this sign-in just now. Never approve a request someone sent you.'),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Approve')),TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Deny'))])));if(approve!=true){await request('/qr/web/deny',method:'POST',body:{'codeId':codeId});return;}final unlocked=await deviceAuth.authenticate(localizedReason:'Confirm this computer sign-in',biometricOnly:false);if(!unlocked)throw Exception('Device confirmation was not completed.');await request('/qr/web/approve',method:'POST',body:{'codeId':codeId,'matchCode':match.text.trim()});if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Computer sign-in approved.')));}
  Widget _settings()=>Column(children:[Card(child:Column(children:[const ListTile(title:Text('Account and security'),leading:Icon(LucideIcons.userRound)),TextButton(onPressed:()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}')))),child:const Text('Profile')),TextButton(onPressed:()=>setState(()=>error='Authenticator setup is not available yet.'),child:const Text('Authenticator app')),TextButton(onPressed:_showSessions,child:const Text('Active sessions')),const ListTile(title:Text('Backend connection: HTTP for controlled demo Wi-Fi only')),TextButton(onPressed:()=>scanPhoneQr(),child:const Text('Log in on computer'))])),if((instant||guided)&&guidedDemoEnabled)Card(child:Column(children:[const ListTile(title:Text('Demo tools')),if(instant)FilledButton(onPressed:()=>request('/demo/start',method:'POST').then((d)async{token=d['token'];instant=false;guided=true;await storage.write(key:'session',value:token);await refresh();}),child:const Text('Start guided demo')),if(guided)...[FilledButton(onPressed:()=>request('/demo/breach',method:'POST').then((_)=>refresh()),child:const Text('Simulate breach')),FilledButton(onPressed:(){setState(()=>crop=crop=='Maize'?'Sorghum':'Maize');refresh();},child:const Text('Switch crop')),FilledButton(onPressed:()=>setState(()=>offline=!offline),child:Text(offline?'Restore network':'Simulate network loss')),TextButton(onPressed:()async{try{await request('/demo/reset',method:'POST');}catch(_){}await signOut();},child:const Text('Reset demo'))]])),Card(child:TextButton(onPressed:signOut,child:const Text('Sign out')))]);
- Future<void> _showSessions()async{try{final rows=List<Map<String,dynamic>>.from(await request('/account/sessions'));if(!mounted)return;await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(title:const Text('Active sessions'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[for(final s in rows)ListTile(title:Text('${s['deviceName']}${s['current']==true?' · This device':''}'),subtitle:Text('Signed in ${s['createdAt']} · Expires ${s['expiresAt']}'),trailing:s['current']==true?null:IconButton(tooltip:'Sign out this device',icon:const Icon(LucideIcons.logOut),onPressed:()async{try{await request('/account/sessions/${s['id']}',method:'DELETE');if(dialogContext.mounted)Navigator.pop(dialogContext);_showSessions();}catch(e){if(mounted)setState(()=>error=e.toString());}}))]),const SizedBox(height:8),TextButton(onPressed:()async{try{await request('/account/sessions',method:'DELETE');if(dialogContext.mounted)Navigator.pop(dialogContext);_showSessions();}catch(e){if(mounted)setState(()=>error=e.toString());}},child:const Text('Sign out other devices'))]))));}catch(e){if(mounted)setState(()=>error=e.toString());}}
+ Future<void> _showSessions() async {
+  try {
+   final rows=List<Map<String,dynamic>>.from(await request('/account/sessions'));
+   if(!mounted)return;
+   await showDialog<void>(context:context,builder:(dialogContext){
+    return AlertDialog(
+     title:const Text('Active sessions'),
+     content:SizedBox(width:420,child:SingleChildScrollView(
+      child:Column(mainAxisSize:MainAxisSize.min,children:[
+       for(final s in rows) ListTile(
+        title:Text('${s['deviceName']}${s['current']==true?' · This device':''}'),
+        subtitle:Text('Signed in ${s['createdAt']} · Expires ${s['expiresAt']}'),
+        trailing:s['current']==true?null:IconButton(
+         tooltip:'Sign out this device',icon:const Icon(LucideIcons.logOut),
+         onPressed:() async {
+          try {
+           await request('/account/sessions/${s['id']}',method:'DELETE');
+           if(dialogContext.mounted)Navigator.pop(dialogContext);
+           _showSessions();
+          } catch(e) { if(mounted)setState(()=>error=e.toString()); }
+         },
+        ),
+       ),
+       const SizedBox(height:8),
+       TextButton(
+        onPressed:() async {
+         try {
+          await request('/account/sessions',method:'DELETE');
+          if(dialogContext.mounted)Navigator.pop(dialogContext);
+          _showSessions();
+         } catch(e) { if(mounted)setState(()=>error=e.toString()); }
+        },
+        child:const Text('Sign out other devices'),
+       ),
+      ]),
+     )),
+    );
+   });
+  } catch(e) { if(mounted)setState(()=>error=e.toString()); }
+ }
  Future<void> signOut()async{try{await request('/account/logout',method:'POST');}catch(_){}await storage.delete(key:'session');token=null;entered=false;instant=false;guided=false;if(mounted)setState((){});}
 }
 class _Banner extends StatelessWidget{final String text;final bool warning;const _Banner(this.text,{this.warning=false});@override Widget build(BuildContext c)=>Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:warning?const Color(0xfffff3d6):const Color(0xffeaf4ec),borderRadius:BorderRadius.circular(12)),child:Text(text,style:const TextStyle(color:ink,height:1.4)));}
