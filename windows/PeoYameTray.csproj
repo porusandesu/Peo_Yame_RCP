@@ -1,1 +1,18 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>Peo Yame</AssemblyName></PropertyGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Peo Yame</AssemblyName>
+    <Version Condition="'$(BuildNumber)' != ''">1.0.$(BuildNumber)</Version>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(PeoYameBundlePath)' != ''">
+    <EmbeddedResource Include="$(PeoYameBundlePath)" LogicalName="PeoYame.bundle.zip" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(PeoYameIconPath)' != ''">
+    <EmbeddedResource Include="$(PeoYameIconPath)" LogicalName="PeoYame.ico" />
+  </ItemGroup>
+</Project>

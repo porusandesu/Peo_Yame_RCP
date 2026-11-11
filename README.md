@@ -6,7 +6,7 @@ The implementation and acceptance criteria follow the Peo Yame parity and QR pro
 
 ## Build verification
 
-GitHub Actions builds the Android APK and Windows package and runs backend, Flutter, and tray lifecycle checks. See Actions artifacts for each versioned build.
+GitHub Actions builds the Android APK and a standalone Windows executable and runs backend, Flutter, and tray lifecycle checks. See Actions artifacts for each versioned build.
 
 ## Run the web dashboard and backend from source
 
@@ -24,10 +24,12 @@ dashboard; press Ctrl+C to stop the backend. The SQLite database is stored in
 `backend/data/` by default. Set `PEO_YAME_DATA_DIR` to choose another writable
 directory.
 
-## Windows package
+## Windows app
 
-Extract the versioned Windows ZIP and launch its `Peo Yame vN.exe`. The tray app
-starts the bundled backend and opens the dashboard; its notification-area menu
-also has Start, Restart backend, Stop, and Quit actions. If startup fails, the
-tray icon shows an error notification. The current artifact is a ZIP package,
-not an installer.
+Download and launch `Peo Yame vN.exe`. It contains the backend runtime, database
+driver, web dashboard, brand assets, and Windows host. On launch it prepares its
+private runtime files automatically, selects an available local port, starts the
+backend, and opens the dashboard in the default browser. No separate Node.js
+installation or file extraction is needed. The notification-area menu also has
+Start, Restart backend, Stop, and Quit actions. App data is kept under
+`%LOCALAPPDATA%\Peo Yame`; startup details are written to its `data\logs\app.log`.

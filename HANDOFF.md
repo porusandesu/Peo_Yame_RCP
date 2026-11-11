@@ -1,6 +1,41 @@
 # Peo Yame — build handoff and resume plan
 
-## Current state: ACTIVE — user resumed on 2026-11-11
+## Current state: ACTIVE — user resumed on 2026-11-11; latest update 2026-11-11
+
+The user reports the Windows app still does not launch and has explicitly
+directed that the backend and web dashboard be consolidated into one executable
+that starts everything without setup or prompts. Work is underway on commit
+`a30686b` plus uncommitted changes: embed Node, SQLite dependencies, backend,
+dashboard and icon in a self-contained Windows executable; extract into
+LocalAppData silently; select an available loopback port; start the backend and
+open the browser automatically. The isolated one-file startup check is pending
+GitHub Actions. Do not tell the user this new executable works until that CI
+check passes and artifact exists. v81 verifies the preceding ZIP build only.
+
+Active session management has now passed CI v81 (backend, Android analysis,
+widget test and APK; Windows package still used prior ZIP layout). v80 failed
+because of a test count assumption and a Dart syntax error; both were fixed in
+`a30686b`. See `docs/TEST_REPORT.md` for exact runs. The current Documents
+workspace is `/home/porusandesu/Documents/Peo_Yame_Rebuilt`; keep the old
+`storage_monitor_flutter` workspace untouched because it diverges and contains
+user assets. Do not run local application builds or tests. Use GitHub Actions.
+
+The source-of-truth implementation brief is
+`/home/porusandesu/Downloads/PEO_YAME_CODEX_MASTER_BUILD_PROMPT.md`, together
+with the supplied visual CSS and SVG references. Figma was not accessible in
+the earlier audit. Preserve the clean rebuilt architecture and supplied logo.
+
+### Immediate continuation
+
+1. Finish and inspect the standalone Windows embedding workflow and launcher.
+2. Push and wait for the isolated executable startup check and full CI.
+3. If CI fails, read the complete failing job log, correct the cause, and rerun.
+4. Only after the artifact is verified, send the user the direct `.exe` artifact
+   and ask them to try it. Do not send another ZIP as the requested solution.
+5. Continue the remaining parity items from `docs/FEATURE_PARITY.md` and the
+   master prompt, preserving the no-local-build/test constraint.
+
+Earlier investigation notes below are historical unless superseded above.
 
 The user resumed the build and directed Codex to follow the supplied CSS files
 and SVG designs. The previous pause is lifted. Continue on the current scratch

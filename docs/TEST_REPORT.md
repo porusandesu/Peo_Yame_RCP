@@ -18,7 +18,37 @@ Commit: `7a29c8368d1979e0bd4a2d84f1082d77f6e39117`.
 
 - Backend and Windows jobs failed because a static web assertion expected the mobile-only Welcome heading on the web split sign-in gate. The backend estimate assertions passed.
 - Android widget compilation failed because the welcome logo container used an integer for `Container.padding` instead of `EdgeInsets`.
-- Both source issues are corrected in the following revision; v79 is pending. No local app builds or tests were run.
+- Both source issues were corrected in v79. No local app builds or tests were run.
+
+## GitHub Actions v79 — passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43087493893
+Commit: `268ac26fab580ee73caa7150ade20611eda1c929`.
+
+- Backend API tests passed, including dashboard root and estimate disclaimer checks.
+- Windows tray package test passed, including startup, `/api/health`, and dashboard HTML checks. Artifact was a ZIP with separate runtime files; this is superseded by the requested standalone executable work.
+- Android analysis passed and release APK artifact was produced.
+- The v79 Windows lifecycle check did not observe opening the system browser; browser launch was not part of that automated self-test.
+- No local app builds or tests were run.
+
+## GitHub Actions v80 — failed during active-session implementation
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43089055834
+Commit: `415515c8d28c6fdf798d3c201fc57b94e036acc5`.
+
+- Backend test expected one session after the test had performed both registration and another successful login; actual session count was two.
+- Android compilation found a parenthesis error in the new Active sessions dialog.
+- Windows stopped at the same backend test failure. Both identified issues were corrected in v81.
+
+## GitHub Actions v81 — passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43089422093
+Commit: `a30686b7558ff23eab6ed31ab8fb47e8d6a0475d`.
+
+- Backend tests passed for session listing, current-device identification, per-device revocation, revoke-other-sessions, and cross-account revocation rejection.
+- Android widget test, analyzer, and release APK build passed; artifact `Peo Yame v81 Android` uploaded.
+- Windows backend packaging and lifecycle self-test passed; artifact `Peo Yame v81 Windows` uploaded. This is still the ZIP format and does not verify the new standalone executable.
+- No local app builds or tests were run.
 
 ## GitHub Actions v69
 
