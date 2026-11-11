@@ -11,10 +11,12 @@ port selection; backend start; and automatic browser launch. v82 Windows CI
 failed at publish because MSBuild resolved the resource paths relative to the
 `windows/` project directory. v83 passed the standalone executable publish and
 isolated startup/health/dashboard checks and produced `Peo Yame v83 Windows`
-(107,262,737 bytes). Android release is still running. A follow-up adds a CI
-assertion that the standalone executable requests opening the browser URL; that
-check is not yet pushed or verified. Do not ask the user to try a build until
-the follow-up Windows check passes. v81 only verifies the preceding ZIP build.
+(107,262,737 bytes). v84 passed the assertion that the standalone executable
+requests opening the browser URL and produced `Peo Yame v84 Windows`
+(107,264,219 bytes). Android tests and APK build also passed. The CI host does
+not visually observe a browser window. A fresh crop-inspection reminder feature
+is in source and is pending verification in v85. v81 only verifies the
+preceding ZIP build.
 
 Active session management has now passed CI v81 (backend, Android analysis,
 widget test and APK; Windows package still used prior ZIP layout). v80 failed
@@ -34,8 +36,7 @@ the earlier audit. Preserve the clean rebuilt architecture and supplied logo.
 1. Finish and inspect the standalone Windows embedding workflow and launcher.
 2. Push and wait for the isolated executable startup check and full CI.
 3. If CI fails, read the complete failing job log, correct the cause, and rerun.
-4. Only after the artifact is verified, send the user the direct `.exe` artifact
-   and ask them to try it. Do not send another ZIP as the requested solution.
+4. Continue verifying the inspection reminders and check Android artifacts.
 5. Continue the remaining parity items from `docs/FEATURE_PARITY.md` and the
    master prompt, preserving the no-local-build/test constraint.
 

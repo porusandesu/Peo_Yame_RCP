@@ -61,15 +61,26 @@ Commit: `a7e8e417d5b78492a3adf4ba4b6079bcd2a19c32`.
 - The workflow now resolves the bundle and icon to absolute paths before publish. This correction is not yet CI-verified.
 - No local app builds or tests were run.
 
-## GitHub Actions v83 — standalone Windows package passed; Android pending
+## GitHub Actions v83 — passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43091285867
 Commit: `d183d386ce00547924b09dc3ddb1b5be2d476150`.
 
 - Backend tests passed.
 - Windows published a 107,262,737-byte self-contained executable. The workflow copied only that executable to an isolated folder and successfully started it; its embedded runtime served both `/api/health` and the dashboard HTML, then passed account, restart, reset, and stop checks. Artifact `Peo Yame v83 Windows` uploaded.
-- Android release build is still running; no Android artifact result is claimed yet.
-- A follow-up adds an assertion that the executable requests opening the browser dashboard URL. That assertion has not run yet. The CI host does not provide a user desktop/browser observation.
+- Android widget test, analyzer and release APK passed; artifact `Peo Yame v83 Android` uploaded.
+- The executable did not yet exercise the browser-launch request; v84 adds that assertion.
+- No local app builds or tests were run.
+
+## GitHub Actions v84 — passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43092378309
+Commit: `37e05713a702191d56061d6d7a118a66e23ee0f6`.
+
+- Backend tests passed.
+- Windows isolated standalone startup, embedded backend/dashboard and dashboard URL launch-request checks passed. Artifact `Peo Yame v84 Windows` uploaded (107,264,219 bytes).
+- Android widget test, analyzer and release APK passed; artifact `Peo Yame v84 Android` uploaded.
+- CI verified the launch request was recorded, but did not observe a visible desktop browser.
 - No local app builds or tests were run.
 
 ## GitHub Actions v69
