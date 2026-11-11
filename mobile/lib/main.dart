@@ -99,15 +99,143 @@ class _HomeState extends State<Home>{
   }
   Widget _waiting()=>Scaffold(appBar:AppBar(title:const Text('Approve on your computer')),body:FutureBuilder<String?>(future:secure.read(key:'pairMatch'),builder:(c,s)=>Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.shield_outlined,size:54,color:brand),const Text('Approve on your computer'),Text(s.data??'••',style:const TextStyle(fontSize:64,fontWeight:FontWeight.bold)),const Text('Enter this number on your computer. Expires in 90 seconds.'),button('Cancel',()=>setState(()=>screen='login')),const SizedBox(height:12),button('Check approval',redeemPair)])))));
   Future<void> redeemPair()async{try{final id=await secure.read(key:'pairCode'),ver=await secure.read(key:'pairVerifier');final d=await api('/api/qr/'+Uri.encodeComponent(id??''),auth:false);if(d['state']=='expired'||d['state']=='denied')throw Exception('This pairing request expired or was denied.');if(d['state']!='approved')throw Exception('Waiting for approval on your computer.');final result=Map<String,dynamic>.from(await api('/api/qr/phone/redeem',method:'POST',auth:false,body:{'codeId':id,'verifier':ver}));token=result['token'];await secure.write(key:'session',value:token);await secure.delete(key:'pairVerifier');mode='farmer';screen='app';await refresh();}catch(e){_message(e);}}
-  Widget _app(){final reading=status['reading'] as Map<String,dynamic>?;final estimate=estimateText;final stale=offline||status['stale']==true;final sensorCount=sites.fold<int>(0,(n,s)=>n+((s['sensors'] as List?)?.length??0));return Scaffold(appBar:AppBar(leading:Padding(padding:const EdgeInsets.all(6),child:Image.asset('assets/brand/PeoYame-Sorghum-Logo-Master.png')),title:const Text('Peo Yame'),actions:[Padding(padding:const EdgeInsets.all(8),child:Chip(label:Text(mode=='instant'?'Demo data · simulated':mode=='guided'?'Demo session':'Connected')))]),body:RefreshIndicator(onRefresh:refresh,child:ListView(padding:const EdgeInsets.all(16),children:[Text(pages[tab],style:Theme.of(context).textTheme.headlineMedium),if(stale)card(Text('Offline · last known values from '+((status['reading'] as Map?)?['createdAt']??'unknown time').toString())),if(tab==0)...[
-      card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Chip(label:Text('In range')),const Text('Within configured limits; this does not establish crop safety.'),const SizedBox(height:12),Text('Temperature  '+(reading?['temperature']??'18.2').toString()+' °C',style:const TextStyle(fontSize:22)),Text('Humidity  '+(reading?['humidity']??'62').toString()+' %',style:const TextStyle(fontSize:22)),const Text('Low · Target · High')])),
-      card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Row(children:[Text('Rough storage estimate',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Chip(label:Text('Estimate'))]),Text(estimate??'Estimate not available while readings are old',style:const TextStyle(fontSize:24)),if(estimate!=null)const Text('A rough guess from temperature and humidity only. It does not inspect your crop. Check your crops by hand every few days.'),TextButton(onPressed:showEstimateExplanation,child:const Text('How is this estimated?'))])),
-      card(Text('Last synced: '+lastSync+' · Crop: '+crop)),
-    ]else if(tab==1)...[card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Wrap(spacing:8,children:[for(final r in ['24h','month','3months'])OutlinedButton(onPressed:()=>loadTrends(r),child:Text(r=='24h'?'24 hours':r=='month'?'1 month':'3 months'))]),const Text('Temperature (°C) · target band'),const Text('Humidity (%) · target band'),for(final x in readings.take(8))Text(x['created_at'].toString()+' · '+x['temperature'].toString()+' °C · '+x['humidity'].toString()+' %')]))]
-    else if(tab==2)...[card(Text(sites.length.toString()+' storage locations · '+sensorCount.toString()+' sensors linked')),for(final site in sites)card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(site['crop'].toString()+' · '+site['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold)),for(final sensor in site['sensors']??[])Text(sensor['id'].toString()+' · '+(sensor['last_seen_at']??'No readings').toString()),TextButton(onPressed:()=>deleteSite(site['id'].toString()),child:const Text('Delete location'))])),button('Add storage location',addSite,primary:true)]
-    else if(tab==3)...[card(const Text('Alert log. Text messages are not sent in this edition.')),for(final a in alerts)card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(a['message']??'Alert'),const Text('SMS not sent'),if(a['reviewed_at']==null)TextButton(onPressed:()=>reviewAlert(a['id'].toString()),child:const Text('Mark as reviewed'))]))]
-    else ...[_settings()],
-  ])),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(i){setState(()=>tab=i);refresh();},destinations:const[NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'Overview'),NavigationDestination(icon:Icon(Icons.show_chart),label:'Trends'),NavigationDestination(icon:Icon(Icons.grass),label:'My Crops'),NavigationDestination(icon:Icon(Icons.notifications_outlined),label:'Alerts'),NavigationDestination(icon:Icon(Icons.settings_outlined),label:'Settings')]);}
+  Widget _app() {
+    final reading = status['reading'] as Map<String, dynamic>?;
+    final estimate = estimateText;
+    final stale = offline || status['stale'] == true;
+    final sensorCount = sites.fold<int>(
+      0,
+      (count, site) => count + ((site['sensors'] as List?)?.length ?? 0),
+    );
+    return Scaffold(
+      appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Image.asset('assets/brand/PeoYame-Sorghum-Logo-Master.png'),
+        ),
+        title: const Text('Peo Yame'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Chip(
+              label: Text(
+                mode == 'instant'
+                    ? 'Demo data · simulated'
+                    : mode == 'guided'
+                        ? 'Demo session'
+                        : 'Connected',
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(pages[tab], style: Theme.of(context).textTheme.headlineMedium),
+            if (stale)
+              card(Text(
+                'Offline · last known values from '
+                + ((status['reading'] as Map?)?['createdAt'] ?? 'unknown time').toString(),
+              )),
+            if (tab == 0) ...[
+              card(Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Chip(label: Text('In range')),
+                  const Text('Within configured limits; this does not establish crop safety.'),
+                  const SizedBox(height: 12),
+                  Text('Temperature  ' + (reading?['temperature'] ?? '18.2').toString() + ' °C',
+                      style: const TextStyle(fontSize: 22)),
+                  Text('Humidity  ' + (reading?['humidity'] ?? '62').toString() + ' %',
+                      style: const TextStyle(fontSize: 22)),
+                  const Text('Low · Target · High'),
+                ],
+              )),
+              card(Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(children: [
+                    Text('Rough storage estimate', style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(width: 8),
+                    Chip(label: Text('Estimate')),
+                  ]),
+                  Text(estimate ?? 'Estimate not available while readings are old',
+                      style: const TextStyle(fontSize: 24)),
+                  if (estimate != null)
+                    const Text('A rough guess from temperature and humidity only. It does not inspect your crop. Check your crops by hand every few days.'),
+                  TextButton(onPressed: showEstimateExplanation, child: const Text('How is this estimated?')),
+                ],
+              )),
+              card(Text('Last synced: ' + lastSync + ' · Crop: ' + crop)),
+            ] else if (tab == 1) ...[
+              card(Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(spacing: 8, children: [
+                    for (final range in ['24h', 'month', '3months'])
+                      OutlinedButton(
+                        onPressed: () => loadTrends(range),
+                        child: Text(range == '24h' ? '24 hours' : range == 'month' ? '1 month' : '3 months'),
+                      ),
+                  ]),
+                  const Text('Temperature (°C) · target band'),
+                  const Text('Humidity (%) · target band'),
+                  for (final point in readings.take(8))
+                    Text(point['created_at'].toString() + ' · ' + point['temperature'].toString()
+                        + ' °C · ' + point['humidity'].toString() + ' %'),
+                ],
+              )),
+            ] else if (tab == 2) ...[
+              card(Text(sites.length.toString() + ' storage locations · ' + sensorCount.toString() + ' sensors linked')),
+              for (final site in sites)
+                card(Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(site['crop'].toString() + ' · ' + site['name'].toString(),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    for (final sensor in site['sensors'] ?? [])
+                      Text(sensor['id'].toString() + ' · ' + (sensor['last_seen_at'] ?? 'No readings').toString()),
+                    TextButton(onPressed: () => deleteSite(site['id'].toString()), child: const Text('Delete location')),
+                  ],
+                )),
+              button('Add storage location', addSite, primary: true),
+            ] else if (tab == 3) ...[
+              card(const Text('Alert log. Text messages are not sent in this edition.')),
+              for (final alert in alerts)
+                card(Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(alert['message'] ?? 'Alert'),
+                    const Text('SMS not sent'),
+                    if (alert['reviewed_at'] == null)
+                      TextButton(onPressed: () => reviewAlert(alert['id'].toString()), child: const Text('Mark as reviewed')),
+                  ],
+                )),
+            ] else ...[
+              _settings(),
+            ],
+          ],
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (index) {
+          setState(() => tab = index);
+          refresh();
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Overview'),
+          NavigationDestination(icon: Icon(Icons.show_chart), label: 'Trends'),
+          NavigationDestination(icon: Icon(Icons.grass), label: 'My Crops'),
+          NavigationDestination(icon: Icon(Icons.notifications_outlined), label: 'Alerts'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        ],
+      ),
+    );
+  }
   Widget _settings()=>Column(children:[
     card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Account & security',style:TextStyle(fontWeight:FontWeight.bold)),button('Profile',profile),button('Authenticator app',totpEnroll),button('Active sessions',loadSessions),button('Lock app with biometrics',biometricLock)])),
     card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Connection',style:TextStyle(fontWeight:FontWeight.bold)),input('Backend address',address),button('Check and save backend',saveBackend),const Text('Plain HTTP is for an isolated demo network only. Phone and computer must be on the same Wi-Fi.'),Text('Last synced: '+lastSync)])),
