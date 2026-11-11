@@ -37,6 +37,11 @@ jobs:
         with:
           channel: stable
       - run: flutter create --platforms=android --org bw.co.peoyame --project-name peo_yame .
+      - name: Configure camera and local authentication
+        shell: bash
+        run: |
+          python3 -c 'from pathlib import Path; p=Path("android/app/src/main/AndroidManifest.xml"); s=p.read_text(); s=s.replace("<application", "<uses-permission android:name=\\\"android.permission.CAMERA\\\" />\\n    <application android:usesCleartextTraffic=\\\"true\\\" android:allowBackup=\\\"false\\\"", 1); p.write_text(s)'
+          find android/app/src/main/kotlin -name MainActivity.kt -exec sed -i 's/io.flutter.embedding.android.FlutterActivity/io.flutter.embedding.android.FlutterFragmentActivity/g;s/FlutterActivity/FlutterFragmentActivity/g' {} +
       - name: Install supplied Android launcher icons
         shell: bash
         run: |
