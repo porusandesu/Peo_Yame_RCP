@@ -9,10 +9,12 @@ embedding Node, SQLite dependencies, backend, dashboard and icon in a
 self-contained executable; silent extraction into LocalAppData; free loopback
 port selection; backend start; and automatic browser launch. v82 Windows CI
 failed at publish because MSBuild resolved the resource paths relative to the
-`windows/` project directory. The workflow now passes absolute bundle and icon
-paths; that correction is pending push and CI. Do not tell the user the new
-executable works until isolated startup verification passes and an artifact
-exists. v81 only verifies the preceding ZIP build.
+`windows/` project directory. v83 passed the standalone executable publish and
+isolated startup/health/dashboard checks and produced `Peo Yame v83 Windows`
+(107,262,737 bytes). Android release is still running. A follow-up adds a CI
+assertion that the standalone executable requests opening the browser URL; that
+check is not yet pushed or verified. Do not ask the user to try a build until
+the follow-up Windows check passes. v81 only verifies the preceding ZIP build.
 
 Active session management has now passed CI v81 (backend, Android analysis,
 widget test and APK; Windows package still used prior ZIP layout). v80 failed

@@ -110,6 +110,9 @@ jobs:
             Get-ChildItem $env:TEMP -Filter "self-test.log" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }
             throw "Windows backend lifecycle check failed"
           }
+          if (!(Get-Content $env:PEO_YAME_SELF_TEST_LOG -Raw).Contains("Dashboard launch target: http://127.0.0.1:")) {
+            throw "Standalone executable did not request opening the dashboard."
+          }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
       - uses: actions/upload-artifact@v4
         with:
