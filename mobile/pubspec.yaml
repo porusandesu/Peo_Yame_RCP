@@ -12,9 +12,7 @@ dependencies:
   mobile_scanner: ^7.5.0
   local_auth: ^3.0.2
   flutter_secure_storage: ^9.2.2
-  mobile_scanner: ^7.5.0
   qr_flutter: ^4.1.0
-  local_auth: ^3.0.2
   lucide_icons_flutter: ^4.0.3
 dev_dependencies:
   flutter_test:
