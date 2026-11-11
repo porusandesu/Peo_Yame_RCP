@@ -96,8 +96,14 @@ jobs:
           Copy-Item (Get-Command node).Source publish/backend/node.exe
           $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peo-yame-lifecycle"
           $env:PORT = "38191"
+          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $env:RUNNER_TEMP "peo-yame-self-test.log"
           & "publish/Peo Yame.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows backend lifecycle check failed" }
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }
+            $testFile = Join-Path $env:TEMP "PeoYame-self-test.log"
+            if (Test-Path $testFile) { Get-Content $testFile }
+            throw "Windows backend lifecycle check failed"
+          }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
           Compress-Archive -Path publish/* -DestinationPath "Peo Yame v${{ github.run_number }} Windows.zip" -Force
       - uses: actions/upload-artifact@v4
