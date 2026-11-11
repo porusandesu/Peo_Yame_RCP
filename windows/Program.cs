@@ -40,6 +40,8 @@ internal static class Program {
   static void OpenWeb()=>Process.Start(new ProcessStartInfo("http://127.0.0.1:"+Port){UseShellExecute=true});
   static void StopBackend(){try{if(backend is {HasExited:false}){backend.Kill(true);backend.WaitForExit(5000);}}catch{}backend=null;}
   static async Task<int> SelfTestAsync(){
+    var log=Environment.GetEnvironmentVariable("PEO_YAME_SELF_TEST_LOG")??Path.Combine(Path.GetTempPath(),"PeoYame-self-test.log");
+    try{File.WriteAllText(log,"Self-test entered.");}catch{}
     var dir=Path.Combine(Path.GetTempPath(),"PeoYameTrayTest-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(dir);
     Environment.SetEnvironmentVariable("PEO_YAME_DATA_DIR",dir);Environment.SetEnvironmentVariable("PORT","38191");
     try{
@@ -50,7 +52,7 @@ internal static class Program {
       var login=await client.PostAsJsonAsync(root+"/api/account/login",new{phone="71234567",password="test password 2026"});if(login.StatusCode!=HttpStatusCode.OK)throw new Exception("Restart did not preserve account credentials.");
       StopBackend();
       try{await client.GetAsync(root+"/api/health");throw new Exception("Stop left backend responding.");}catch(HttpRequestException){}
-      return 0;
+      File.WriteAllText(log,"Start, restart with saved account, and stop passed.");return 0;
     }catch(Exception error){try{File.WriteAllText(Environment.GetEnvironmentVariable("PEO_YAME_SELF_TEST_LOG")??Path.Combine(Path.GetTempPath(),"PeoYame-self-test.log"),error.ToString());}catch{}StopBackend();return 1;}
     finally{StopBackend();try{Directory.Delete(dir,true);}catch{}}
   }

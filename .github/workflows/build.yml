@@ -87,8 +87,13 @@ jobs:
           $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peo-yame-lifecycle-data"
           $env:PORT = "38191"
           $env:PEO_YAME_SELF_TEST_LOG = Join-Path $env:RUNNER_TEMP "peo-yame-self-test.log"
-          & "publish/Peo Yame.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { Get-Content $env:PEO_YAME_SELF_TEST_LOG; throw "Tray start/restart/stop lifecycle self-test failed." }
+          $proc = Start-Process -FilePath "publish/Peo Yame.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }
+            $fallbackLog = Join-Path $env:TEMP "PeoYame-self-test.log"
+            if (Test-Path $fallbackLog) { Get-Content $fallbackLog }
+            throw "Tray start/restart/stop lifecycle self-test failed."
+          }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
           Compress-Archive -Path publish/* -DestinationPath "Peo Yame v${{ github.run_number }} Windows.zip" -Force
       - uses: actions/upload-artifact@v4
