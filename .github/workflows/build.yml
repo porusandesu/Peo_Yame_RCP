@@ -1,10 +1,14 @@
 name: Peo Yame build
+run-name: Peo Yame v${{ github.run_number }}
 on:
   push:
     branches: [exe-work]
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: peo-yame-build
+  cancel-in-progress: false
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -32,14 +36,18 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - run: flutter create --platforms=android --org bw.co.peoyame --project-name peo_yame .
       - run: flutter pub get
       - run: flutter test
       - run: flutter analyze --fatal-infos
       - run: flutter build apk --release
+      - name: Name APK from this workflow run
+        shell: bash
+        run: cp build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${GITHUB_RUN_NUMBER}.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: peo-yame-android
-          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          name: Peo Yame v${{ github.run_number }}
+          path: mobile/Peo Yame v${{ github.run_number }}.apk
   windows:
     runs-on: windows-latest
     steps:
@@ -47,13 +55,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --prefix backend
-      - run: npm test --prefix backend
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - name: Install and test backend
+        working-directory: backend
+        run: |
+          npm install
+          npm test
+      - name: Publish tray application
+        run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - name: Package backend runtime and assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path publish/backend | Out-Null
+          Copy-Item backend/src -Destination publish/backend/src -Recurse
+          Copy-Item backend/public -Destination publish/backend/public -Recurse
+          Copy-Item backend/package.json -Destination publish/backend/package.json
+          Copy-Item backend/node_modules -Destination publish/backend/node_modules -Recurse
+          $node = (Get-Command node).Source
+          Copy-Item $node publish/backend/node.exe
+          Copy-Item assets/windows/PeoYame.ico publish/PeoYame.ico
+          Copy-Item publish/"Peo Yame.exe" publish/"Peo Yame v${{ github.run_number }}.exe"
+          Compress-Archive -Path publish/* -DestinationPath "Peo Yame v${{ github.run_number }} Windows.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: peo-yame-windows
-          path: publish/
+          name: Peo Yame v${{ github.run_number }} Windows
+          path: Peo Yame v${{ github.run_number }} Windows.zip
