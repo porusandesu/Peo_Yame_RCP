@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 namespace PeoYameTray;
 internal static class Program {
@@ -17,8 +18,8 @@ internal static class Program {
     m.Items.Add("Stop",null,(_,_)=>StopBackend());
     m.Items.Add(new ToolStripSeparator());
     m.Items.Add("Quit",null,(_,_)=>{StopBackend();tray!.Visible=false;Application.Exit();});
-    var icon=Path.Combine(AppContext.BaseDirectory,"PeoYame.ico");
-    tray=new NotifyIcon{Text="Peo Yame",Icon=File.Exists(icon)?new Icon(icon):SystemIcons.Application,ContextMenuStrip=m,Visible=true};
+    var icon=Path.Combine(AppContext.BaseDirectory,"PeoYame.png");
+    tray=new NotifyIcon{Text="Peo Yame",Icon=File.Exists(icon)?LoadPngIcon(icon):SystemIcons.Application,ContextMenuStrip=m,Visible=true};
     Application.Run(); return 0;
   }
   static async Task StartAsync(){await StartBackendAsync();OpenWeb();}
@@ -34,6 +35,8 @@ internal static class Program {
     for(var i=0;i<40;i++){try{var response=await client.GetAsync(url);if(response.StatusCode==HttpStatusCode.OK)return;}catch{}await Task.Delay(250);}
     StopBackend();throw new TimeoutException("Backend health check did not pass.");
   }
+  static Icon LoadPngIcon(string path){using var bitmap=new Bitmap(path);var handle=bitmap.GetHicon();try{return (Icon)Icon.FromHandle(handle).Clone();}finally{DestroyIcon(handle);}}
+  [DllImport("user32.dll",SetLastError=true)] static extern bool DestroyIcon(IntPtr handle);
   static void OpenWeb()=>Process.Start(new ProcessStartInfo("http://127.0.0.1:"+Port){UseShellExecute=true});
   static void StopBackend(){try{if(backend is {HasExited:false}){backend.Kill(true);backend.WaitForExit(5000);}}catch{}backend=null;}
   static async Task<int> SelfTestAsync(){
@@ -48,7 +51,7 @@ internal static class Program {
       StopBackend();
       try{await client.GetAsync(root+"/api/health");throw new Exception("Stop left backend responding.");}catch(HttpRequestException){}
       return 0;
-    }catch{StopBackend();return 1;}
+    }catch(Exception error){try{File.WriteAllText(Environment.GetEnvironmentVariable("PEO_YAME_SELF_TEST_LOG")??Path.Combine(Path.GetTempPath(),"PeoYame-self-test.log"),error.ToString());}catch{}StopBackend();return 1;}
     finally{StopBackend();try{Directory.Delete(dir,true);}catch{}}
   }
 }
