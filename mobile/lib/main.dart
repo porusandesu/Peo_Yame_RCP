@@ -164,8 +164,7 @@ class _HomeState extends State<Home>{
                   ]),
                   Text(estimate ?? 'Estimate not available while readings are old',
                       style: const TextStyle(fontSize: 24)),
-                  if (estimate != null)
-                    const Text('A rough guess from temperature and humidity only. It does not inspect your crop. Check your crops by hand every few days.'),
+                  const Text('A rough guess from temperature and humidity only. It does not inspect your crop. Check your crops by hand every few days.'),
                   TextButton(onPressed: showEstimateExplanation, child: const Text('How is this estimated?')),
                 ],
               )),
