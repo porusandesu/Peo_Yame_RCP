@@ -122,3 +122,14 @@ Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43094194736
 - Android test/analyzer and release build passed; APK upload was in progress at the last status check.
 - v85 does not include sensor management changes; those are pending a subsequent Actions run.
 - No app build or test commands were run on the development machine.
+
+## GitHub Actions v86 (sensor management)
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43095622399
+
+- Queued behind the v85 Android artifact upload at the time v87 source work began; no result is claimed yet.
+- Includes account-owned sensor registration, location linking/unlinking, demo sensor reading and authorization coverage, and web/Android client changes.
+
+## GitHub Actions v87 (reading exports)
+
+Pending commit and CI. Source adds account-scoped CSV and Markdown endpoints, web downloads, Android clipboard export, and API format checks. No result is claimed yet.
