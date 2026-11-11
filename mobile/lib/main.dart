@@ -20,7 +20,7 @@ class _HomeState extends State<Home>{
   final address=TextEditingController(text:'http://10.0.2.2:3000');
   final localAuth=LocalAuthentication();
   final pages=['Overview','Trends','My Crops','Alerts','Settings'];
-  int tab=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
+  int tab=0,demoStep=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
   String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false,guidedDemoEnabled=false,totpEnabled=false;
   Map<String,dynamic> status={};List<dynamic> sites=[],alerts=[],sessions=[],readings=[];
   Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();final account=await api('/api/account');totpEnabled=account['totpEnabled']==true;}}catch(_){}if(backendSaved){try{final health=await api('/api/health',auth:false);guidedDemoEnabled=health['guidedDemoEnabled']==true;}catch(_){}}if(mounted)setState((){});}
@@ -47,7 +47,7 @@ class _HomeState extends State<Home>{
   void instantDemo(){mode='instant';token=null;tab=0;screen='app';refresh();}
   Future<void> login()async{setState(()=>busy=true);try{final d=Map<String,dynamic>.from(await api('/api/account/login',method:'POST',auth:false,body:{'phone':phone.text,'password':password.text,'totp':totp.text}));token=d['token'];await secure.write(key:'session',value:token);mode='farmer';screen='app';error='';await refresh();final account=await api('/api/account');totpEnabled=account['totpEnabled']==true;}catch(e){error=e.toString().replaceFirst('Exception: ','');}finally{if(mounted)setState(()=>busy=false);}}
   Future<void> register()async{setState(()=>busy=true);try{await api('/api/account/register',method:'POST',auth:false,body:{'name':name.text,'phone':phone.text,'password':password.text});screen='login';error='Account created. Sign in with your phone and password.';}catch(e){error=e.toString().replaceFirst('Exception: ','');}finally{if(mounted)setState(()=>busy=false);}}
-  Future<void> guidedDemo()async{try{final d=Map<String,dynamic>.from(await api('/api/demo/start',method:'POST',auth:false,body:{'client':'mobile'}));token=d['token'];await secure.write(key:'session',value:token);mode='guided';screen='app';await refresh();}catch(e){_message(e);}}
+  Future<void> guidedDemo()async{final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Start Guided demo?'),content:const Text('This temporary account contains simulated data and will be deleted when reset or after two hours.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Start demo'))]));if(ok!=true)return;try{final d=Map<String,dynamic>.from(await api('/api/demo/start',method:'POST',auth:false,body:{'client':'mobile'}));token=d['token'];await secure.write(key:'session',value:token);mode='guided';screen='app';await refresh();}catch(e){_message(e);}}
   Future<void> signOut()async{try{await api('/api/account/logout',method:'POST',body:{});}catch(_){}token=null;csrf=null;await secure.delete(key:'session');if(mounted)setState(()=>screen='welcome');}
   void _message(Object e)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));
   String? get estimateText{final e=status['estimate'];if(offline||status['stale']==true||e==null)return null;final r=e['rangeWeeks'];if(r is! List||r.length<2)return null;return 'About '+r[0].toString()+'–'+r[1].toString()+' weeks';}
@@ -178,7 +178,7 @@ class _HomeState extends State<Home>{
                   TextButton(onPressed: showEstimateExplanation, child: const Text('How is this estimated?')),
                 ],
               )),
-              card(Text('Last synced: ' + lastSync + ' · Crop: ' + crop)),
+              card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Last synced: '+lastSync),const SizedBox(height:8),const Text('Active crop'),DropdownButton<String>(value:crop,items:['Maize','Sorghum','Tomato','Potato'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(value){if(value!=null){setState(()=>crop=value);refresh();}})])),
             ] else if (tab == 1) ...[
               card(Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,7 +369,38 @@ class _HomeState extends State<Home>{
   Future<void> biometricLock()async{try{final ok=await localAuth.authenticate(localizedReason:'Unlock Peo Yame');if(!ok)throw Exception('Authentication cancelled.');_message('Biometric check passed on this device.');}catch(e){_message(e);}}
   Future<void> saveBackend()async{try{if(!privateAddress(address.text))throw Exception('Use a private network HTTP address.');final d=await api('/api/health',auth:false);if(d['ok']!=true)throw Exception('Wrong server');await secure.write(key:'backend',value:address.text);backendSaved=true;await secure.delete(key:'session');token=null;_message('Connected · accounts enabled');if(mounted)setState((){});}catch(e){_message('Backend unreachable or wrong server: '+e.toString());}}
   Future<void> exportData()async{try{final d=await api('/api/export');_message('Export ready: '+d.toString().substring(0,min(80,d.toString().length)));}catch(e){_message(e);}}
-  Future<void> showDemoTools()async{showModalBottomSheet(context:context,builder:(c)=>SafeArea(child:Wrap(children:[const ListTile(title:Text('Demo tools'),subtitle:Text('Simulated readings · SMS not sent')),ListTile(title:const Text('Simulate breach'),onTap:()=>simulateBreach()),if(guidedDemoEnabled)ListTile(title:const Text('Start guided demo'),onTap:()=>guidedDemo()),ListTile(title:const Text('Reset demo'),onTap:resetDemo)])));}
-  Future<void> simulateBreach()async{if(mode=='instant'){status={'reading':{'temperature':33,'humidity':88,'createdAt':DateTime.now().toIso8601String(),'synthetic':true},'stale':false,'estimate':{'rangeWeeks':[1,2]}};setState((){});return;}try{await api('/api/demo/simulate-reading',method:'POST',body:{'temperature':33,'humidity':88,'sensorId':'PY-DEMO-1'});await refresh();}catch(e){_message(e);}}
-  Future<void> resetDemo()async{try{await api('/api/demo/reset',method:'POST',body:{});await secure.delete(key:'session');token=null;mode='instant';instantDemo();}catch(e){_message(e);}}
+  Future<void> showDemoTools() async {
+    showModalBottomSheet(context: context, builder: (c) => SafeArea(child: Wrap(children: [
+      const ListTile(title: Text('Demo tools'), subtitle: Text('Simulated readings · SMS not sent')),
+      ListTile(title: const Text('Simulate breach'), onTap: () { Navigator.pop(c); simulateBreach(); }),
+      ListTile(title: const Text('Simulate sensor reading'), onTap: () { Navigator.pop(c); simulateSensorReading(); }),
+      ListTile(title: const Text('Simulate network loss'), onTap: () { Navigator.pop(c); simulateNetworkLoss(); }),
+      ListTile(title: const Text('Switch crop'), onTap: () { Navigator.pop(c); setState(() => tab = 0); }),
+      ListTile(title: Text('Next step · '+(demoStep+1).toString()), onTap: () { Navigator.pop(c); nextDemoStep(); }),
+      if (guidedDemoEnabled) ListTile(title: const Text('Start guided demo'), onTap: () { Navigator.pop(c); guidedDemo(); }),
+      ListTile(title: const Text('Reset demo'), onTap: () { Navigator.pop(c); resetDemo(); }),
+    ])));
+  }
+  Future<void> simulateBreach() async {
+    if (mode == 'instant') {
+      status = {'reading': {'temperature': 33, 'humidity': 88, 'createdAt': DateTime.now().toIso8601String(), 'synthetic': true}, 'stale': false, 'statusLabel': 'Outside target band', 'estimate': {'rangeWeeks': [1, 2]}};
+      alerts = [{'message': 'Conditions are outside the target band. Check your crop now.', 'reviewed_at': null}];
+      setState(() {});
+      return;
+    }
+    try { await api('/api/demo/simulate-reading', method: 'POST', body: {'temperature': 33, 'humidity': 88, 'sensorId': 'PY-DEMO-1'}); await refresh(); }
+    catch (e) { _message(e); }
+  }
+  Future<void> simulateSensorReading() async {
+    if (mode == 'guided') {
+      try { await api('/api/demo/simulate-reading', method: 'POST', body: {'temperature': 18.2, 'humidity': 62, 'sensorId': 'PY-DEMO-1'}); _message('Simulated reading received. You can now link PY-DEMO-1.'); }
+      catch (e) { _message(e); }
+    } else {
+      readings = [{'temperature': 18.2, 'humidity': 62, 'sensor_id': 'PY-DEMO-1', 'created_at': DateTime.now().toIso8601String(), 'synthetic': true}, ...readings];
+      _message('Simulated reading received for PY-DEMO-1.');
+    }
+  }
+  void simulateNetworkLoss() { setState(() => offline = !offline); if (!offline) refresh(); }
+  void nextDemoStep() { setState(() => demoStep++); _message('Guided demo checklist · Step '+demoStep.toString()); }
+  Future<void> resetDemo()async{if(mode=='instant'){status={};alerts=[];sites=[];readings=[];crop='Maize';offline=false;await refresh();return;}try{await api('/api/demo/reset',method:'POST',body:{});await secure.delete(key:'session');token=null;mode='instant';instantDemo();}catch(e){_message(e);}}
 }
