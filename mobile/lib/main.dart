@@ -21,9 +21,9 @@ class _HomeState extends State<Home>{
   final localAuth=LocalAuthentication();
   final pages=['Overview','Trends','My Crops','Alerts','Settings'];
   int tab=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
-  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false;
+  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false;
   Map<String,dynamic> status={};List<dynamic> sites=[],alerts=[],sessions=[],readings=[];
-  Future<void> restore()async{try{address.text=await secure.read(key:'backend')??address.text;token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(mounted)setState((){});}
+  Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(mounted)setState((){});}
   @override void initState(){super.initState();restore();}
   @override void dispose(){phone.dispose();password.dispose();totp.dispose();name.dispose();address.dispose();super.dispose();}
   Uri uri(String p)=>Uri.parse(address.text.replaceAll(RegExp(r'/+$'),'')+p);
@@ -75,6 +75,7 @@ class _HomeState extends State<Home>{
         button(screen=='login'?'Create account':'I already have an account',()=>setState(() {screen=screen=='login'?'register':'login';error='';})),
       ]else ...[
         if(error.isNotEmpty)Text(error,style:const TextStyle(color:Colors.red)),
+        if(!backendSaved)...[input('Backend address',address,hint:'http://192.168.1.20:3000'),button('Check and save backend',saveBackend,primary:true)],
         button('Sign in',()=>setState(()=>screen='login'),primary:true),
         button('Create account',()=>setState(()=>screen='register')),
         button('Explore Demo mode',instantDemo),
@@ -92,7 +93,7 @@ class _HomeState extends State<Home>{
     try{
       final payload=Map<String,dynamic>.from(jsonDecode(raw));final origin=(payload['backend']??'').toString(),id=(payload['codeId']??'').toString();
       if(!privateAddress(origin)||id.isEmpty)throw Exception('QR must contain a private-network HTTP address and a code ID.');
-      if(origin!=address.text){final yes=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Connect to this backend?'),content:Text('Connect to '+origin+'? Your old backend session will be cleared.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Connect'))]));if(yes!=true)return;await secure.delete(key:'session');token=null;address.text=origin;await secure.write(key:'backend',value:origin);}
+      if(origin!=address.text){final yes=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Connect to this backend?'),content:Text('Connect to '+origin+'? Your old backend session will be cleared.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Connect'))]));if(yes!=true)return;await secure.delete(key:'session');token=null;address.text=origin;await secure.write(key:'backend',value:origin);backendSaved=true;}
       if(token!=null){final detail=await api('/api/qr/web/scan',method:'POST',body:{'codeId':id,'deviceName':'Android phone'});if(!mounted)return;final ctrl=TextEditingController();final match=await showDialog<String>(context:context,builder:(c)=>AlertDialog(title:const Text('Approve sign-in on computer?'),content:Column(mainAxisSize:MainAxisSize.min,children:[Text('Device: '+(detail['device']??'Web browser')),Text('Address: '+(detail['networkAddress']??'Private network')),TextField(controller:ctrl,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Enter the match number shown on the computer'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Deny')),TextButton(onPressed:()=>Navigator.pop(c,ctrl.text),child:const Text('Approve'))]));if(match!=null){final ok=await localAuth.authenticate(localizedReason:'Approve this Peo Yame sign-in on your computer');if(!ok)throw Exception('Biometric approval was cancelled.');await api('/api/qr/web/approve',method:'POST',body:{'codeId':id,'matchCode':match});_message('Computer sign-in approved.');}else{await api('/api/qr/web/deny',method:'POST',body:{'codeId':id});}}
       else{final verifier=randomVerifier();final result=await api('/api/qr/phone/scan',method:'POST',auth:false,body:{'codeId':id,'verifier':verifier,'deviceName':'Android phone','appVersion':'1'});await secure.write(key:'pairCode',value:id);await secure.write(key:'pairVerifier',value:verifier);await secure.write(key:'pairMatch',value:result['matchNumber'].toString());setState(()=>screen='waiting');}
     }catch(e){setState(()=>screen='login');_message(e);}finally{scanning=false;}
@@ -289,7 +290,7 @@ class _HomeState extends State<Home>{
     }
   }
   Future<void> biometricLock()async{try{final ok=await localAuth.authenticate(localizedReason:'Unlock Peo Yame');if(!ok)throw Exception('Authentication cancelled.');_message('Biometric check passed on this device.');}catch(e){_message(e);}}
-  Future<void> saveBackend()async{try{if(!privateAddress(address.text))throw Exception('Use a private network HTTP address.');final d=await api('/api/health',auth:false);if(d['ok']!=true)throw Exception('Wrong server');await secure.write(key:'backend',value:address.text);await secure.delete(key:'session');token=null;_message('Connected · accounts enabled');}catch(e){_message('Backend unreachable or wrong server: '+e.toString());}}
+  Future<void> saveBackend()async{try{if(!privateAddress(address.text))throw Exception('Use a private network HTTP address.');final d=await api('/api/health',auth:false);if(d['ok']!=true)throw Exception('Wrong server');await secure.write(key:'backend',value:address.text);backendSaved=true;await secure.delete(key:'session');token=null;_message('Connected · accounts enabled');if(mounted)setState((){});}catch(e){_message('Backend unreachable or wrong server: '+e.toString());}}
   Future<void> exportData()async{try{final d=await api('/api/export');_message('Export ready: '+d.toString().substring(0,min(80,d.toString().length)));}catch(e){_message(e);}}
   Future<void> showDemoTools()async{showModalBottomSheet(context:context,builder:(c)=>SafeArea(child:Wrap(children:[const ListTile(title:Text('Demo tools'),subtitle:Text('Simulated readings · SMS not sent')),ListTile(title:const Text('Simulate breach'),onTap:()=>simulateBreach()),ListTile(title:const Text('Start guided demo'),onTap:()=>guidedDemo()),ListTile(title:const Text('Reset demo'),onTap:resetDemo)])));}
   Future<void> simulateBreach()async{if(mode=='instant'){status={'reading':{'temperature':33,'humidity':88,'createdAt':DateTime.now().toIso8601String(),'synthetic':true},'stale':false,'estimate':{'rangeWeeks':[1,2]}};setState((){});return;}try{await api('/api/demo/simulate-reading',method:'POST',body:{'temperature':33,'humidity':88,'sensorId':'PY-DEMO-1'});await refresh();}catch(e){_message(e);}}
