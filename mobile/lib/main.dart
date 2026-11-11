@@ -137,6 +137,8 @@ class _HomeState extends State<Home>{
           padding: const EdgeInsets.all(16),
           children: [
             Text(pages[tab], style: Theme.of(context).textTheme.headlineMedium),
+            if (mode == 'guided')
+              card(const Text('Demo session. Data is simulated and will be deleted.')),
             if (stale)
               card(Text(
                 'Offline · last known values from '
