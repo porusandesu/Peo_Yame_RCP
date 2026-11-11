@@ -47,6 +47,7 @@ internal static class Program {
     try{
       await StartBackendAsync();
       using var client=new HttpClient();var root="http://127.0.0.1:38191";
+      var web=await client.GetAsync(root+"/");if(web.StatusCode!=HttpStatusCode.OK)throw new Exception("Start did not make the web application available.");
       var reg=await client.PostAsJsonAsync(root+"/api/account/register",new{name="CI Farmer",phone="71234567",password="test password 2026"});if(reg.StatusCode!=HttpStatusCode.Created)throw new Exception("Start/register lifecycle failed.");
       StopBackend();await StartBackendAsync();
       var login=await client.PostAsJsonAsync(root+"/api/account/login",new{phone="71234567",password="test password 2026"});if(login.StatusCode!=HttpStatusCode.OK)throw new Exception("Restart did not preserve account credentials.");
