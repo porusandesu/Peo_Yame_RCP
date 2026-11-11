@@ -1,5 +1,15 @@
 # Test report
 
+## GitHub Actions v89 — Windows launch verification passed; Android icon packaging unresolved
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43101294712
+Commit: `2004c2b` (Correct packaged icon assertion and Windows launch trace check).
+
+- Backend API tests: passed.
+- Windows: the normal-launch check passed for the first time in CI. The unmodified single executable started from a folder containing only the executable, served a live health endpoint and the dashboard, requested the dashboard URL, and completed account registration. The restart/reset lifecycle check passed. The `Peo Yame v89 Windows` single-exe artifact was uploaded.
+- Android: analysis, widget tests, and the release APK build passed, but the packaged-icon assertion still failed: the APK contains no `mipmap-xxxhdpi` launcher entry under either the `-v4`-suffixed or plain path, so the resource is not being packaged as expected. A diagnostic print of the APK's mipmap/launcher entries was added ahead of the assertion to identify the actual packaged paths on the next run.
+- No local app builds or tests were run.
+
 ## GitHub Actions v88 — failed (workflow check corrections applied for v89)
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43099381108
