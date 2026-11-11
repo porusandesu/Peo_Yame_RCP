@@ -21,9 +21,9 @@ class _HomeState extends State<Home>{
   final localAuth=LocalAuthentication();
   final pages=['Overview','Trends','My Crops','Alerts','Settings'];
   int tab=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
-  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false;
+  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false,guidedDemoEnabled=false;
   Map<String,dynamic> status={};List<dynamic> sites=[],alerts=[],sessions=[],readings=[];
-  Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(mounted)setState((){});}
+  Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(backendSaved){try{final health=await api('/api/health',auth:false);guidedDemoEnabled=health['guidedDemoEnabled']==true;}catch(_){}}if(mounted)setState((){});}
   @override void initState(){super.initState();restore();}
   @override void dispose(){phone.dispose();password.dispose();totp.dispose();name.dispose();address.dispose();super.dispose();}
   Uri uri(String p)=>Uri.parse(address.text.replaceAll(RegExp(r'/+$'),'')+p);
@@ -292,7 +292,7 @@ class _HomeState extends State<Home>{
   Future<void> biometricLock()async{try{final ok=await localAuth.authenticate(localizedReason:'Unlock Peo Yame');if(!ok)throw Exception('Authentication cancelled.');_message('Biometric check passed on this device.');}catch(e){_message(e);}}
   Future<void> saveBackend()async{try{if(!privateAddress(address.text))throw Exception('Use a private network HTTP address.');final d=await api('/api/health',auth:false);if(d['ok']!=true)throw Exception('Wrong server');await secure.write(key:'backend',value:address.text);backendSaved=true;await secure.delete(key:'session');token=null;_message('Connected · accounts enabled');if(mounted)setState((){});}catch(e){_message('Backend unreachable or wrong server: '+e.toString());}}
   Future<void> exportData()async{try{final d=await api('/api/export');_message('Export ready: '+d.toString().substring(0,min(80,d.toString().length)));}catch(e){_message(e);}}
-  Future<void> showDemoTools()async{showModalBottomSheet(context:context,builder:(c)=>SafeArea(child:Wrap(children:[const ListTile(title:Text('Demo tools'),subtitle:Text('Simulated readings · SMS not sent')),ListTile(title:const Text('Simulate breach'),onTap:()=>simulateBreach()),ListTile(title:const Text('Start guided demo'),onTap:()=>guidedDemo()),ListTile(title:const Text('Reset demo'),onTap:resetDemo)])));}
+  Future<void> showDemoTools()async{showModalBottomSheet(context:context,builder:(c)=>SafeArea(child:Wrap(children:[const ListTile(title:Text('Demo tools'),subtitle:Text('Simulated readings · SMS not sent')),ListTile(title:const Text('Simulate breach'),onTap:()=>simulateBreach()),if(guidedDemoEnabled)ListTile(title:const Text('Start guided demo'),onTap:()=>guidedDemo()),ListTile(title:const Text('Reset demo'),onTap:resetDemo)])));}
   Future<void> simulateBreach()async{if(mode=='instant'){status={'reading':{'temperature':33,'humidity':88,'createdAt':DateTime.now().toIso8601String(),'synthetic':true},'stale':false,'estimate':{'rangeWeeks':[1,2]}};setState((){});return;}try{await api('/api/demo/simulate-reading',method:'POST',body:{'temperature':33,'humidity':88,'sensorId':'PY-DEMO-1'});await refresh();}catch(e){_message(e);}}
   Future<void> resetDemo()async{try{await api('/api/demo/reset',method:'POST',body:{});await secure.delete(key:'session');token=null;mode='instant';instantDemo();}catch(e){_message(e);}}
 }
