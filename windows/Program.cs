@@ -29,7 +29,7 @@ internal static class Program {
     var root=Path.Combine(AppContext.BaseDirectory,"backend");var node=Path.Combine(root,"node.exe");
     if(!File.Exists(node))throw new FileNotFoundException("Backend runtime is missing.",node);
     var info=new ProcessStartInfo(node){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=root};
-    info.ArgumentList.Add("src/server.js");info.Environment["PEO_YAME_DATA_DIR"]=DataDir;info.Environment["HOST"]="127.0.0.1";info.Environment["PORT"]=Port.ToString();
+    info.ArgumentList.Add("src/server.js");info.Environment["PEO_YAME_DATA_DIR"]=DataDir;info.Environment["HOST"]="0.0.0.0";info.Environment["PORT"]=Port.ToString();
     backend=Process.Start(info)??throw new InvalidOperationException("Backend did not start.");
     using var client=new HttpClient();var url="http://127.0.0.1:"+Port+"/api/health";
     for(var i=0;i<40;i++){try{var response=await client.GetAsync(url);if(response.StatusCode==HttpStatusCode.OK)return;}catch{}await Task.Delay(250);}
