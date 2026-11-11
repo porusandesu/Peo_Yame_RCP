@@ -21,7 +21,7 @@ class _HomeState extends State<Home>{
   final localAuth=LocalAuthentication();
   final pages=['Overview','Trends','My Crops','Alerts','Settings'];
   int tab=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
-  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false,guidedDemoEnabled=false;
+  String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false,guidedDemoEnabled=false,totpEnabled=false;
   Map<String,dynamic> status={};List<dynamic> sites=[],alerts=[],sessions=[],readings=[];
   Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(backendSaved){try{final health=await api('/api/health',auth:false);guidedDemoEnabled=health['guidedDemoEnabled']==true;}catch(_){}}if(mounted)setState((){});}
   @override void initState(){super.initState();restore();}
@@ -246,7 +246,7 @@ class _HomeState extends State<Home>{
     );
   }
   Widget _settings()=>Column(children:[
-    card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Account & security',style:TextStyle(fontWeight:FontWeight.bold)),button('Profile',profile),button('Authenticator app',totpEnroll),button('Active sessions',loadSessions),button('Lock app with biometrics',biometricLock)])),
+    card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Account & security',style:TextStyle(fontWeight:FontWeight.bold)),button('Profile',profile),button('Authenticator app · '+(totpEnabled?'On':'Off'),totpEnabled?disableTotp:totpEnroll),button('Active sessions',loadSessions),button('Lock app with biometrics',biometricLock)])),
     card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Connection',style:TextStyle(fontWeight:FontWeight.bold)),input('Backend address',address),button('Check and save backend',saveBackend),const Text('Plain HTTP is for an isolated demo network only. Phone and computer must be on the same Wi-Fi.'),Text('Last synced: '+lastSync)])),
     card(Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Other devices',style:TextStyle(fontWeight:FontWeight.bold)),button('Connect phone by QR',createPairQr),button('Log in on computer',()=>setState(()=>screen='camera-rationale'))])),
     if(qrPayload!=null)card(Column(children:[QrImageView(data:qrPayload!,size:220),Text('Code expires shortly · '+(qrCodeId??''))])),
@@ -262,10 +262,36 @@ class _HomeState extends State<Home>{
   Future<void> loadSessions()async{try{sessions=await api('/api/account/sessions');setState((){});}catch(e){_message(e);}}
   Future<void> createPairQr()async{try{final pass=TextEditingController();final auth=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Confirm your identity'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:pass,obscureText:true,decoration:const InputDecoration(labelText:'Password')),TextField(controller:auth,decoration:const InputDecoration(labelText:'Authenticator code (if enabled)'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Continue'))]));if(ok!=true)return;final d=await api('/api/qr/phone/create',method:'POST',body:{'password':pass.text,'totp':auth.text});qrPayload=d['payload'];qrCodeId=d['codeId'];setState((){});}catch(e){_message(e);}}
   Future<void> profile()async{try{final x=await api('/api/account');_message('Signed in as '+x['name'].toString()+' · '+x['phone'].toString());}catch(e){_message(e);}}
-  Future<void> totpEnroll() async {
+  Future<Map<String, String>?> askReauthentication({bool needTotp = false}) async {
+    final pass = TextEditingController();
     final code = TextEditingController();
     try {
-      final d = await api('/api/account/totp/enroll', method: 'POST', body: {});
+      return await showDialog<Map<String, String>>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Confirm your identity'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: pass, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
+            if (needTotp) TextField(controller: code, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Authenticator code')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(c, {'password': pass.text, 'totp': code.text}), child: const Text('Continue')),
+          ],
+        ),
+      );
+    } finally {
+      pass.dispose();
+      code.dispose();
+    }
+  }
+  Future<void> totpEnroll() async {
+    final credentials = await askReauthentication(needTotp: totpEnabled);
+    if (credentials == null) return;
+    final code = TextEditingController();
+    try {
+      final d = await api('/api/account/totp/enroll', method: 'POST',
+          body: {'password': credentials['password'], 'totp': credentials['totp']});
       if (!mounted) return;
       final enabled = await showDialog<bool>(
         context: context,
@@ -284,13 +310,38 @@ class _HomeState extends State<Home>{
         ),
       );
       if (enabled == true) {
-        await api('/api/account/totp/enable', method: 'POST', body: {'code': code.text});
-        _message('Authenticator sign-in enabled.');
+        final result = Map<String, dynamic>.from(await api('/api/account/totp/enable',
+            method: 'POST', body: {'password': credentials['password'], 'code': code.text}));
+        if (result['token'] is String) {
+          token = result['token'];
+          await secure.write(key: 'session', value: token);
+        }
+        totpEnabled = true;
+        _message('Authenticator sign-in enabled. Other sessions were signed out.');
       }
     } catch (e) {
       _message(e);
     } finally {
       code.dispose();
+      if (mounted) setState(() {});
+    }
+  }
+  Future<void> disableTotp() async {
+    final credentials = await askReauthentication(needTotp: true);
+    if (credentials == null) return;
+    try {
+      final result = Map<String, dynamic>.from(await api('/api/account/totp/disable',
+          method: 'POST', body: {'password': credentials['password'], 'code': credentials['totp']}));
+      if (result['token'] is String) {
+        token = result['token'];
+        await secure.write(key: 'session', value: token);
+      }
+      totpEnabled = false;
+      _message('Authenticator sign-in disabled. Other sessions were signed out.');
+    } catch (e) {
+      _message(e);
+    } finally {
+      if (mounted) setState(() {});
     }
   }
   Future<void> biometricLock()async{try{final ok=await localAuth.authenticate(localizedReason:'Unlock Peo Yame');if(!ok)throw Exception('Authentication cancelled.');_message('Biometric check passed on this device.');}catch(e){_message(e);}}
