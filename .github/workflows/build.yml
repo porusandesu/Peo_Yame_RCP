@@ -102,6 +102,7 @@ jobs:
             if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }
             $testFile = Join-Path $env:TEMP "PeoYame-self-test.log"
             if (Test-Path $testFile) { Get-Content $testFile }
+            Get-ChildItem $env:TEMP -Filter "self-test.log" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }
             throw "Windows backend lifecycle check failed"
           }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
