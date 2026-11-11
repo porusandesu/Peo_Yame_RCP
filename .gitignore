@@ -1,5 +1,8 @@
 node_modules/
 backend/data/
-build/
-.dart_tool/
-.flutter-plugins*
+mobile/.dart_tool/
+mobile/build/
+mobile/android/
+windows/bin/
+windows/obj/
+publish/

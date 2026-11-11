@@ -12,21 +12,18 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
-      - run: npm test
+      - name: Install and test API
+        working-directory: backend
+        run: |
+          npm install
+          npm test
   android:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mobile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -36,28 +33,30 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - run: flutter create --platforms=android --org bw.co.peoyame --project-name peo_yame .
-      - name: Configure camera and local authentication
-        run: python3 configure_android.py
-      - name: Install supplied Android launcher icons
-        shell: bash
+      - name: Generate Android project
+        working-directory: mobile
+        run: flutter create --platforms=android --org com.peoyame --project-name monitor .
+      - name: Configure demo LAN access and brand icon
+        working-directory: mobile
         run: |
-          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p android/app/src/main/res/mipmap-$density; cp ../assets/android/mipmap-$density/ic_launcher*.png android/app/src/main/res/mipmap-$density/; done
+          python3 android-configure.py
           mkdir -p android/app/src/main/res/drawable
-          cp ../assets/android/drawable/* android/app/src/main/res/drawable/
-          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
-          cp ../assets/android/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/
-      - run: flutter pub get
-      - run: flutter test
-      - run: flutter analyze --no-fatal-infos
-      - run: flutter build apk --release
-      - name: Name APK from this workflow run
-        shell: bash
-        run: cp build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${GITHUB_RUN_NUMBER}.apk"
+          cp ../assets/peo-yame-512.png android/app/src/main/res/drawable/peo_yame_logo.png
+      - name: Test and analyze Android client
+        working-directory: mobile
+        run: |
+          flutter pub get
+          flutter test
+          flutter analyze --no-fatal-infos
+      - name: Build Android release
+        working-directory: mobile
+        run: flutter build apk --release
+      - name: Name Android release
+        run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Peo Yame v${{ github.run_number }}
-          path: mobile/Peo Yame v${{ github.run_number }}.apk
+          name: Peo Yame v${{ github.run_number }} Android
+          path: Peo Yame v${{ github.run_number }}.apk
   windows:
     runs-on: windows-latest
     steps:
@@ -68,34 +67,37 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Install and test backend
+      - name: Install backend dependencies and test
         working-directory: backend
         run: |
           npm install
           npm test
-      - name: Publish tray application
+      - name: Publish notification-area app
         run: dotnet publish windows/PeoYameTray.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
-      - name: Package backend runtime and assets
+      - name: Package backend and logo
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path publish/backend | Out-Null
-          Copy-Item backend/src -Destination publish/backend/src -Recurse
-          Copy-Item backend/public -Destination publish/backend/public -Recurse
-          Copy-Item backend/package.json -Destination publish/backend/package.json
-          Copy-Item backend/node_modules -Destination publish/backend/node_modules -Recurse
-          $node = (Get-Command node).Source
-          Copy-Item $node publish/backend/node.exe
-          Copy-Item assets/windows/PeoYame.png publish/PeoYame.png
-          $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peo-yame-lifecycle-data"
+          New-Item -ItemType Directory -Force -Path publish/backend, publish/backend/src, publish/backend/public, publish/assets | Out-Null
+          Copy-Item backend/src/server.js publish/backend/src/server.js
+          Copy-Item backend/package.json publish/backend/package.json
+          Copy-Item backend/public/* publish/backend/public -Recurse -Force
+          Copy-Item backend/node_modules publish/backend/node_modules -Recurse -Force
+          Copy-Item assets/peo-yame-512.png publish/backend/public/assets/peo-yame-512.png -Force
+          Copy-Item assets/peo-yame-512.png publish/assets/peo-yame-512.png
+          Add-Type -AssemblyName System.Drawing
+          $brand = [System.Drawing.Image]::FromFile((Resolve-Path "assets/peo-yame-512.png"))
+          $iconHandle = $brand.GetHicon()
+          $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
+          $iconStream = [System.IO.File]::Create("publish/PeoYame.ico")
+          $icon.Save($iconStream)
+          $iconStream.Dispose()
+          $icon.Dispose()
+          $brand.Dispose()
+          Copy-Item (Get-Command node).Source publish/backend/node.exe
+          $env:PEO_YAME_DATA_DIR = Join-Path $env:RUNNER_TEMP "peo-yame-lifecycle"
           $env:PORT = "38191"
-          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $env:RUNNER_TEMP "peo-yame-self-test.log"
-          $proc = Start-Process -FilePath "publish/Peo Yame.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($proc.ExitCode -ne 0) {
-            if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }
-            $fallbackLog = Join-Path $env:TEMP "PeoYame-self-test.log"
-            if (Test-Path $fallbackLog) { Get-Content $fallbackLog }
-            throw "Tray start/restart/stop lifecycle self-test failed."
-          }
+          & "publish/Peo Yame.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows backend lifecycle check failed" }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
           Compress-Archive -Path publish/* -DestinationPath "Peo Yame v${{ github.run_number }} Windows.zip" -Force
       - uses: actions/upload-artifact@v4

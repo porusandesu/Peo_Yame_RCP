@@ -1,5 +1,5 @@
 name: peo_yame
-description: Peo Yame storage monitor
+description: Peo Yame storage monitoring clients
 publish_to: none
 version: 1.0.0+1
 environment:
@@ -12,6 +12,7 @@ dependencies:
   mobile_scanner: ^7.5.0
   qr_flutter: ^4.1.0
   local_auth: ^3.0.2
+  lucide_icons_flutter: ^4.0.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -19,4 +20,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/brand/PeoYame-Sorghum-Logo-Master.png
+    - assets/brand/peo-yame-512.png
