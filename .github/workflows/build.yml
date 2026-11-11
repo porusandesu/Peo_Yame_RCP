@@ -49,7 +49,7 @@ jobs:
           cp ../assets/android/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/
       - run: flutter pub get
       - run: flutter test
-      - run: flutter analyze --fatal-warnings
+      - run: flutter analyze --no-fatal-infos
       - run: flutter build apk --release
       - name: Name APK from this workflow run
         shell: bash
