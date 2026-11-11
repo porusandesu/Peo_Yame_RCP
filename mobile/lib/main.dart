@@ -23,7 +23,7 @@ class _HomeState extends State<Home>{
   int tab=0;String screen='welcome',error='',crop='Maize',lastSync='Not synced',mode='instant';
   String? token,qrPayload,qrCodeId,csrf;bool busy=false,offline=false,scanning=false,backendSaved=false,guidedDemoEnabled=false,totpEnabled=false;
   Map<String,dynamic> status={};List<dynamic> sites=[],alerts=[],sessions=[],readings=[];
-  Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();}}catch(_){}if(backendSaved){try{final health=await api('/api/health',auth:false);guidedDemoEnabled=health['guidedDemoEnabled']==true;}catch(_){}}if(mounted)setState((){});}
+  Future<void> restore()async{try{final saved=await secure.read(key:'backend');if(saved!=null){address.text=saved;backendSaved=true;}token=await secure.read(key:'session');if(token!=null){mode='farmer';screen='app';await refresh();final account=await api('/api/account');totpEnabled=account['totpEnabled']==true;}}catch(_){}if(backendSaved){try{final health=await api('/api/health',auth:false);guidedDemoEnabled=health['guidedDemoEnabled']==true;}catch(_){}}if(mounted)setState((){});}
   @override void initState(){super.initState();restore();}
   @override void dispose(){phone.dispose();password.dispose();totp.dispose();name.dispose();address.dispose();super.dispose();}
   Uri uri(String p)=>Uri.parse(address.text.replaceAll(RegExp(r'/+$'),'')+p);
@@ -45,7 +45,7 @@ class _HomeState extends State<Home>{
     if(mounted)setState((){});
   }
   void instantDemo(){mode='instant';token=null;tab=0;screen='app';refresh();}
-  Future<void> login()async{setState(()=>busy=true);try{final d=Map<String,dynamic>.from(await api('/api/account/login',method:'POST',auth:false,body:{'phone':phone.text,'password':password.text,'totp':totp.text}));token=d['token'];await secure.write(key:'session',value:token);mode='farmer';screen='app';error='';await refresh();}catch(e){error=e.toString().replaceFirst('Exception: ','');}finally{if(mounted)setState(()=>busy=false);}}
+  Future<void> login()async{setState(()=>busy=true);try{final d=Map<String,dynamic>.from(await api('/api/account/login',method:'POST',auth:false,body:{'phone':phone.text,'password':password.text,'totp':totp.text}));token=d['token'];await secure.write(key:'session',value:token);mode='farmer';screen='app';error='';await refresh();final account=await api('/api/account');totpEnabled=account['totpEnabled']==true;}catch(e){error=e.toString().replaceFirst('Exception: ','');}finally{if(mounted)setState(()=>busy=false);}}
   Future<void> register()async{setState(()=>busy=true);try{await api('/api/account/register',method:'POST',auth:false,body:{'name':name.text,'phone':phone.text,'password':password.text});screen='login';error='Account created. Sign in with your phone and password.';}catch(e){error=e.toString().replaceFirst('Exception: ','');}finally{if(mounted)setState(()=>busy=false);}}
   Future<void> guidedDemo()async{try{final d=Map<String,dynamic>.from(await api('/api/demo/start',method:'POST',auth:false,body:{'client':'mobile'}));token=d['token'];await secure.write(key:'session',value:token);mode='guided';screen='app';await refresh();}catch(e){_message(e);}}
   Future<void> signOut()async{try{await api('/api/account/logout',method:'POST',body:{});}catch(_){}token=null;csrf=null;await secure.delete(key:'session');if(mounted)setState(()=>screen='welcome');}
