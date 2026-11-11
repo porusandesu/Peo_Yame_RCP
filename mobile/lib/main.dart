@@ -252,7 +252,37 @@ class _HomeState extends State<Home>{
   Future<void> loadSessions()async{try{sessions=await api('/api/account/sessions');setState((){});}catch(e){_message(e);}}
   Future<void> createPairQr()async{try{final pass=TextEditingController();final auth=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Confirm your identity'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:pass,obscureText:true,decoration:const InputDecoration(labelText:'Password')),TextField(controller:auth,decoration:const InputDecoration(labelText:'Authenticator code (if enabled)'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Continue'))]));if(ok!=true)return;final d=await api('/api/qr/phone/create',method:'POST',body:{'password':pass.text,'totp':auth.text});qrPayload=d['payload'];qrCodeId=d['codeId'];setState((){});}catch(e){_message(e);}}
   Future<void> profile()async{try{final x=await api('/api/account');_message('Signed in as '+x['name'].toString()+' · '+x['phone'].toString());}catch(e){_message(e);}}
-  Future<void> totpEnroll()async{try{final d=await api('/api/account/totp/enroll',method:'POST',body:{});_message('Authenticator setup key: '+d['secret'].toString()+'. Add it to an authenticator app, then confirm the current code.');}catch(e){_message(e);}}
+  Future<void> totpEnroll() async {
+    final code = TextEditingController();
+    try {
+      final d = await api('/api/account/totp/enroll', method: 'POST', body: {});
+      if (!mounted) return;
+      final enabled = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Set up authenticator app'),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            QrImageView(data: d['uri'].toString(), size: 200),
+            const Text('Scan this code, or enter the setup key manually:'),
+            SelectableText(d['secret'].toString()),
+            TextField(controller: code, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '6-digit authenticator code')),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Enable')),
+          ],
+        ),
+      );
+      if (enabled == true) {
+        await api('/api/account/totp/enable', method: 'POST', body: {'code': code.text});
+        _message('Authenticator sign-in enabled.');
+      }
+    } catch (e) {
+      _message(e);
+    } finally {
+      code.dispose();
+    }
+  }
   Future<void> biometricLock()async{try{final ok=await localAuth.authenticate(localizedReason:'Unlock Peo Yame');if(!ok)throw Exception('Authentication cancelled.');_message('Biometric check passed on this device.');}catch(e){_message(e);}}
   Future<void> saveBackend()async{try{if(!privateAddress(address.text))throw Exception('Use a private network HTTP address.');final d=await api('/api/health',auth:false);if(d['ok']!=true)throw Exception('Wrong server');await secure.write(key:'backend',value:address.text);await secure.delete(key:'session');token=null;_message('Connected · accounts enabled');}catch(e){_message('Backend unreachable or wrong server: '+e.toString());}}
   Future<void> exportData()async{try{final d=await api('/api/export');_message('Export ready: '+d.toString().substring(0,min(80,d.toString().length)));}catch(e){_message(e);}}
