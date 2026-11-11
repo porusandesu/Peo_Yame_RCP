@@ -207,6 +207,7 @@ class _HomeState extends State<Home>{
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     for (final sensor in site['sensors'] ?? [])
                       Text(sensor['id'].toString() + ' · ' + (sensor['last_seen_at'] ?? 'No readings').toString()),
+                    TextButton(onPressed: () => linkSensor(site['id'].toString()), child: const Text('Link sensor')),
                     TextButton(onPressed: () => deleteSite(site['id'].toString()), child: const Text('Delete location')),
                   ],
                 )),
@@ -257,6 +258,27 @@ class _HomeState extends State<Home>{
   Future<void> showEstimateExplanation()async{await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:const Text('How is this estimated?'),content:const Text('An unvalidated heuristic based on distance from target bands. It ignores crop moisture, variety, maturity, pests, packaging and ventilation.'),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Close'))]));}
   Future<void> loadTrends(String range)async{try{final d=await api('/api/readings/trends?range='+range,auth:mode!='instant');readings=List<dynamic>.from(d['points']??[]);setState(()=>tab=1);}catch(e){_message(e);}}
   Future<void> addSite()async{final n=TextEditingController();final cropCtrl=TextEditingController(text:'Maize');final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Add storage location'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:n,decoration:const InputDecoration(labelText:'Location name')),DropdownButtonFormField<String>(initialValue:'Maize',items:['Maize','Sorghum','Tomato','Potato'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(x){if(x!=null)cropCtrl.text=x;})]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Add'))]));if(ok==true)try{await api('/api/sites',method:'POST',body:{'name':n.text,'crop':cropCtrl.text});sites=await api('/api/sites');setState((){});}catch(e){_message(e);}}
+  Future<void> linkSensor(String siteId) async {
+    final sensor = TextEditingController();
+    try {
+      final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        title: const Text('Link sensor'),
+        content: TextField(controller: sensor, decoration: const InputDecoration(labelText: 'Sensor ID')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Link')),
+        ],
+      ));
+      if (ok != true || sensor.text.trim().isEmpty) return;
+      await api('/api/sites/' + siteId + '/sensors', method: 'POST', body: {'sensorId': sensor.text.trim()});
+      sites = await api('/api/sites');
+      if (mounted) setState(() {});
+    } catch (e) {
+      _message(e);
+    } finally {
+      sensor.dispose();
+    }
+  }
   Future<void> deleteSite(String id)async{try{await api('/api/sites/'+id,method:'DELETE');sites=await api('/api/sites');setState((){});}catch(e){_message(e);}}
   Future<void> reviewAlert(String id)async{try{await api('/api/alerts/'+id+'/review',method:'POST',body:{});alerts=await api('/api/alerts');setState((){});}catch(e){_message(e);}}
   Future<void> loadSessions()async{try{sessions=await api('/api/account/sessions');setState((){});}catch(e){_message(e);}}
