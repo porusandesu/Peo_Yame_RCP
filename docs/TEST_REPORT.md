@@ -1,5 +1,15 @@
 # Test report
 
+## GitHub Actions v90 — Windows and backend green; Android APK contains no launcher resources at all
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43102420479
+Commit: `14ff446` (Diagnose APK icon packaging and record v89 evidence).
+
+- Backend API tests: passed (13s).
+- Windows: normal-launch check and restart/reset lifecycle both passed; `Peo Yame v90 Windows` artifact uploaded. Second consecutive green Windows run.
+- Android: analysis, widget tests, and the release APK build passed, but the packaged-icon assertion failed again. The diagnostic print returned `APK icon entries: []` — the APK contains no mipmap or launcher-named entries whatsoever, so the icon is not merely missing at one density. A full forensic dump (APK size, total entry count, res/ sample, and `aapt2 dump badging` icon lines) was added to the next run to identify what the packaged manifest actually references.
+- No local app builds or tests were run.
+
 ## GitHub Actions v89 — Windows launch verification passed; Android icon packaging unresolved
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43101294712

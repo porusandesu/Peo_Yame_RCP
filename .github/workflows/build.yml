@@ -52,7 +52,12 @@ jobs:
           flutter test
           flutter analyze --no-fatal-infos
           flutter build apk --release
-          python3 -c 'import re,zipfile; z=zipfile.ZipFile("build/app/outputs/flutter-apk/app-release.apk"); n=z.namelist(); print("APK icon entries:", [x for x in n if "mipmap" in x.lower() or "ic_launcher" in x.lower()]); assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher\.png$",x) for x in n), "xxxhdpi launcher icon missing from APK"; assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher_round\.png$",x) for x in n), "round launcher icon missing from APK"; assert any(re.search(r"/mipmap-anydpi-v26(-v\d+)?/ic_launcher\.xml$",x) for x in n), "adaptive launcher icon missing from APK"'
+          ls -la build/app/outputs/flutter-apk/
+          find android/app/src/main/res -type f | head -40
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt2" dump badging build/app/outputs/flutter-apk/app-release.apk | grep -iE 'icon|application-label' || echo "aapt2 badging: no icon lines found"
+          python3 -c 'import zipfile,os; p="build/app/outputs/flutter-apk/app-release.apk"; z=zipfile.ZipFile(p); n=z.namelist(); print("APK size:",os.path.getsize(p)); print("total entries:",len(n)); print("res sample:",[x for x in n if x.startswith("res/")][:40]); print("APK icon entries:",[x for x in n if "mipmap" in x.lower() or "ic_launcher" in x.lower()])'
+          python3 -c 'import re,zipfile; z=zipfile.ZipFile("build/app/outputs/flutter-apk/app-release.apk"); n=z.namelist(); assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher\.png$",x) for x in n), "xxxhdpi launcher icon missing from APK"; assert any(re.search(r"/mipmap-xxxhdpi(-v\d+)?/ic_launcher_round\.png$",x) for x in n), "round launcher icon missing from APK"; assert any(re.search(r"/mipmap-anydpi-v26(-v\d+)?/ic_launcher\.xml$",x) for x in n), "adaptive launcher icon missing from APK"'
       - run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v4
         with:
