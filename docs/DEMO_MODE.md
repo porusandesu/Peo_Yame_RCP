@@ -8,13 +8,13 @@ account-isolated features. Its sample history is seeded when the backend has no
 shared readings; it does not continuously generate new readings.
 
 **Guided Demo** creates a temporary demo user and a separate data set each time
-it starts. The profile includes Maize and Sorghum storage locations, a
-simulated `PY-DEMO-1` sensor linked to the Maize store, and 25 historical,
-timestamped synthetic readings. The session expires after two hours absolute
-or 30 minutes idle. Reset deletes the temporary user, its readings and alerts,
-and stops its live simulator. The temporary phone and password are not intended
-for reuse; use the in-app QR flows to join the same demo profile on another
-device.
+it starts. It begins with no storage locations, one unlinked synthetic
+`PY-DEMO-1` sensor, and 25 historical, timestamped synthetic readings. This
+lets the presenter demonstrate adding a location and linking a sensor. The
+generated password is shown once in the app; only its salted hash is stored.
+The session expires after two hours absolute or 30 minutes idle. Reset deletes
+the temporary user, its readings and alerts, and stops its live simulator.
+Use the in-app QR flows to join the same demo profile on another device.
 
 Neither mode connects to physical sensors or sends SMS. Readings, sensor
 activity, and alerts are labeled as simulated.
@@ -38,10 +38,31 @@ same live data on both:
 - Start the live simulation from either device. The other signed-in device
   receives the same readings and updates its visible screen.
 
-For a temporary demo profile, creating a phone QR skips the password
-re-check because its generated password is not available to the user. The
-one-time code, short expiry, match-code verification, and explicit approval
-remain in place. Normal accounts still require password re-authentication.
+Creating a phone QR for Guided Demo uses the same password re-check as a
+normal account. The presenter can use the generated password shown once when
+Guided Demo starts; if an authenticator is enabled, its current code is also
+required. The one-time code, short expiry, match-code verification, and
+explicit approval are not bypassed.
+
+## QR and backend connection
+
+- **Connect phone by QR (Flow A):** an authenticated computer re-checks the
+  password and, when enabled, the authenticator code. The phone scans the
+  90-second QR, confirms a backend switch if needed, claims it with a
+  verifier-bound request, and displays the match number. The computer
+  approves or denies; approval creates a separate phone session.
+- **Sign in on computer (Flow B):** the browser displays a 90-second QR and
+  match number. A signed-in phone scans it, confirms the number with the
+  presenter, and requires device authentication before approving. The browser
+  redeems its verifier for its own session.
+- **Backend connection QR:** Settings can display an address-only QR with no
+  session token or pairing code. Mobile validates the address, asks before
+  switching backends, checks the health endpoint, then saves it. The mobile
+  app also allows the address to be entered manually.
+- Both sign-in flows accept the short manual pairing code. Camera permission
+  is requested after an explanation; denial offers app Settings and manual
+  entry. Canceling a phone claim notifies the computer and closes its approval
+  prompt.
 
 Starting Guided Demo independently on both devices creates two different
 temporary users, so their readings do not sync. Starting the simulation again
@@ -64,9 +85,11 @@ the backend process restarts.
 ## Implementation and verification
 
 The live simulator, QR sharing, event-driven screen refresh, and demo-session
-idle policy are implemented in the active source. GitHub Actions v103 passed
-backend tests for live reading generation and delivery to a second QR session,
-as well as Android and Windows checks. GitHub Actions v104 verified that
-QR-created demo sessions have the demo profile's two-hour absolute lifetime.
-Visual presentation and physical-device behavior have not yet been manually
-verified.
+idle policy are implemented in the active source. GitHub Actions v109 (run
+`43211211135`, commit `fc7f261`) passed backend tests, Android tests/analysis/
+release APK, and Windows launch/lifecycle/installer acceptance. Coverage
+includes backend connection QR payloads, phone QR renewal and cancellation,
+owner/verifier binding, expiry, and demo QR synchronization. Artifacts
+`Peo Yame v109 Android` and `Peo Yame v109 Windows` were uploaded. Visual
+presentation, camera permissions, physical-device behavior, and real Wi-Fi
+reachability have not been manually verified.

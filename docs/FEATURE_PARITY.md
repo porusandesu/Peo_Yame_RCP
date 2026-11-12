@@ -1,5 +1,26 @@
 # Feature parity status
 
+## QR and backend pairing — v109 CI verified
+
+Guided Demo now starts with an empty location list and an unlinked synthetic
+sensor, and its generated password is shown once so the real password and
+authenticator re-checks remain usable during the demo. Phone QR creation
+requires the same re-authentication in demo and normal accounts. The web
+dashboard now uses a real Flow A approval dialog, expiring QR countdown and
+renewal, and an address-only backend QR. Mobile offers QR sign-in from Welcome,
+camera-permission recovery, manual pairing-code entry, and an explicit
+verifier-bound cancel action.
+
+GitHub Actions v109 (run
+[`43211211135`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43211211135),
+commit `fc7f261`) passed backend API tests, Android tests/analysis/release APK
+and packaged launcher verification, and Windows normal launch, restart/reset,
+installer, encrypted-storage acceptance, and uninstall. Artifacts
+`Peo Yame v109 Android` (71,407,319 bytes) and `Peo Yame v109 Windows`
+(311,284,357 bytes) were uploaded. No local app builds or tests were run.
+Browser interaction, visual/accessibility, camera permissions, and
+real-device/Wi-Fi behavior remain unverified.
+
 ## Session security and demo sync — v107 verified
 
 The v100 browser-origin, CSRF, QR, and authenticator hardening passed

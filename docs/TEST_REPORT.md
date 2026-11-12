@@ -1,5 +1,22 @@
 # Test report
 
+## GitHub Actions v109 — Guided Demo and QR backend pairing passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43211211135
+Commit: `fc7f261` (Enable QR backend pairing and Guided Demo parity).
+
+- Backend API tests passed, including demo phone-pairing re-authentication,
+  backend-address QR payload, phone QR renewal/cancellation and verifier
+  binding, pairing expiry, and shared demo QR synchronization.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- Artifacts `Peo Yame v109 Android` (71,407,319 bytes) and
+  `Peo Yame v109 Windows` (311,284,357 bytes) were uploaded.
+- No local application builds or tests were run. Physical-device, camera,
+  visual, and Wi-Fi reachability checks remain outstanding.
+
 ## GitHub Actions v107 — authenticator session revocation passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43203834344

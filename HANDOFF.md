@@ -204,3 +204,24 @@ and real-device checks remain open. The catalog is evidence-informed and
 Botswana-oriented, not a statistically ranked top ten; crop-band and estimate
 baselines still need domain validation. The Windows launcher defaults Guided
 Demo off unless explicitly enabled.
+
+## QR and Guided Demo parity — v109 CI green
+
+The current source is pushed to `exe-work` as `fc7f261` (Enable QR backend
+pairing and Guided Demo parity). Guided Demo starts with no locations and one
+unlinked synthetic sensor; it shows the generated password once so password
+and authenticator checks can remain in the real pairing path. Both QR login
+flows use the backend pairing protocol with owner/verifier checks, match
+numbers, expiry, retry, and cancellation handling. Settings also exposes an
+address-only backend QR, while Android validates and confirms the destination
+before saving it. The mobile app offers permission recovery and manual code
+entry.
+
+GitHub Actions v109 (`43211211135`) passed all jobs: backend API tests, Android
+tests/analyze/release APK and launcher verification, and Windows normal launch,
+restart/reset, installer, encrypted-storage acceptance, and uninstall.
+Artifacts `Peo Yame v109 Android` (71,407,319 bytes) and `Peo Yame v109 Windows`
+(311,284,357 bytes) were uploaded. No local builds/tests were run. Browser
+interaction, accessibility, camera permission prompts, and physical-device
+LAN behavior remain unverified; see `docs/DEMO_MODE.md` and
+`docs/TEST_REPORT.md`.
