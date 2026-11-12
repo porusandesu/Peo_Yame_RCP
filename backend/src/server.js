@@ -106,19 +106,28 @@ app.use((req,res,next)=>{
 });
 const eventClients=new Set();
 db.exec("CREATE TABLE IF NOT EXISTS login_failures(attempt_key TEXT NOT NULL,failed_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_login_failures_key_time ON login_failures(attempt_key,failed_at); CREATE TABLE IF NOT EXISTS login_lockouts(attempt_key TEXT PRIMARY KEY,locked_until TEXT NOT NULL)");
-const demoSimulations=new Map(),DEMO_SIMULATION_INTERVAL_MS=10000;
+const demoSimulations=new Map(),DEMO_SIMULATION_INTERVAL_MS=3000;
 function stopDemoSimulation(userId){const simulation=demoSimulations.get(userId);if(!simulation)return false;clearInterval(simulation.timer);demoSimulations.delete(userId);return true;}
+function variedReadingValue(current,min,max,minStep,maxStep,precision){const delta=(minStep+crypto.randomInt(0,Math.floor((maxStep-minStep)*precision)+1)/precision),direction=crypto.randomInt(0,2)?1:-1;let next=current+direction*delta;if(next<min)next=min+(min-next);if(next>max)next=max-(next-max);next=Math.max(min,Math.min(max,next));return Math.round(next*precision)/precision;}
+function demoOutsideValue([low,high],sensorLow,sensorHigh,precision){const unit=1/precision,above=high+unit+crypto.randomInt(0,Math.floor(2*precision)+1)/precision;if(above<=sensorHigh)return Math.round(above*precision)/precision;const below=low-unit-crypto.randomInt(0,Math.floor(2*precision)+1)/precision;return Math.max(sensorLow,Math.round(below*precision)/precision);}
 function demoSimulationTick(userId,simulation){
  const user=db.prepare("SELECT id FROM users WHERE id=? AND is_demo=1").get(userId),sessions=db.prepare("SELECT token_hash FROM sessions WHERE user_id=?").all(userId);
  if(!user||!sessions.some(session=>sessionActive(session.token_hash))){stopDemoSimulation(userId);return;}
  const sensor=db.prepare("SELECT * FROM sensors WHERE user_id=? AND synthetic=1 ORDER BY created_at LIMIT 1").get(userId);
  if(!sensor){stopDemoSimulation(userId);return;}
- const step=simulation.step++,stamp=now(),temperature=19+Math.sin(step/3)*1.6,humidity=62+Math.cos(step/4)*4;
+ const selectedCrop=db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(userId)?.selected_crop||"Maize",band=cropBand(selectedCrop,userId),step=simulation.step++,stamp=now(),isAlertPoint=step%6===0,temperature=isAlertPoint&&band?demoOutsideValue(band.t,-40,85,10):variedReadingValue(simulation.temperature,14,25,1,4,10),humidity=isAlertPoint&&band?demoOutsideValue(band.h,0,100,1):variedReadingValue(simulation.humidity,48,70,4,12,1);
+ simulation.temperature=temperature;simulation.humidity=humidity;
  db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,1)").run(userId,sensor.site_id,sensor.id,temperature,humidity,stamp);
  db.prepare("UPDATE sensors SET last_seen_at=? WHERE id=?").run(stamp,sensor.id);
+ const outside=band&&(temperature<band.t[0]||temperature>band.t[1]||humidity<band.h[0]||humidity>band.h[1]);
+ if(outside&&!simulation.alertActive){
+  const pending=db.prepare("SELECT id FROM alerts WHERE user_id=? AND reviewed=0 AND synthetic=1 LIMIT 1").get(userId);
+  if(!pending){db.prepare("INSERT INTO alerts VALUES(?,?,?,?,0,1)").run(id(),userId,"Demo readings are outside the "+selectedCrop+" target band. Check your crop now.",stamp);publishEvent(userId,"alert");}
+ }
+ simulation.alertActive=!!outside;
  publishEvent(userId,"reading");
 }
-function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,timer:null};simulation.timer=setInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);simulation.timer.unref();demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
+function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,temperature:18,humidity:61,alertActive:false,timer:null};simulation.timer=setInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);simulation.timer.unref();demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
 function publishEvent(userId,event){
  for(const client of eventClients){
   if(client.userId!==userId||client.res.writableEnded)continue;

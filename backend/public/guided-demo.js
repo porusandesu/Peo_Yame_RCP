@@ -180,7 +180,17 @@
   function approvalDialog(details, codeId, state) {
     const body = document.createElement("div");
     const detail = document.createElement("p");
-    detail.textContent = `Device: ${details.deviceName || "Phone"} · ${details.appVersion || "Peo Yame"}\nNetwork address: ${details.address || "Unavailable"}\nRequested: ${new Date(details.createdAt).toLocaleTimeString()}`;
+    detail.textContent = `Device: ${details.deviceName || "Phone"} · ${details.appVersion || "Peo Yame"}\nRequested: ${new Date(details.createdAt).toLocaleTimeString()}`;
+    const networkAddress = document.createElement("p");
+    networkAddress.className = "muted";
+    networkAddress.textContent = "Network address hidden";
+    const revealAddress = makeButton("Show network address", () => {
+      const visible = revealAddress.textContent === "Show network address";
+      networkAddress.textContent = visible
+        ? `Network address: ${details.address || "Unavailable"}`
+        : "Network address hidden";
+      revealAddress.textContent = visible ? "Hide network address" : "Show network address";
+    });
     const notice = document.createElement("p");
     notice.className = "notice";
     notice.textContent = "Only approve if you started this on your phone just now.";
@@ -237,7 +247,7 @@
       }
     }, "primary");
     actions.append(deny, approve);
-    body.append(detail, notice, field, status, actions);
+    body.append(detail, networkAddress, revealAddress, notice, field, status, actions);
     const dialog = makeDialog("Approve phone sign-in?", body);
     field.focus();
     state.status = status;
@@ -527,11 +537,16 @@
         image.alt = "Backend connection QR code";
         image.width = 240;
         const address = document.createElement("p");
-        address.textContent = result.baseUrl;
+        address.textContent = "Backend address hidden";
+        const revealAddress = makeButton("Show backend address", () => {
+          const visible = revealAddress.textContent === "Show backend address";
+          address.textContent = visible ? result.baseUrl : "Backend address hidden";
+          revealAddress.textContent = visible ? "Hide backend address" : "Show backend address";
+        });
         const note = document.createElement("p");
         note.className = "muted";
         note.textContent = "Scan from Settings → Backend connection. Phone and computer must be on the same Wi-Fi. Plain HTTP is for a controlled private network only.";
-        panel.append(image, address, note);
+        panel.append(image, address, revealAddress, note);
         controls.replaceChildren(panel, makeButton("Hide QR code", () => controls.replaceChildren(button)));
       } catch (error) {
         banner(error.message, true);

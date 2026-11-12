@@ -516,6 +516,8 @@ test("guided demo live simulation syncs readings to a second QR session", async 
     headers: auth,
   });
   assert.equal(started.status, 200);
+  const simulation = await started.json();
+  assert.equal(simulation.intervalSeconds, 3);
   await Promise.all([readUntil(mobileReader, "event: reading"), readUntil(webReader, "event: reading")]);
   const status = await fetch(`${base}/status`, {
     headers: { authorization: `Bearer ${browserSession.token}` },
@@ -523,6 +525,17 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   assert.equal(status.isDemo, true);
   assert.equal(status.reading.synthetic, true);
   assert.ok(Date.parse(status.reading.createdAt) >= startedAt - 1000);
+  const generatedAlerts = await fetch(`${base}/alerts`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  }).then((response) => response.json());
+  assert.equal(generatedAlerts[0].synthetic, 1);
+  assert.match(generatedAlerts[0].message, /outside the Maize target band/);
+  await new Promise((resolve) => setTimeout(resolve, simulation.intervalSeconds * 1000 + 150));
+  const refreshedStatus = await fetch(`${base}/status`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  }).then((response) => response.json());
+  assert.notEqual(refreshedStatus.reading.temperature, status.reading.temperature);
+  assert.notEqual(refreshedStatus.reading.humidity, status.reading.humidity);
   const sensors = await fetch(`${base}/sensors`, {
     headers: { authorization: `Bearer ${browserSession.token}` },
   }).then((response) => response.json());
