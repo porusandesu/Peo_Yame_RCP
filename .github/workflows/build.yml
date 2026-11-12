@@ -85,7 +85,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path runtime/src, runtime/public, runtime/node_modules | Out-Null
-          Copy-Item backend/src/server.js runtime/src/server.js
+          Copy-Item backend/src/* runtime/src -Recurse -Force
           Copy-Item backend/public/* runtime/public -Recurse -Force
           Copy-Item backend/node_modules/* runtime/node_modules -Recurse -Force
           Copy-Item (Get-Command node).Source runtime/node.exe
@@ -162,9 +162,68 @@ jobs:
           $test = Start-Process -FilePath "publish/Peo Yame.exe" -WorkingDirectory (Get-Location).Path -ArgumentList "--self-test" -PassThru -Wait
           if ($test.ExitCode -ne 0) { if (Test-Path $env:PEO_YAME_SELF_TEST_LOG) { Get-Content $env:PEO_YAME_SELF_TEST_LOG }; throw "Backend lifecycle test failed." }
           Copy-Item "publish/Peo Yame.exe" "publish/Peo Yame v${{ github.run_number }}.exe"
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $env:PEO_YAME_BUILD_NUMBER = "${{ github.run_number }}"
+          $compiler = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6/ISCC.exe"
+          & $compiler "windows/installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
+      - name: Install, launch, verify encrypted storage, and uninstall
+        shell: pwsh
+        run: |
+          $build = "${{ github.run_number }}"
+          $root = Join-Path $env:RUNNER_TEMP "peoyame-installer-test"
+          $install = Join-Path $root "installed"
+          $data = Join-Path $root "data"
+          $port = "31888"
+          New-Item -ItemType Directory -Force -Path $root, $data | Out-Null
+          $setup = Join-Path (Get-Location) "publish/Peo Yame v$build Setup.exe"
+          $installed = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$install") -PassThru -Wait
+          if ($installed.ExitCode -ne 0) { throw "Windows installer failed with exit code $($installed.ExitCode)." }
+          $exe = Join-Path $install "Peo Yame.exe"
+          if (!(Test-Path $exe)) { throw "Installer did not install the application executable." }
+          $env:PEO_YAME_DATA_DIR = $data
+          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $root "launch.log"
+          $env:PEO_YAME_NO_BROWSER = "true"
+          $env:PORT = $port
+          Remove-Item Env:PEO_YAME_DEMO_ENABLED -ErrorAction SilentlyContinue
+          $app = Start-Process -FilePath $exe -WorkingDirectory $install -PassThru
+          try {
+            $health = $null
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($app.HasExited) { break }
+              try { $health = Invoke-RestMethod "http://127.0.0.1:$port/api/health" -TimeoutSec 2; break } catch {}
+              Start-Sleep 1
+            }
+            if (!$health.ok) { throw "Installed application did not start its backend." }
+            if ($health.guidedDemoEnabled) { throw "Guided Demo must be disabled in the normal installed app." }
+            try { Invoke-WebRequest "http://127.0.0.1:$port/api/demo/start" -Method Post -ContentType "application/json" -Body "{}" -TimeoutSec 3 | Out-Null; throw "Guided Demo endpoint was enabled in the normal installation." } catch { if ($_.Exception.Message -like "*Guided Demo endpoint was enabled*") { throw }; if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw } }
+            $database = Join-Path $data "peo-yame.sqlite"
+            $keyFile = Join-Path $data "keys/database.key.dpapi"
+            $ready = $false
+            for ($i = 0; $i -lt 20; $i++) { if ((Test-Path $database) -and (Test-Path $keyFile)) { $ready = $true; break }; Start-Sleep -Milliseconds 250 }
+            if (!$ready) { throw "Protected key or database was not created." }
+            $header = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($database)[0..15])
+            if ($header.StartsWith("SQLite format 3")) { throw "Installed database is plaintext SQLite." }
+            if ((Get-Item $keyFile).Length -lt 32) { throw "Protected database key file is unexpectedly short." }
+            Write-Host "WINDOWS_INSTALLER_ENCRYPTED_LAUNCH_OK"
+          } finally {
+            if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue }
+            Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -like "*src/server.js*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          }
+          $uninstaller = Join-Path $install "unins000.exe"
+          if (!(Test-Path $uninstaller)) { throw "Installer did not register an uninstaller." }
+          $removed = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -PassThru -Wait
+          if ($removed.ExitCode -ne 0 -or (Test-Path $exe)) { throw "Silent uninstall did not remove the installed application." }
+          if (!(Test-Path $data)) { throw "Uninstall removed the user's data directory." }
+          Write-Host "WINDOWS_INSTALLER_UNINSTALL_OK"
       - uses: actions/upload-artifact@v4
         with:
           name: Peo Yame v${{ github.run_number }} Windows
-          path: publish/Peo Yame v${{ github.run_number }}.exe
+          path: |
+            publish/Peo Yame v${{ github.run_number }}.exe
+            publish/Peo Yame v${{ github.run_number }} Setup.exe
           if-no-files-found: error
           compression-level: 0

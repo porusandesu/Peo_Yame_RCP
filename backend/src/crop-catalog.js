@@ -1,0 +1,43 @@
+export const BUILT_IN_CROPS = [
+  { name: "Maize", category: "crop", t: [12, 25], h: [50, 70], baseline: 8 },
+  { name: "Sorghum", category: "crop", t: [12, 28], h: [45, 70], baseline: 9 },
+  { name: "Wheat", category: "crop", t: [10, 20], h: [45, 65], baseline: 8 },
+  { name: "Rice", category: "crop", t: [10, 25], h: [55, 75], baseline: 8 },
+  { name: "Millet", category: "crop", t: [10, 25], h: [40, 60], baseline: 9 },
+  { name: "Cowpeas", category: "crop", t: [10, 25], h: [45, 65], baseline: 7 },
+  { name: "Groundnuts", category: "crop", t: [10, 25], h: [50, 70], baseline: 8 },
+  { name: "Beans", category: "crop", t: [10, 20], h: [45, 65], baseline: 6 },
+  { name: "Cassava", category: "crop", t: [12, 16], h: [85, 90], baseline: 4 },
+  { name: "Sweet potato", category: "crop", t: [12, 16], h: [85, 90], baseline: 5 },
+  { name: "Banana", category: "fruit", t: [13, 15], h: [85, 95], baseline: 3 },
+  { name: "Orange", category: "fruit", t: [3, 8], h: [90, 95], baseline: 4 },
+  { name: "Mango", category: "fruit", t: [10, 13], h: [85, 90], baseline: 2 },
+  { name: "Watermelon", category: "fruit", t: [10, 15], h: [85, 90], baseline: 2 },
+  { name: "Papaya", category: "fruit", t: [10, 13], h: [85, 90], baseline: 2 },
+  { name: "Avocado", category: "fruit", t: [5, 13], h: [85, 90], baseline: 2 },
+  { name: "Grapefruit", category: "fruit", t: [0, 2], h: [90, 95], baseline: 2 },
+  { name: "Pineapple", category: "fruit", t: [7, 13], h: [85, 90], baseline: 2 },
+  { name: "Naartjie", category: "fruit", t: [5, 10], h: [85, 90], baseline: 2 },
+  { name: "Lemon", category: "fruit", t: [10, 13], h: [85, 90], baseline: 3 },
+  { name: "Tomato", category: "vegetable", t: [10, 20], h: [45, 65], baseline: 2 },
+  { name: "Potato", category: "vegetable", t: [4, 10], h: [85, 95], baseline: 4 },
+  { name: "Onion", category: "vegetable", t: [0, 4], h: [65, 70], baseline: 8 },
+  { name: "Cabbage", category: "vegetable", t: [0, 2], h: [90, 98], baseline: 2 },
+  { name: "Carrot", category: "vegetable", t: [0, 1], h: [95, 98], baseline: 3 },
+  { name: "Spinach", category: "vegetable", t: [0, 2], h: [95, 100], baseline: 1 },
+  { name: "Pumpkin", category: "vegetable", t: [10, 15], h: [50, 70], baseline: 8 },
+  { name: "Green pepper", category: "vegetable", t: [7, 10], h: [90, 95], baseline: 2 },
+  { name: "Cucumber", category: "vegetable", t: [10, 12], h: [90, 95], baseline: 1 },
+  { name: "Eggplant", category: "vegetable", t: [10, 12], h: [90, 95], baseline: 1 },
+];
+
+export function catalogItem(row) {
+  return {
+    name: row.name,
+    category: row.category,
+    temperatureC: row.t ?? [row.temperature_min, row.temperature_max],
+    humidityPercent: row.h ?? [row.humidity_min, row.humidity_max],
+    baselineWeeks: row.baseline ?? row.baseline_weeks,
+    custom: Boolean(row.user_id),
+  };
+}

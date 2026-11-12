@@ -4,5 +4,5 @@
   "private": true,
   "type": "module",
   "scripts": {"start": "node src/server.js", "test": "node --test"},
-  "dependencies": {"better-sqlite3": "^12.2.0", "express": "^5.1.0", "helmet": "^8.1.0", "qrcode": "^1.5.4"}
+  "dependencies": {"better-sqlite3-multiple-ciphers": "^13.0.3", "express": "^5.1.0", "helmet": "^8.1.0", "qrcode": "^1.5.4"}
 }

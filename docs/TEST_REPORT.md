@@ -1,5 +1,17 @@
 # Test report
 
+## Feature-parity implementation batch — pending GitHub Actions
+
+The current source worktree is based on `f0ddde4` and contains changes for SSE
+events and client reconnects, custom crop catalogs, biometric app lock, phone
+pairing re-authentication, encrypted SQLite storage, and a Windows installer.
+Focused backend tests were added or extended for catalog isolation and restart
+persistence, SSE notifications, pairing re-authentication, and encrypted
+database migration/recovery. These tests have **not** been run yet, and no
+Android or Windows build has been run for this batch. The only local check so
+far is `git diff --check`, which passed. Use GitHub Actions for all app builds
+and tests; do not treat these source changes as verified until that run passes.
+
 ## GitHub Actions v94 — first fully green run: backend, Windows (6th consecutive), and Android all pass
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43160038257

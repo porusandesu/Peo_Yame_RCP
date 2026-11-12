@@ -140,3 +140,35 @@ Sensor management adds account-owned records, manual ID registration, location l
 - Known issue reported, not changed: `windows/Program.cs` always sets `PEO_YAME_DEMO_ENABLED=true`, contradicting parity prompt §8.2 (demo button should be absent in a normal install). Awaiting user decision.
 - Audit false positives verified directly (no change needed): `removeSite`/`signout` are already `async`; SQL placeholder counts correct; no cross-user leaks in `/status`, `/trends`, `/export`, `/alerts`; claim/scan CAS and redeem double-spend guards correct; prepared statements throughout.
 - Next after a green v94: SSE real events + offline recovery → 30-item catalog → biometric app lock → pairing password re-check → DB encryption-at-rest → Windows installer.
+
+## Continuation after v94 — feature parity source batch pending CI
+
+The active implementation worktree is `/tmp/peo-yame-feature-parity`, branch
+`copilot/feature-parity`, based on `f0ddde4`. The original Documents workspace
+and the divergent `storage_monitor_flutter` checkout were not modified. No
+changes from this batch have been committed or pushed.
+
+Source changes now cover server-sent mutation events with session validity
+checks; web and Android reconnect/offline behavior; a 30-item Botswana-oriented
+crop catalog, per-user custom entries, and persisted crop selection; Android
+biometric app lock; password and enabled-TOTP re-check for phone pairing
+creation; encrypted SQLite with plaintext migration and encrypted-copy
+recovery; and a per-user Windows installer. Windows bundle assembly now copies
+all backend source modules, not just `server.js`. Normal launcher configuration
+defaults Guided Demo off unless explicitly enabled. `docs/CROP_CATALOG.md`
+states the available Botswana survey basis and its limitation: the cited
+official sources do not publish a ranked top-ten list across all three
+categories.
+
+Focused backend tests were added/extended for catalog counts and account
+isolation, selection/custom-item persistence after backend restart, SSE event
+delivery, pairing re-authentication including enabled TOTP, and database
+encryption/migration/key rejection/reopen/copy recovery. These tests and all
+Android/Windows builds are pending GitHub Actions. No local app builds/tests
+were run; `git diff --check` passed.
+
+Continue by reviewing the diff, then push the verified source to `exe-work`
+using the configured origin and inspect every Actions job and artifact. Do not
+mark these items complete until CI passes. Manual visual/accessibility checks
+remain open. The earlier note about the Windows launcher always enabling
+Guided Demo is superseded: the current source defaults it to `false`.
