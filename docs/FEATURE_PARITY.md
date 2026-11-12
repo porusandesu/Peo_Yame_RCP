@@ -1,5 +1,16 @@
 # Feature parity status
 
+## Guided Demo Settings refresh and presentation — v114 CI verified
+
+The manual refresh action is now in Settings on both web and mobile; automatic
+live sync remains active, and mobile pull-to-refresh is retained. Mobile
+Settings is regrouped into styled sections, while web Settings uses responsive
+cards and keeps the Guided Demo controls available. GitHub Actions v114 (run
+[`43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617),
+commit `f73378d`) passed backend API tests, Android tests/analysis/release
+APK, and Windows launch/lifecycle/installer checks. Real-device/browser
+visual and accessibility review remains open.
+
 ## Guided Demo refresh, privacy and custom crops — v112 CI verified
 
 Guided Demo now produces changing temperature and humidity readings every

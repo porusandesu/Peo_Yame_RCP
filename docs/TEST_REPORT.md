@@ -1,5 +1,19 @@
 # Test report
 
+## GitHub Actions v114 — Guided Demo Settings polish passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617
+Commit: `f73378d` (Polish settings and relocate refresh actions).
+
+- Backend API tests passed.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- Android and Windows artifacts were uploaded.
+- No local application builds or tests were run. Real-device/browser visual
+  and accessibility review remains outstanding.
+
 ## GitHub Actions v112 — Guided Demo refresh, privacy and Android fix passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877

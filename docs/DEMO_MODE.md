@@ -88,6 +88,10 @@ the backend process restarts.
 
 - **Start/stop live simulation:** stream new synthetic readings at 3-second
   intervals and synchronize them to all connected sessions for the demo user.
+- **Refresh demo data:** use the manual refresh action in Settings on web or
+  mobile to fetch the latest server state. This does not create a reading or
+  change the simulator; live events and polling continue automatically, and
+  mobile also retains pull-to-refresh.
 - **Automatic demo alerts:** changing simulated readings cross the selected
   crop's band and create a reviewable simulated alert.
 - **Simulate sensor reading:** write one additional synthetic reading.
@@ -110,3 +114,11 @@ alerts, and QR-shared live readings. Artifacts `Peo Yame v112 Android` and
 `Peo Yame v112 Windows` were uploaded. Visual presentation, camera
 permissions, physical-device behavior, and real Wi-Fi reachability have not
 been manually verified.
+
+The web and mobile Settings screens now present sync status and controls in
+organized sections/cards, with the manual refresh action in Settings rather
+than the mobile app bar. GitHub Actions v114 (run
+[`43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617),
+commit `f73378d`) passed backend API tests, Android tests/analysis/release APK,
+and Windows launch/lifecycle/installer checks. Visual and accessibility
+review on real devices and browsers remains outstanding.

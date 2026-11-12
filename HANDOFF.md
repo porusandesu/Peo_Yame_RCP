@@ -1,19 +1,16 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (Guided Demo sync and privacy verified)
+## Latest status — 2026-11-12 (Guided Demo Settings verified)
 
-The demo improvements are pushed to `exe-work` at `c806d9a`. GitHub Actions
-v112 ([run `43222452877`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877))
+The demo Settings polish is pushed to `exe-work` at `f73378d`. GitHub Actions
+v114 ([run `43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617))
 passed backend API tests, Android tests/analysis/release APK, and Windows
 normal launch, restart/reset, installer, encrypted-storage acceptance, and
-uninstall. The simulator now updates varied temperature and humidity every
-3 seconds, generates crop-band alerts, and synchronizes them to signed-in
-demo devices. Backend IP/address display is masked until revealed; mobile
-Welcome no longer exposes backend configuration but still accepts a backend
-QR for first-time setup. Custom crops, fruit, and vegetables can be added and
-selected. Artifacts `Peo Yame v112 Android` (71,407,563 bytes) and
-`Peo Yame v112 Windows` (311,277,702 bytes) were uploaded. No local app builds
-or tests were run.
+uninstall. The Settings refresh action and responsive/styled Settings screens
+are now CI-verified. Automatic live sync and mobile pull-to-refresh remain
+available. Earlier v112 verification covers varied 3-second demo readings,
+generated alerts, QR sync, address privacy, and custom produce. No local app
+builds or tests were run.
 
 Earlier security audit fixes remain verified by v102–v107: session idle
 expiry, account+IP lockout, QR-shared demo sessions, QR demo lifetime, and
@@ -36,16 +33,16 @@ out-of-band alerts, custom crop/fruit/vegetable entry and selection, masked
 backend/network addresses with deliberate reveal, and removal of backend
 configuration from mobile Welcome while retaining QR-based first-time setup.
 
-**Implemented in source, pending CI:** the app-bar refresh button is moved to
-Settings as an explicit refresh action, while automatic SSE/polling and
+**Implemented and verified by v114 CI:** the app-bar refresh button is moved
+to Settings as an explicit refresh action, while automatic SSE/polling and
 pull-to-refresh remain available. Mobile Settings is regrouped into styled
 sections for sync, account/security, backend, devices, and demo tools. Web
 Settings now uses a responsive card grid with matching sections and a manual
 refresh control; the guided-demo tools remain intact.
 
-**Remaining:** run the next GitHub Actions build and resolve any failures;
-visually review both Settings screens and the full demo presentation on
-devices/browsers. This follow-up does not declare overall feature parity
+**Remaining:** visually review both Settings screens and the full demo
+presentation on devices/browsers, and verify camera, physical-device, and
+real-Wi-Fi behavior. This follow-up does not declare overall feature parity
 complete; continue from open items in `docs/FEATURE_PARITY.md`.
 
 ## Correction to the Windows launch history — 2026-11-11
