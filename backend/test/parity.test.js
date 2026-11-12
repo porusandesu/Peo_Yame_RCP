@@ -47,12 +47,16 @@ async function startBackend(t, { lanHost = "" } = {}) {
     base,
     directory,
     key,
-    async restart() {
+    async restart(extraEnv = {}) {
       if (child.exitCode === null && child.signalCode === null) {
         child.kill("SIGTERM");
         await new Promise((resolve) => child.once("exit", resolve));
       }
-      child = spawn(process.execPath, ["src/server.js"], { cwd: new URL("..", import.meta.url), env, stdio: "ignore" });
+      child = spawn(process.execPath, ["src/server.js"], {
+        cwd: new URL("..", import.meta.url),
+        env: { ...env, ...extraEnv },
+        stdio: "ignore",
+      });
       await waitUntilReady();
     },
   };
@@ -942,4 +946,168 @@ test("phone pairing creation requires password and authenticator re-check", asyn
     body: JSON.stringify({ password: "pairing-test-password" }),
   });
   assert.equal(accepted.status, 200);
+});
+
+test("optional demo endpoints reject invalid credentials instead of falling back to shared data", async (t) => {
+  const { base } = await startBackend(t);
+  const publicReads = [
+    "/crops",
+    "/status",
+    "/readings/trends?range=24h",
+    "/readings/export?format=csv",
+    "/alerts",
+  ];
+  for (const route of publicReads) {
+    assert.equal((await fetch(`${base}${route}`)).status, 200, route);
+    for (const headers of [
+      { authorization: "Bearer expired-or-invalid-token" },
+      { cookie: "py_session=expired-or-invalid-token" },
+    ]) {
+      assert.equal((await fetch(`${base}${route}`, { headers })).status, 401, route);
+    }
+  }
+  assert.equal((await fetch(`${base}/events`, {
+    headers: { authorization: "Bearer expired-or-invalid-token" },
+  })).status, 401);
+  assert.equal((await fetch(`${base}/crop-selection`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: "py_csrf=anonymous" },
+    body: JSON.stringify({ crop: "Maize" }),
+  })).status, 200);
+  assert.equal((await fetch(`${base}/crop-selection`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer expired-or-invalid-token" },
+    body: JSON.stringify({ crop: "Maize" }),
+  })).status, 401);
+});
+
+test("demo reset and expired-session cleanup remove temporary account records", async (t) => {
+  const backend = await startBackend(t);
+  const createDemo = async () => fetch(`${backend.base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }).then((response) => response.json());
+  const assertNoDemoRecords = (userId) => {
+    const database = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+    try {
+      for (const [table, column] of [["users", "id"], ["sessions", "user_id"], ["sites", "user_id"], ["sensors", "user_id"], ["custom_crops", "user_id"], ["readings", "user_id"], ["alerts", "user_id"], ["preferences", "user_id"], ["demo_checklist", "user_id"], ["security_log", "user_id"]]) {
+        const row = database.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE ${column}=?`).get(userId);
+        assert.equal(row.count, 0, `${table} records remain for deleted demo user`);
+      }
+      assert.equal(database.prepare("SELECT COUNT(*) AS count FROM pairings WHERE owner_user_id=? OR device_user_id=?").get(userId, userId).count, 0);
+    } finally {
+      database.close();
+    }
+  };
+  const resetDemo = await createDemo();
+  const resetAuth = { authorization: `Bearer ${resetDemo.token}`, "content-type": "application/json" };
+  const resetDb = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+  const resetUserId = resetDb.prepare("SELECT id FROM users WHERE is_demo=1").get().id;
+  resetDb.close();
+  assert.equal((await fetch(`${backend.base}/crop-selection`, {
+    method: "POST",
+    headers: resetAuth,
+    body: JSON.stringify({ crop: "Sorghum" }),
+  })).status, 200);
+  assert.equal((await fetch(`${backend.base}/crops`, {
+    method: "POST",
+    headers: resetAuth,
+    body: JSON.stringify({
+      name: "Test Yam",
+      category: "crop",
+      temperatureMin: 10,
+      temperatureMax: 25,
+      humidityMin: 40,
+      humidityMax: 70,
+      baselineWeeks: 8,
+    }),
+  })).status, 201);
+  assert.equal((await fetch(`${backend.base}/demo/checklist/1`, {
+    method: "PATCH",
+    headers: resetAuth,
+    body: JSON.stringify({ completed: true }),
+  })).status, 200);
+  assert.equal((await fetch(`${backend.base}/qr/phone/create`, {
+    method: "POST",
+    headers: resetAuth,
+    body: JSON.stringify({ password: resetDemo.demoPassword }),
+  })).status, 200);
+  const resetData = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+  resetData.prepare("INSERT INTO security_log(user_id,event,created_at) VALUES(?,?,?)").run(resetUserId, "test_event", new Date().toISOString());
+  resetData.close();
+  assert.equal((await fetch(`${backend.base}/demo/reset`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${resetDemo.token}` },
+  })).status, 200);
+  assertNoDemoRecords(resetUserId);
+
+  const expiredDemo = await createDemo();
+  const expiredDb = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+  const expiredUserId = expiredDb.prepare("SELECT id FROM users WHERE is_demo=1").get().id;
+  expiredDb.prepare("INSERT INTO preferences(user_id,selected_crop,updated_at) VALUES(?,?,?)")
+    .run(expiredUserId, "Sorghum", new Date().toISOString());
+  expiredDb.prepare("UPDATE sessions SET expires_at=? WHERE user_id=?")
+    .run(new Date(Date.now() - 1000).toISOString(), expiredUserId);
+  expiredDb.close();
+  await backend.restart();
+  assertNoDemoRecords(expiredUserId);
+  assert.equal((await fetch(`${backend.base}/status`, {
+    headers: { authorization: `Bearer ${expiredDemo.token}` },
+  })).status, 401);
+});
+
+test("instance reset invalidates active pairings while preserving login accounts", async (t) => {
+  const backend = await startBackend(t);
+  const account = await fetch(`${backend.base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Reset Farmer", phone: "76789016", password: "reset-pairing-password" }),
+  }).then((response) => response.json());
+  const demo = await fetch(`${backend.base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }).then((response) => response.json());
+  const pairing = await fetch(`${backend.base}/qr/phone/create`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${demo.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ password: demo.demoPassword }),
+  });
+  assert.equal(pairing.status, 200);
+  await backend.restart({ PEO_YAME_RESET_INSTANCE: "true" });
+  assert.equal((await fetch(`${backend.base}/account`, {
+    headers: { authorization: `Bearer ${account.token}` },
+  })).status, 200);
+  const database = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+  try {
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM pairings").get().count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM users").get().count, 2);
+  } finally {
+    database.close();
+  }
+});
+
+test("demo account creation is rate limited before allocating additional accounts", async (t) => {
+  const backend = await startBackend(t);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const response = await fetch(`${backend.base}/demo/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(response.status, 201);
+  }
+  const limited = await fetch(`${backend.base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(limited.status, 429);
+  const database = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
+  try {
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM users WHERE is_demo=1").get().count, 5);
+  } finally {
+    database.close();
+  }
 });
