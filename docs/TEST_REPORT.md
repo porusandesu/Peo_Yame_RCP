@@ -1,5 +1,25 @@
 # Test report
 
+## GitHub Actions v93 — Windows green (5th consecutive); Android green for the first time since v88; backend failed on TOTP approval session binding (fix applied)
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43159003399
+Commit: `7f2fa6f` (Fix v92 CI: authenticator test missing JSON content-type; stray brace closed _HomeState early).
+
+- Windows: normal-launch check and restart/reset lifecycle both passed; artifact uploaded. Fifth consecutive green Windows run.
+- Android: analysis, widget tests, release APK build, and the aapt2-based packaged-icon assertion all passed — first green Android run since v88. The aapt2 badging/resources-based assertion correctly verifies the launcher icon despite the toolchain's resource path shortening, and the manifest label fix is in.
+- Backend API tests: failed with `404 !== 200` at `server.test.js:31` — the phone-pairing approve call made with the TOTP re-authenticated session. The server bound approval to the exact `owner_session_hash` of the session that created the pairing code, so once TOTP was enabled, a re-authenticated session (a different session of the same user) could never approve, which also dead-ends the real UX. Fix applied locally: owner-status/approve/deny now accept any session of the pairing owner when that session has passed TOTP verification (`req.user.totp_verified`); the owner-user check remains strict. Server parse-verified in Chromium after the change.
+- No local app builds or tests were run.
+
+## GitHub Actions v92 — Windows green (4th consecutive); two new bugs in the pushed batch found and fixed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43158218655
+Commit: `27c1d4b` (TOTP authenticator; fix web/mobile data layers, pairing state races, hardening).
+
+- Windows: normal-launch check and restart/reset lifecycle both passed; artifact uploaded. Fourth consecutive green Windows run.
+- Backend API tests: failed with `401 !== 200` at the `/authenticator/enable` (correct code) assertion. Root cause in the test, not the server: that fetch sent a JSON body without `content-type: application/json`, so `express.json()` never parsed it and the server saw `code: undefined`. (The preceding `code:"000000"` case had passed only because it asserts 401 anyway.) Both enable calls fixed to send the header.
+- Android: failed at Dart compile with `Expected a declaration, but got '}'` plus cascading `Method not found: 'request'` / `Undefined name 'mounted'` errors through the rest of the file. Root cause: the `openScanner` rewrite closed the method on its own line but the original standalone method-closing `}` was left behind, closing `_HomeState` early so `_showSessions`, `signOut` and the top-level-looking helpers fell outside the class. Stray brace removed; overall brace balance verified at 0 with the class opening at line 20 and closing only after `signOut`.
+- No local app builds or tests were run.
+
 ## GitHub Actions v91 — Windows green (3rd consecutive); backend failed on a pairing insert bug (fixed); Android forensics solved the icon mystery and exposed the app-label bug
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43103743637
