@@ -5,17 +5,20 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { openDatabase } from "../src/database.js";
 
-async function startBackend(t) {
+async function startBackend(t, { lanHost = "" } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "peo-yame-parity-"));
   const port = 35000 + Math.floor(Math.random() * 10000);
+  const key = crypto.randomBytes(32).toString("hex");
   const env = {
     ...process.env,
     HOST: "127.0.0.1",
     PORT: String(port),
     PEO_YAME_DATA_DIR: directory,
-    PEO_YAME_DB_KEY: crypto.randomBytes(32).toString("hex"),
+    PEO_YAME_DB_KEY: key,
     PEO_YAME_DEMO_ENABLED: "true",
+    PEO_YAME_LAN_HOST: lanHost,
   };
   let child = spawn(process.execPath, ["src/server.js"], { cwd: new URL("..", import.meta.url), env, stdio: "ignore" });
   const base = `http://127.0.0.1:${port}/api`;
@@ -43,6 +46,7 @@ async function startBackend(t) {
   return {
     base,
     directory,
+    key,
     async restart() {
       if (child.exitCode === null && child.signalCode === null) {
         child.kill("SIGTERM");
@@ -182,12 +186,25 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   });
   const account = await response.json();
   const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
-  const setup = await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth }).then((result) => result.json());
+  assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 401);
+  assert.equal((await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "wrong-password" }),
+  })).status, 401);
+  const setupResponse = await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "authenticator-password" }),
+  });
+  assert.equal(setupResponse.status, 200);
+  const setup = await setupResponse.json();
   assert.equal((await fetch(`${base}/authenticator/enable`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
   })).status, 200);
+  assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 409);
 
   const missingCode = await fetch(`${base}/qr/phone/create`, {
     method: "POST",
@@ -203,6 +220,120 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
     body: JSON.stringify({ password: "authenticator-password", totpCode: currentTotp(setup.secret) }),
   });
   assert.equal(accepted.status, 200);
+});
+
+test("rejects foreign web origins and requires CSRF proof for cookie-authenticated changes", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const foreign = await fetch(`${base}/health`, { headers: { origin: "https://attacker.example" } });
+  assert.equal(foreign.status, 403);
+  const preflight = await fetch(`${base}/sites`, {
+    method: "OPTIONS",
+    headers: { origin: "https://attacker.example", "access-control-request-method": "POST" },
+  });
+  assert.equal(preflight.status, 403);
+
+  const origin = new URL(base).origin;
+  const registered = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Cookie Farmer", phone: "75678901", password: "cookie-test-password" }),
+  });
+  assert.equal(registered.status, 201);
+  assert.equal(registered.headers.get("access-control-allow-origin"), origin);
+  assert.equal((await registered.json()).token, undefined);
+  const cookies = registered.headers.getSetCookie();
+  const sessionCookie = cookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0];
+  const csrfCookie = cookies.find((cookie) => cookie.startsWith("py_csrf="))?.split(";")[0];
+  assert.ok(sessionCookie);
+  assert.ok(csrfCookie);
+  assert.match(cookies.find((cookie) => cookie.startsWith("py_session=")), /HttpOnly/i);
+
+  const body = JSON.stringify({ name: "Cookie store", crop: "Maize" });
+  const headers = { origin, cookie: `${sessionCookie}; ${csrfCookie}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/sites`, { method: "POST", headers, body })).status, 403);
+  assert.equal((await fetch(`${base}/sites`, {
+    method: "POST",
+    headers: { origin, cookie: sessionCookie, "content-type": "application/json" },
+    body,
+  })).status, 403);
+  const csrf = csrfCookie.slice("py_csrf=".length);
+  const created = await fetch(`${base}/sites`, {
+    method: "POST",
+    headers: { ...headers, "x-csrf-token": csrf },
+    body,
+  });
+  assert.equal(created.status, 201);
+  assert.equal((await fetch(`${base}/account`, { headers: { cookie: sessionCookie } })).status, 200);
+
+  const sessionToken = sessionCookie.slice("py_session=".length);
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  encrypted.prepare("UPDATE sessions SET idle_timeout_minutes=1,last_seen_at=? WHERE token_hash=?").run(
+    new Date(Date.now() - 2 * 60000).toISOString(),
+    crypto.createHash("sha256").update(sessionToken).digest("hex"),
+  );
+  encrypted.close();
+  assert.equal((await fetch(`${base}/account`, { headers: { cookie: sessionCookie } })).status, 401);
+});
+
+test("approved QR codes cannot be redeemed after their expiry", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const account = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Expiry Farmer", phone: "76789012", password: "expiry-test-password" }),
+  }).then((response) => response.json());
+  const verifier = "expiry-test-verifier-0123456789abcdef";
+  const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
+  const created = await fetch(`${base}/qr/web/create`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ verifierHash }),
+  }).then((response) => response.json());
+  const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/qr/web/scan`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: created.codeId }),
+  })).status, 200);
+  assert.equal((await fetch(`${base}/qr/web/approve`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: created.codeId, matchCode: created.matchCode }),
+  })).status, 200);
+
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  encrypted.prepare("UPDATE pairings SET expires_at=? WHERE id_hash=?").run(
+    new Date(Date.now() - 1000).toISOString(),
+    crypto.createHash("sha256").update(created.codeId).digest("hex"),
+  );
+  encrypted.close();
+
+  const status = await fetch(`${base}/qr/web/status?codeId=${encodeURIComponent(created.codeId)}&verifier=${encodeURIComponent(verifier)}`).then((response) => response.json());
+  assert.equal(status.state, "expired");
+  assert.equal((await fetch(`${base}/qr/web/redeem`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: created.codeId, verifier }),
+  })).status, 401);
+});
+
+test("LAN listener and phone QR use the configured private interface", async (t) => {
+  const lanHost = "127.0.0.2";
+  const { base } = await startBackend(t, { lanHost });
+  const desktop = new URL(base);
+  const phoneBase = `${desktop.protocol}//${lanHost}:${desktop.port}/api`;
+  assert.equal((await fetch(`${phoneBase}/health`)).status, 200);
+  const account = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "LAN Farmer", phone: "77890123", password: "lan-test-password" }),
+  }).then((response) => response.json());
+  const pairing = await fetch(`${base}/qr/phone/create`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${account.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ password: "lan-test-password" }),
+  }).then((response) => response.json());
+  assert.equal(pairing.backendAddress, `http://${lanHost}:${desktop.port}`);
 });
 
 test("phone pairing creation requires password and authenticator re-check", async (t) => {
