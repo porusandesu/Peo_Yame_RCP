@@ -45,6 +45,11 @@ test("web assets use external scripts and contain no inline styles or handlers",
  for(const label of ["Overview","Trends","My Crops","Alerts","Settings","Explore Demo mode"])assert.ok((html+app).includes(label),label);
  assert.match(app,/Check your crops by hand every few days/);
  assert.match(app,/I checked my crop/);
+ assert.match(app,/does not verify crop safety/);
+ assert.match(app,/Add crop to monitor/);
+ assert.match(app,/Rough storage estimate:/);
+ assert.match(app,/x\.estimate\.rangeWeeks/);
+ assert.match(app,/Download CSV/);
  assert.doesNotMatch(html,/<script\b(?![^>]*\bsrc=)[^>]*>/i);
  assert.doesNotMatch(html,/<style\b/i);
  assert.doesNotMatch(html,/[\s]on[a-z]+\s*=/i);

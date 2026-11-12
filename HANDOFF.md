@@ -1,17 +1,24 @@
 # Peo Yame — build handoff and resume plan
 
-## Active continuation — security hardening and trend parity (pending CI)
+## Active continuation — final design-parity follow-up (pending CI)
 
 Work is in `/tmp/peo-yame-feature-parity` on `copilot/feature-parity`, tracking
-`exe-work`. The current uncommitted changes replace the dashboard's inline
-scripts/styles/handlers with external assets and nonce-based strict CSP, rotate
-sessions after authenticator enable/disable, extend security-event records and
-loading states, and bring web/mobile trend charts into parity with axes, units,
-timestamp labels, target bands, accessible descriptions, and full-range
-low/high statistics. Trend responses are capped at 500 plotted samples while
-retaining full-range summaries and extrema. **These changes are not yet
-verified; use GitHub Actions for backend tests and Android/Windows builds.**
-Do not run local application builds or tests.
+`exe-work`. Commit `dba7c9c` passed GitHub Actions run `43233949692`: backend
+API tests, Android tests/analysis/release APK, and Windows launch/lifecycle/
+installer checks all passed. That run covers the external dashboard assets and
+nonce-based strict CSP, authenticator session rotation, expanded security
+activity, and web/mobile trend parity with axes, units, timestamps, target
+bands, accessible descriptions, and full-range low/high statistics. Trend
+responses are capped at 500 plotted samples while retaining full-range
+summaries and extrema.
+
+Uncommitted follow-up changes separate mobile backend setup from Welcome and
+keep QR sign-in phone-flow-only, add the crop-safety disclaimer, align custom
+crop wording, add Settings exports (web downloads/mobile clipboard), and show
+rough estimates in web alerts. A focused mobile widget test covers the
+separate setup screen. These follow-ups need a fresh GitHub Actions run before
+being called verified. The 34-row source disposition is recorded in
+`docs/FEATURE_PARITY.md`. Do not run local application builds or tests.
 
 ## Latest verified baseline — 2026-11-12 (Guided Demo Settings)
 

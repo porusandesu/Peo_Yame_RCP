@@ -1,5 +1,19 @@
 # Test report
 
+## GitHub Actions v117 — security and parity baseline passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43233949692
+Commit: `dba7c9c` (Update authenticator flow expectations).
+
+- Backend API tests passed.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- No local application builds or tests were run.
+- Follow-up UI changes for the 34-row source audit are not included in this
+  run; the next Actions run must verify them before claiming final parity.
+
 ## GitHub Actions v114 — Guided Demo Settings polish passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617
