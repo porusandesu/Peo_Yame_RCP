@@ -1,5 +1,15 @@
 # Peo Yame — build handoff and resume plan
 
+## Latest status — 2026-11-12
+
+Feature-parity implementation is pushed to `exe-work`; GitHub Actions v97
+(`43173464542`, commit `2c1bac6`) passed all backend, Android, and Windows
+jobs. The Windows installer acceptance test verified install, launch,
+encrypted storage, and uninstall. Android and Windows artifacts were uploaded.
+Automated parity work is complete; manual visual/accessibility and real-device
+checks remain open. See `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`.
+Older continuation notes below are historical and superseded by this status.
+
 ## Correction to the Windows launch history — 2026-11-11
 
 The user reports that the v83 Windows app did not launch its backend in actual Windows use. The earlier v83 “passed startup” wording was wrong for the user's reported outcome: v83 CI passed only the special --self-test path and did not launch the normal tray app. v84 also tested a dashboard URL marker from that self-test rather than normal app startup; v85 reused that insufficient check. Do not treat v83–v85 as proof the normal Windows app works. The new workflow must start the unmodified single executable normally from a clean folder on Windows and verify its live backend and dashboard.
@@ -141,12 +151,12 @@ Sensor management adds account-owned records, manual ID registration, location l
 - Audit false positives verified directly (no change needed): `removeSite`/`signout` are already `async`; SQL placeholder counts correct; no cross-user leaks in `/status`, `/trends`, `/export`, `/alerts`; claim/scan CAS and redeem double-spend guards correct; prepared statements throughout.
 - Next after a green v94: SSE real events + offline recovery → 30-item catalog → biometric app lock → pairing password re-check → DB encryption-at-rest → Windows installer.
 
-## Continuation after v94 — feature parity source batch pending CI
+## Current status — v97 feature-parity CI green
 
 The active implementation worktree is `/tmp/peo-yame-feature-parity`, branch
 `copilot/feature-parity`, based on `f0ddde4`. The original Documents workspace
 and the divergent `storage_monitor_flutter` checkout were not modified. Commit
-`23d7c26` was pushed to `exe-work`.
+`2c1bac6` is pushed to `exe-work`.
 
 Source changes now cover server-sent mutation events with session validity
 checks; web and Android reconnect/offline behavior; a 30-item Botswana-oriented
@@ -160,20 +170,16 @@ states the available Botswana survey basis and its limitation: the cited
 official sources do not publish a ranked top-ten list across all three
 categories.
 
-Focused backend tests cover catalog counts and account isolation,
-selection/custom-item persistence after backend restart, SSE event delivery,
-pairing re-authentication including enabled TOTP, and database
-encryption/migration/key rejection/reopen/copy recovery. Actions v96
-(`43171837358`) passed the backend suite and Android widget/analyzer/release
-checks. Windows normal launch, backend restart/reset, and installer compilation
-passed, but installer acceptance failed because the workflow attempted to read
-the database file while the SQLite process held it open. The v97 source
-correction checks the ciphertext header after stopping the app; that rerun is
-pending. No local app builds/tests were run; `git diff --check` passed.
+GitHub Actions v97 (`43173464542`) passed backend tests, Android widget
+tests/analyzer/release APK and launcher verification, and Windows normal
+launch, restart/reset, installer install/launch, encrypted-storage acceptance,
+and uninstall. Artifacts `Peo Yame v97 Android` (71,096,129 bytes) and
+`Peo Yame v97 Windows` (311,259,951 bytes) were uploaded. No local app
+builds/tests were run. The earlier v96 installer file-locking issue is fixed
+and superseded by v97's green acceptance run.
 
-Continue by committing and pushing the workflow/docs fix to `exe-work`, then
-inspect every v97 Actions job and artifact. Do not mark the Windows installer
-complete until its install, encrypted-storage, and uninstall checks pass.
-Manual visual/accessibility checks remain open. The earlier note about the
-Windows launcher always enabling Guided Demo is superseded: the current source
-defaults it to `false`.
+The automated feature-parity batch is complete. Manual visual/accessibility
+and real-device checks remain open. The catalog is evidence-informed and
+Botswana-oriented, not a statistically ranked top ten; crop-band and estimate
+baselines still need domain validation. The Windows launcher defaults Guided
+Demo off unless explicitly enabled.

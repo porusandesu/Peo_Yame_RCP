@@ -1,5 +1,16 @@
 # Test report
 
+## GitHub Actions v97 — backend, Android, and Windows installer passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43173464542
+Commit: `2c1bac6` (Fix installer encrypted database check).
+
+- Backend API tests passed.
+- Android widget tests, analysis, release APK build, and packaged launcher verification passed. Artifact `Peo Yame v97 Android` was uploaded (71,096,129 bytes).
+- Windows normal launch, backend restart/reset lifecycle, installer build, install/launch, encrypted-database verification, and uninstall all passed. Artifact `Peo Yame v97 Windows` was uploaded (311,259,951 bytes).
+- This is the first fully green run for the feature-parity batch, including acceptance of the Windows installer and encrypted storage.
+- No local app builds or tests were run. Manual visual/accessibility verification remains open.
+
 ## GitHub Actions v96 — backend and Android passed; Windows installer check needs correction
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43171837358
@@ -10,14 +21,14 @@ Commit: `23d7c263567c3f26ecb076589349b58c3b8b25e1`.
 - Windows single-executable normal launch and restart/reset lifecycle checks passed; the installer compiled successfully. The final installer check installed and launched the app, then failed when `File.ReadAllBytes` tried reading the database while the running SQLite process held it open. The workflow now performs the ciphertext header check after stopping the app. No Windows artifacts were uploaded for v96 because the final installer check failed.
 - No local app builds or tests were run. The only local validation was `git diff --check`.
 
-## Feature-parity implementation batch — Windows acceptance rerun pending
+## Feature-parity implementation batch — CI complete; manual verification remains
 
 The current source worktree is based on `f0ddde4` and contains changes for SSE
 events and client reconnects, custom crop catalogs, biometric app lock, phone
 pairing re-authentication, encrypted SQLite storage, and a Windows installer.
-Focused backend tests and Android/Windows build checks now have the v96 evidence
-above. v97 will rerun the corrected Windows installer acceptance step. Manual
-visual/accessibility verification remains open.
+The v97 evidence above confirms the backend tests, Android build and tests, and
+Windows installer acceptance. Manual visual/accessibility verification remains
+open.
 
 ## GitHub Actions v94 — first fully green run: backend, Windows (6th consecutive), and Android all pass
 

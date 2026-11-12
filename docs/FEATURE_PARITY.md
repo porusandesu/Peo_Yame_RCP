@@ -1,12 +1,15 @@
 # Feature parity status
 
+The audit notes below include historical pending statuses; the v97 result in
+the final section supersedes those entries.
+
 ## Audit batch status — 2026-11-12
 
 - TOTP authenticator (setup/enable/disable, login gating, approval gating, session inheritance) is implemented in backend with RFC 6238 verification; web and mobile clients expose setup/enable/disable and login code entry. **CI-proven at v94** (run `43160038257`): setup/enable with a correct code → 200 and wrong code → 401, login requires a code, TOTP-re-authenticated approval works, sessions expose `totpVerified`, disable is password-gated (wrong → 401, correct → 200).
-- Android launcher branding is CI-verified at v93 (run `43159003399`, job `130985508488`): `aapt2 dump badging` shows `application: label='Peo Yame' icon='res/mipmap-anydpi-v26/ic_launcher.xml'`, and the resource table contains `mipmap/ic_launcher` and `mipmap/ic_launcher_round` with PNGs at mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi plus anydpi-v26 XML. The assertion now reads `aapt2` output, so it is robust against AGP resource path shortening.
-- Windows normal-launch and restart/reset lifecycle checks are green for five consecutive runs (v89–v93).
+- Android launcher branding is CI-verified at v97 (run `43173464542`): packaged launcher verification passed with the release APK.
+- Windows normal-launch, restart/reset lifecycle, installer acceptance, and encrypted-storage checks passed at v97 (run `43173464542`).
 - The v2 parity-prompt session lifetimes (password 168h / QR 24h / demo 2h, cookie maxAge 24h) are implemented in `backend/src/server.js`.
-- Still open from the parity prompt section 11: SSE live events + offline recovery, 30-item catalog, biometric app lock, pairing password re-check, DB encryption-at-rest, Windows installer, fuller visual/accessibility verification.
+- SSE live events and client reconnect/offline recovery, the 30-item catalog and user additions, biometric app lock, pairing re-authentication, encrypted database migration/recovery, and the Windows installer are implemented and covered by the v97 CI run. Manual visual/accessibility and real-device verification remain open.
 
 ## Windows launch and logo correction (2026-11-11)
 
@@ -30,8 +33,8 @@ Sensor account records, linking/unlinking, per-account authorization, sensor rea
 
 CSV and Markdown exports are now implemented in source. The backend scopes downloads to the current account (and keeps the shared anonymous demo on shared demo rows); web downloads files, while Android copies the selected format to the clipboard. Export API coverage and Android compile evidence are pending v87 CI.
 
-## Current parity source work — pending GitHub Actions
+## Feature-parity implementation — automated CI complete
 
 The current `copilot/feature-parity` worktree adds per-user SSE mutation events, reconnecting/offline recovery in web and Android, the 30-item Botswana-oriented starter catalog with account-owned custom entries and persisted crop selection, Android biometric app lock, password plus enabled-TOTP re-check for phone pairing creation, SQLCipher-backed database encryption with plaintext migration, and a per-user Windows installer. Automated source tests cover event delivery, catalog counts/custom-crop isolation/selection, pairing re-authentication, and database migration, ciphertext, wrong-key rejection, reopening, and encrypted-copy recovery.
 
-GitHub Actions v96 (run `43171837358`, commit `23d7c26`) passed backend tests—including the new database, catalog, persistence, SSE, and pairing checks—and Android widget tests, analysis, APK build, and launcher verification. Windows normal launch, backend restart/reset, and installer compilation passed. Installer acceptance failed because the workflow tried reading the encrypted database while the running process held the file; v97 now checks the header after stopping the application. No local application tests/builds have been run. The catalog documentation explicitly notes that Statistics Botswana does not publish a ranked top-ten list for all three catalog categories; the selection is evidence-informed and Botswana-oriented, not a measured popularity ranking. Manual visual/accessibility verification remains open.
+GitHub Actions v97 (run `43173464542`, commit `2c1bac6`) passed backend tests, Android widget tests/analysis/release APK and launcher verification, and Windows normal launch, restart/reset, installer installation/launch, encrypted-storage acceptance, and uninstall. Artifacts `Peo Yame v97 Android` and `Peo Yame v97 Windows` were uploaded. No local application tests/builds have been run. The catalog documentation explicitly notes that Statistics Botswana does not publish a ranked top-ten list for all three catalog categories; the selection is evidence-informed and Botswana-oriented, not a measured popularity ranking. Manual visual/accessibility and real-device verification remain open.
