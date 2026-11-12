@@ -1,5 +1,13 @@
 # Feature parity status
 
+## Audit batch status — 2026-11-12
+
+- TOTP authenticator (setup/enable/disable, login gating, approval gating, session inheritance) is implemented in backend with RFC 6238 verification; web and mobile clients expose setup/enable/disable and login code entry. **CI-proven at v94** (run `43160038257`): setup/enable with a correct code → 200 and wrong code → 401, login requires a code, TOTP-re-authenticated approval works, sessions expose `totpVerified`, disable is password-gated (wrong → 401, correct → 200).
+- Android launcher branding is CI-verified at v93 (run `43159003399`, job `130985508488`): `aapt2 dump badging` shows `application: label='Peo Yame' icon='res/mipmap-anydpi-v26/ic_launcher.xml'`, and the resource table contains `mipmap/ic_launcher` and `mipmap/ic_launcher_round` with PNGs at mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi plus anydpi-v26 XML. The assertion now reads `aapt2` output, so it is robust against AGP resource path shortening.
+- Windows normal-launch and restart/reset lifecycle checks are green for five consecutive runs (v89–v93).
+- The v2 parity-prompt session lifetimes (password 168h / QR 24h / demo 2h, cookie maxAge 24h) are implemented in `backend/src/server.js`.
+- Still open from the parity prompt section 11: SSE live events + offline recovery, 30-item catalog, biometric app lock, pairing password re-check, DB encryption-at-rest, Windows installer, fuller visual/accessibility verification.
+
 ## Windows launch and logo correction (2026-11-11)
 
 The user reports that the v83 Windows app did not launch its backend in normal use. The v83 CI result exercised only the special self-test path; it did not test the normal tray launcher. The v84 dashboard URL assertion also came from self-test. Therefore v83–v85 are not evidence that normal Windows app startup works. A replacement workflow is pending and will launch the exe normally from a clean folder, then check its live health endpoint, dashboard, and account registration. CI suppresses opening a visible browser window, so desktop browser display remains unobserved.

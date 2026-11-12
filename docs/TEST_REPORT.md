@@ -1,5 +1,16 @@
 # Test report
 
+## GitHub Actions v94 — first fully green run: backend, Windows (6th consecutive), and Android all pass
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43160038257
+Commit: `4ff22b6` (Allow TOTP-verified sessions of the pairing owner to manage phone pairings).
+
+- Backend API tests: passed. This includes the full TOTP block — setup/enable (correct code → 200, wrong code → 401), login requiring a code, owner-status/approve with the TOTP re-authenticated session, sessions `totpVerified`, disable with wrong password → 401 and correct password → 200, and the prototype-key crop guards (`/status?crop=constructor` → 400, `/sites` POST with `crop:"constructor"` → 400). TOTP is now CI-proven end to end.
+- Windows: normal-launch check and restart/reset lifecycle both passed; artifact uploaded. Sixth consecutive green Windows run.
+- Android: analysis, widget tests, release APK build, and the aapt2 packaged-icon/label assertion all passed.
+- This is the first run since the rebuild began where all three jobs are green together. Backend TOTP status in FEATURE_PARITY.md upgraded from "not yet CI-proven" to CI-proven at this run.
+- No local app builds or tests were run.
+
 ## GitHub Actions v93 — Windows green (5th consecutive); Android green for the first time since v88; backend failed on TOTP approval session binding (fix applied)
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43159003399
