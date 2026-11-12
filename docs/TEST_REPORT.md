@@ -1,13 +1,19 @@
 # Test report
 
-## Current `exe-work` demo-fix continuation — pending validation
+## GitHub Actions v123 — showcase implementation issues found
 
-- **Source inspection:** changes include shared-feed/profile API regressions,
-  demo UI helper tests, revised first-in-band simulator expectations, and
-  Android gauge/age/address helper tests.
-- **Automated test:** not run for this changeset. Per project instruction, app
-  checks are CI-only; the current worktree has not been pushed to trigger
-  GitHub Actions.
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43295613671
+Commit: `013ce32` (Document demo showcase and presenter flow).
+
+- **Backend:** 25 of 28 tests passed. Failures identified an idle-feeder
+  boundary race, an overly exact trend-history count, and a checklist test
+  still using the pre-change step ID. The idle boundary and test expectations
+  have been corrected.
+- **Android:** compilation failed in the compressed `_Gauge` declaration.
+  The widget has been rewritten with explicit structure; the UI polish from
+  this follow-up is awaiting the next Actions run.
+- **Windows:** passed normal launch, opt-in Guided Demo launch, encrypted
+  storage, installer, and uninstall checks.
 - **Manual observation:** **Not verified** for web/mobile screenshots,
   animation/reduced-motion behavior, keyboard or screen-reader navigation,
   physical camera permissions, Windows tray operation, or real LAN reachability.

@@ -358,7 +358,7 @@
         chip.className = "py-demo-chip";
         host.insertBefore(chip, $("#sync"));
       }
-      chip.textContent = mode === "guided" ? "Demo · simulated readings" : "Shared demo profile · simulated readings";
+      chip.textContent = mode === "guided" ? "Demo mode is on" : "Shared demo profile · simulated readings";
     } else {
       chip?.remove();
     }
@@ -373,8 +373,31 @@
       const seconds = Math.max(0, Math.ceil((expiryAt - Date.now()) / 1000));
       timer.textContent = "Demo expires in " + Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
       timer.classList.toggle("warning", seconds <= 600);
+      const state = seconds === 0 ? "expired" : seconds <= 600 ? "warning" : "normal";
+      let guidance = $("#demo-expiry-guidance");
+      if (state === "normal") {
+        guidance?.remove();
+      } else if (!guidance || guidance.dataset.state !== state) {
+        if (!guidance) {
+          guidance = document.createElement("div");
+          guidance.id = "demo-expiry-guidance";
+          guidance.className = "notice banner py-expiry-guidance";
+          guidance.setAttribute("role", "status");
+          $("#banner")?.before(guidance);
+        }
+        guidance.dataset.state = state;
+        guidance.replaceChildren(document.createTextNode(
+          state === "expired"
+            ? "Guided Demo session expired. Return to sign-in and start another demo."
+            : "Guided Demo expires soon. Reset and start again before presenting.",
+        ));
+        if (state === "warning") {
+          guidance.append(button("Reset and start again", () => window.resetDemo()));
+        }
+      }
     } else {
       $("#demo-expiry")?.remove();
+      $("#demo-expiry-guidance")?.remove();
     }
   }
 

@@ -476,7 +476,7 @@
     checklistSteps = checklist.steps || [];
     const toggle = $("#demo-live-toggle");
     const status = $("#demo-simulation-status");
-    if (toggle) toggle.textContent = demoSimulationActive ? "Stop live simulation" : "Start live simulation";
+    if (toggle) toggle.textContent = demoSimulationActive ? "Stop simulated readings" : "Start simulated readings";
     if (status) status.textContent = demoSimulationActive
       ? "Simulated readings are syncing to signed-in demo devices."
       : "";

@@ -126,7 +126,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
   if(token!=null&&entered&&!instant&&!eventsStarted)startEvents();
   if(mounted)setState((){});
  }
- Future<void> _toggleDemoSimulation()async{try{final result=Map<String,dynamic>.from(await request(demoSimulationActive?'/demo/simulation/stop':'/demo/simulation/start',method:'POST'));demoSimulationActive=result['active']==true;await refresh(manual:true);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(demoSimulationActive?'Live simulation started. New readings sync every 3 seconds across signed-in demo devices.':'Live simulation stopped.')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
+ Future<void> _toggleDemoSimulation()async{try{final result=Map<String,dynamic>.from(await request(demoSimulationActive?'/demo/simulation/stop':'/demo/simulation/start',method:'POST'));demoSimulationActive=result['active']==true;await refresh(manual:true);if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(demoSimulationActive?'Simulated readings started. New readings sync every 3 seconds across signed-in demo devices.':'Simulated readings stopped.')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
  Future<void> _showDemoPassword(String password)async{await showDialog<void>(context:context,barrierDismissible:false,builder:(c)=>AlertDialog(title:const Text('Save your Guided Demo password'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('This generated password is shown only once. Keep it available for authenticator setup and phone pairing.'),const SizedBox(height:12),SelectableText(password)]),actions:[TextButton(onPressed:()=>Clipboard.setData(ClipboardData(text:password)),child:const Text('Copy password')),FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('Continue'))]));}
  Future<void> _startGuidedDemo()async{
   var profile='showcase';
@@ -189,9 +189,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
   final tv=(reading?['temperature'] as num?)?.toDouble(),hv=(reading?['humidity'] as num?)?.toDouble();
   return Scaffold(
    appBar:AppBar(
-    leading:Padding(padding:const EdgeInsets.all(7),child:Image.asset('assets/brand/peo-yame-512.png')),
+    leading:Padding(padding:const EdgeInsets.all(7),child:Container(width:40,height:40,padding:const EdgeInsets.all(4),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(10)),child:Image.asset('assets/brand/peo-yame-512.png'))),
     title:const Text('Peo Yame',style:TextStyle(fontWeight:FontWeight.w700)),
-    actions:[Padding(padding:const EdgeInsets.only(right:10),child:Center(child:Text(guided?'Demo · simulated readings':instant?'Demo · simulated readings':offline?'Offline':'Connected',style:const TextStyle(fontSize:11))))],
+    actions:[Padding(padding:const EdgeInsets.only(right:10),child:Center(child:Text(guided?'Demo mode on':instant?'Demo · simulated readings':offline?'Offline':'Connected',style:const TextStyle(fontSize:11))))],
    ),
    body:RefreshIndicator(
     onRefresh:()=>refresh(manual:true),
@@ -221,7 +221,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
       if(tab==3)_alertsScreen(),
       if(tab==4)(instant?_instantSettings():_settings()),
       const SizedBox(height:16),
-      Text('Last synced: $lastSync',style:const TextStyle(color:muted,fontSize:12)),
+      if(tab!=4)Text('Last synced: $lastSync',style:const TextStyle(color:muted,fontSize:12)),
      ],
     ),
    ),
@@ -265,7 +265,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
   ]]));
  Widget _field(String label,TextEditingController c,{bool secret=false,Widget? suffix})=>Padding(padding:const EdgeInsets.symmetric(vertical:6),child:TextField(controller:c,obscureText:secret,decoration:InputDecoration(labelText:label,border:const OutlineInputBorder(),suffixIcon:suffix)));
  Widget _statusCard(){final outside=data['statusLabel']=='Outside target band',color=outside?statusWarning:statusGreen;return Card(color:outside?statusWarningBg:statusGreenBg,child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Icon(outside?LucideIcons.triangleAlert:LucideIcons.circleCheck,color:color),const SizedBox(width:8),Expanded(child:Text((data['statusLabel']??'No readings').toString(),style:TextStyle(fontSize:18,fontWeight:FontWeight.w700,color:color)))]),const SizedBox(height:7),const Text('This compares the latest reading with the target band for this crop. It does not check the crop itself.',style:TextStyle(color:muted)),if(guided&&demoSimulationActive)const Padding(padding:EdgeInsets.only(top:8),child:Text('Simulated readings update every 3 seconds across signed-in demo devices.',style:TextStyle(color:muted)))])));}
- Widget _demoExpiryBanner(){final seconds=max(0,demoSessionExpiresAt!.difference(DateTime.now()).inSeconds).toInt(),minutes=seconds~/60;final text=seconds==0?'Guided Demo session expired':minutes>=60?'Guided Demo expires in ${minutes~/60}h ${minutes%60}m':'Guided Demo expires in ${minutes}m';return _Banner(text,warning:seconds<=600);}
+ Widget _demoExpiryBanner(){final seconds=max(0,demoSessionExpiresAt!.difference(DateTime.now()).inSeconds).toInt(),minutes=seconds~/60;final text=seconds==0?'Guided Demo session expired':minutes>=60?'Guided Demo expires in ${minutes~/60}h ${minutes%60}m':'Guided Demo expires in $minutes:${(seconds%60).toString().padLeft(2,'0')}';return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[_Banner(seconds>0&&seconds<=600?'$text · Reset and start again if you need more time.':text,warning:seconds<=600),if(seconds>0&&seconds<=600)Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed:_resetGuidedDemo,icon:const Icon(Icons.restart_alt),label:const Text('Reset and start again')))]);}
+ Future<void> _resetGuidedDemo()async{try{await request('/demo/reset',method:'POST');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));return;}await signOut();}
  String get presenterLanAddress{if(detectedLanAddress==null)return preflightLoading?'Checking…':'Not detected';final uri=Uri.tryParse(detectedLanAddress!);final host=uri?.host??'';if(host=='localhost'||host=='::1'||host.startsWith('127.'))return 'Not detected';return showLanAddress?detectedLanAddress!:maskedBackendAddress(detectedLanAddress);}
  Widget _presenterPreflight()=>_settingsSection('Before you present','Status reported by this app and backend; phone reachability cannot be confirmed here.',Icons.checklist,[
   Text(guidedDemoEnabled?'Demo mode is on':'Demo mode is off',style:const TextStyle(fontWeight:FontWeight.w700)),
@@ -321,10 +322,10 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
  Future<void> _registerSensor()async{try{await request('/sensors',method:'POST',body:{'externalId':sensorId.text});sensorId.clear();await refresh();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
  Widget _addCrop()=>instant?const SizedBox.shrink():Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[_field('Location name',siteName),FilledButton(onPressed:()=>request('/sites',method:'POST',body:{'name':siteName.text,'crop':crop}).then((_){siteName.clear();return refresh();}),child:const Text('Add storage location')),const Divider(),OutlinedButton(onPressed:_addCustomCrop,child:const Text('Add crop to monitor')),const Divider(),_field('Register sensor ID',sensorId),OutlinedButton(onPressed:_registerSensor,child:const Text('Register sensor'))])));
  Widget _alertsScreen()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const _Banner('Simulated alert log. SMS is not sent.'),if(alerts.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(20),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(Icons.check_circle_outline,color:green,size:32),SizedBox(height:10),Text('No alerts yet',style:TextStyle(fontSize:17,fontWeight:FontWeight.w700)),Text('Simulated readings are within the selected crop target band.',style:TextStyle(color:muted))]))),for(final a in alerts)Card(child:Column(children:[ListTile(leading:Icon(a['reviewed']==1?Icons.check_circle_outline:Icons.warning_amber_outlined,color:a['reviewed']==1?green:const Color(0xff8a6516)),title:Text(a['message']??''),subtitle:Text('${a['created_at']??''} · simulated · ${a['reviewed']==1?'reviewed':'needs review'}'),trailing:a['reviewed']==1?null:instant?TextButton(onPressed:_startGuidedDemo,child:const Text('Try in Guided Demo')):TextButton(onPressed:()=>request('/alerts/${a['id']}',method:'PATCH').then((_)=>refresh()),child:const Text('Mark reviewed'))),if(a['estimate'] is Map<String,dynamic>)_siteEstimate(a['estimate'] as Map<String,dynamic>)]))]);
- Future<String?> _manualQrCode()async{final field=TextEditingController();try{final typed=await showDialog<String>(context:context,builder:(c)=>AlertDialog(title:const Text('Enter code manually'),content:TextField(controller:field,decoration:const InputDecoration(labelText:'Pairing code or backend address')),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,field.text.trim()),child:const Text('Continue'))]));if(typed==null||typed.isEmpty)return null;final uri=Uri.tryParse(typed);if(uri!=null&&(uri.scheme=='http'||uri.scheme=='https')&&uri.hasAuthority)return jsonEncode({'flow':'backend','baseUrl':typed});return typed;}finally{field.dispose();}}
- Future<String?> openScanner()async{if(manualQrEntry){manualQrEntry=false;return _manualQrCode();}final controller=MobileScannerController();var popped=false;try{return await showDialog<String>(context:context,barrierDismissible:false,builder:(ctx)=>Scaffold(backgroundColor:const Color(0xff0b1410),appBar:AppBar(title:const Text('Scan sign-in code'),leading:IconButton(onPressed:()=>Navigator.pop(ctx),icon:const Icon(LucideIcons.x))),body:Column(children:[const Padding(padding:EdgeInsets.all(20),child:Text('Place the QR code inside the frame. Codes expire after 90 seconds and work once.',style:TextStyle(color:Colors.white))),Expanded(child:Center(child:SizedBox(width:280,height:280,child:MobileScanner(controller:controller,onDetect:(capture){for(final item in capture.barcodes){final value=item.rawValue;if(value!=null&&value.isNotEmpty&&!popped){popped=true;Navigator.pop(ctx,value);break;}}})))),TextButton(onPressed:()async{final typed=await _manualQrCode();if(typed!=null&&typed.isNotEmpty)Navigator.pop(ctx,typed);},child:const Text('Enter code manually')),TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel'))])));}finally{await controller.dispose();}}
+ Future<String?> _manualQrCode()async{final field=TextEditingController();try{final typed=await showDialog<String>(context:context,builder:(c)=>AlertDialog(title:const Text('Manual sign-in setup'),content:TextField(controller:field,decoration:const InputDecoration(labelText:'Backend address or pairing code')),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,field.text.trim()),child:const Text('Continue'))]));if(typed==null||typed.isEmpty)return null;final uri=Uri.tryParse(typed);if(uri!=null&&(uri.scheme=='http'||uri.scheme=='https')&&uri.hasAuthority)return jsonEncode({'flow':'backend','baseUrl':typed});return typed;}finally{field.dispose();}}
+ Future<String?> openScanner()async{if(manualQrEntry){manualQrEntry=false;return _manualQrCode();}final controller=MobileScannerController();var popped=false;try{return await showDialog<String>(context:context,barrierDismissible:false,builder:(ctx)=>Scaffold(backgroundColor:const Color(0xff0b1410),appBar:AppBar(title:const Text('Scan sign-in code'),leading:IconButton(onPressed:()=>Navigator.pop(ctx),icon:const Icon(LucideIcons.x))),body:Column(children:[const Padding(padding:EdgeInsets.all(20),child:Text('Place the QR code inside the frame. Codes expire after 90 seconds and work once.',style:TextStyle(color:Colors.white))),Expanded(child:Center(child:SizedBox(width:280,height:280,child:MobileScanner(controller:controller,onDetect:(capture){for(final item in capture.barcodes){final value=item.rawValue;if(value!=null&&value.isNotEmpty&&!popped){popped=true;Navigator.pop(ctx,value);break;}}})))),TextButton(onPressed:()async{final typed=await _manualQrCode();if(typed!=null&&typed.isNotEmpty)Navigator.pop(ctx,typed);},child:const Text('Enter address or pairing code manually')),TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel'))])));}finally{await controller.dispose();}}
 bool privateBackend(Uri u)=>isPrivateBackendUrl(u);
-Future<bool> cameraRationale()async{final choice=await showDialog<int>(context:context,builder:(c)=>AlertDialog(title:const Text('Why camera access?'),content:const Text('We use the camera only to scan a Peo Yame sign-in or backend connection code.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,0),child:const Text('Not now')),TextButton(onPressed:()=>Navigator.pop(c,1),child:const Text('Enter code manually')),FilledButton(onPressed:()=>Navigator.pop(c,2),child:const Text('Continue'))]));if(choice==1){manualQrEntry=true;return true;}if(choice!=2)return false;PermissionStatus permission;try{permission=await Permission.camera.request();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));return false;}if(permission.isGranted)return true;final recovery=await showDialog<int>(context:context,builder:(c)=>AlertDialog(title:const Text('Camera access was denied'),content:const Text('Allow camera access in Settings, or enter the pairing code manually.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,0),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,1),child:const Text('Enter code manually')),FilledButton(onPressed:()=>Navigator.pop(c,2),child:const Text('Open settings'))]));if(recovery==1){manualQrEntry=true;return true;}if(recovery==2){try{await openAppSettings();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}return false;}
+Future<bool> cameraRationale()async{final choice=await showDialog<int>(context:context,builder:(c)=>AlertDialog(title:const Text('Why camera access?'),content:const Text('We use the camera only to scan a Peo Yame sign-in or backend connection code.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,0),child:const Text('Not now')),TextButton(onPressed:()=>Navigator.pop(c,1),child:const Text('Enter address or pairing code manually')),FilledButton(onPressed:()=>Navigator.pop(c,2),child:const Text('Continue'))]));if(choice==1){manualQrEntry=true;return true;}if(choice!=2)return false;PermissionStatus permission;try{permission=await Permission.camera.request();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));return false;}if(permission.isGranted)return true;final recovery=await showDialog<int>(context:context,builder:(c)=>AlertDialog(title:const Text('Camera access was denied'),content:const Text('Allow camera access in Settings, or enter an address or pairing code manually.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,0),child:const Text('Cancel')),TextButton(onPressed:()=>Navigator.pop(c,1),child:const Text('Enter address or pairing code manually')),FilledButton(onPressed:()=>Navigator.pop(c,2),child:const Text('Open settings'))]));if(recovery==1){manualQrEntry=true;return true;}if(recovery==2){try{await openAppSettings();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}return false;}
 Future<bool> _confirmBackendSwitch(Uri remote)async{
  var revealAddress=false;
  final accepted=await showDialog<bool>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(dialogContext,setDialogState)=>AlertDialog(
@@ -468,6 +469,7 @@ Widget _settingsSection(String title,String subtitle,IconData icon,List<Widget> 
   ]),
  ),
 );
+Widget _settingsAction(String title,String subtitle,IconData icon,VoidCallback onTap)=>ListTile(contentPadding:EdgeInsets.zero,minLeadingWidth:24,leading:Icon(icon,color:green),title:Text(title),subtitle:Text(subtitle,style:const TextStyle(color:muted)),trailing:const Icon(Icons.chevron_right),onTap:onTap);
 Widget _instantSettings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
  _settingsSection('Data and sync','Shared simulated readings. Instant Demo is read-only.',Icons.sync,[
   Text('Last synced: $lastSync',style:const TextStyle(color:muted)),
@@ -488,7 +490,7 @@ Widget _instantSettings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,
  SizedBox(width:double.infinity,child:TextButton.icon(onPressed:(){stopEvents();setState((){entered=false;instant=false;});},icon:const Icon(Icons.logout),label:const Text('Leave Demo mode'))),
 ]);
 Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
- _settingsSection('Data and sync',guided&&demoSimulationActive?'Guided Demo sends a new reading every 3 seconds across signed-in devices.':'Live readings update automatically across your signed-in devices.',Icons.sync,[
+ _settingsSection('Data and sync',guided&&demoSimulationActive?'Guided Demo sends a new reading every 3 seconds across signed-in devices.':'Readings update automatically across signed-in devices.',Icons.sync,[
   Text('Last synced: $lastSync',style:const TextStyle(color:muted)),
   const SizedBox(height:10),
   SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>refresh(manual:true),icon:const Icon(Icons.refresh),label:Text(instant||guided?'Refresh demo data':'Refresh data now'))),
@@ -499,12 +501,10 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
   ]),
  ]),
  _settingsSection('Account and security','Manage your profile, sign-in protection, and sessions.',Icons.security,[
-  Wrap(spacing:4,runSpacing:4,children:[
-   TextButton.icon(onPressed:()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}')))),icon:const Icon(Icons.person_outline),label:const Text('Profile')),
-   TextButton.icon(onPressed:authenticatorFlow,icon:const Icon(Icons.verified_user_outlined),label:const Text('Authenticator app')),
-   TextButton.icon(onPressed:_showSessions,icon:const Icon(Icons.devices),label:const Text('Active sessions')),
-   TextButton.icon(onPressed:_showSecurityActivity,icon:const Icon(Icons.history),label:const Text('Security activity')),
-  ]),
+  _settingsAction('Profile','View your account details',Icons.person_outline,()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}'))))),
+  _settingsAction('Authenticator app','Manage sign-in verification',Icons.verified_user_outlined,authenticatorFlow),
+  _settingsAction('Active sessions','Review and revoke signed-in devices',Icons.devices,_showSessions),
+  _settingsAction('Security activity','Review recent account events',Icons.history,_showSecurityActivity),
   SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Lock app with biometrics'),subtitle:const Text('Require device authentication when you return to the app.'),value:appLockEnabled,onChanged:_toggleAppLock),
  ]),
  _settingsSection('Backend connection','The address is masked by default. HTTP is for a controlled demo Wi-Fi network only.',Icons.dns_outlined,[
@@ -513,12 +513,12 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
  _settingsSection('Devices','Connect this phone to another computer using a one-time sign-in code.',Icons.devices_other,[
   SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:scanWebQr,icon:const Icon(Icons.qr_code_scanner),label:const Text('Log in on computer'))),
  ]),
- if((instant||guided)&&guidedDemoEnabled)_settingsSection('Demo tools','Practice the live sync, alerts, sensor, and QR flows using temporary data.',Icons.science_outlined,[
+ if((instant||guided)&&guidedDemoEnabled)_settingsSection('Demo tools','Practice simulated syncing, alerts, sensor, and QR flows using temporary data.',Icons.science_outlined,[
   if(guided)const Padding(padding:EdgeInsets.only(bottom:10),child:Text('Readings are simulated, not hardware measurements. QR sign-in on the other device shares this temporary profile.',style:TextStyle(color:muted))),
-  if(instant)SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_startGuidedDemo,icon:const Icon(Icons.play_arrow),label:const Text('Start guided demo'))),
+  if(instant)SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_startGuidedDemo,icon:const Icon(Icons.play_arrow),label:const Text('Start Guided Demo'))),
   if(guided)...[
    _demoChecklist(),
-   SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_toggleDemoSimulation,icon:Icon(demoSimulationActive?Icons.stop:Icons.play_arrow),label:Text(demoSimulationActive?'Stop live simulation':'Start live simulation'))),
+   SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_toggleDemoSimulation,icon:Icon(demoSimulationActive?Icons.stop:Icons.play_arrow),label:Text(demoSimulationActive?'Stop simulated readings':'Start simulated readings'))),
    SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Automatic breach alerts'),subtitle:const Text('Generate a simulated alert every sixth reading.'),value:autoAlerts,onChanged:(value)async{try{await request('/demo/simulation/settings',method:'POST',body:{'autoAlerts':value});setState(()=>autoAlerts=value);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}),
    Wrap(spacing:8,runSpacing:4,children:[
     OutlinedButton.icon(onPressed:()=>request('/demo/breach',method:'POST').then((_)=>refresh()),icon:const Icon(Icons.warning_amber_outlined),label:const Text('Simulate breach')),
@@ -527,7 +527,7 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
     OutlinedButton.icon(onPressed:()=>_selectCrop(crop=='Maize'?'Sorghum':'Maize'),icon:const Icon(Icons.eco_outlined),label:const Text('Switch crop')),
     OutlinedButton.icon(onPressed:_toggleSimulatedOffline,icon:const Icon(Icons.wifi_off),label:Text(simulatedOffline?'Restore network':'Simulate network loss')),
    ]),
-   TextButton.icon(onPressed:()async{try{await request('/demo/reset',method:'POST');}catch(_){}await signOut();},icon:const Icon(Icons.delete_outline),label:const Text('Reset demo')),
+   TextButton.icon(onPressed:_resetGuidedDemo,icon:const Icon(Icons.delete_outline),label:const Text('Reset demo')),
   ],
  ]),
  if(instant||guided)_presenterPreflight(),
@@ -609,7 +609,67 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
 }
 class _Banner extends StatelessWidget{final String text;final bool warning;const _Banner(this.text,{this.warning=false});@override Widget build(BuildContext c)=>Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:warning?statusWarningBg:statusGreenBg,borderRadius:BorderRadius.circular(12)),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[if(warning)const Padding(padding:EdgeInsets.only(right:8,top:2),child:Icon(Icons.warning_amber_rounded,color:statusWarning,size:20)),Expanded(child:Text(text,style:TextStyle(color:warning?statusWarning:statusGreen,height:1.4,fontWeight:warning?FontWeight.w600:FontWeight.normal)))]));}
 class _Tag extends StatelessWidget{final String text;const _Tag(this.text);@override Widget build(BuildContext c)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:const Color(0xffe1f0e6),borderRadius:BorderRadius.circular(99)),child:Text(text,style:const TextStyle(color:darkGreen,fontWeight:FontWeight.w600)));}
-class _Gauge extends StatelessWidget{final String title,unit;final double? value;final dynamic low,high;final IconData icon;const _Gauge({required this.title,required this.value,required this.low,required this.high,required this.unit,required this.icon});@override Widget build(BuildContext c){final lo=(low as num?)?.toDouble()??0,hi=(high as num?)?.toDouble()??100,position=gaugePosition(value,lo,hi,percent:unit=='%'),color=position.state=='In range'?const Color(0xff1f7a52):const Color(0xffb3382c),target='$title ${value==null?'no reading':unit=='%'?formatHumidity(value!):formatTemperature(value!)};final description=value==null?'No reading. Target ${lo.toStringAsFixed(0)} to ${hi.toStringAsFixed(0)} $unit.':'$target, ${position.state.toLowerCase()}, target ${lo.toStringAsFixed(0)} to ${hi.toStringAsFixed(0)} $unit.';return Semantics(label:description,child:Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(children:[Row(mainAxisAlignment:MainAxisAlignment.center,children:[Icon(icon,color:green,size:19),const SizedBox(width:6),Flexible(child:Text(title,style:const TextStyle(fontWeight:FontWeight.w700),overflow:TextOverflow.ellipsis))]),TweenAnimationBuilder<double>(key:ValueKey('$title-$value'),tween:Tween<double>(begin:.5,end:position.fraction),duration:MediaQuery.disableAnimationsOf(c)?Duration.zero:const Duration(milliseconds:600),builder:(context,marker,_)=>SizedBox(width:126,height:64,child:CustomPaint(painter:_GaugePainter(position,marker,color)))),Text(value==null?'—':unit=='%'?formatHumidity(value!):formatTemperature(value!),style:TextStyle(fontWeight:FontWeight.w700,color:color)),Text(position.state,style:TextStyle(fontSize:12,color:color)),Text('Target ${lo.toStringAsFixed(0)}–${hi.toStringAsFixed(0)} $unit',style:const TextStyle(fontSize:11,color:muted))]))));}}
+class _Gauge extends StatelessWidget {
+ final String title,unit;
+ final double? value;
+ final dynamic low,high;
+ final IconData icon;
+
+ const _Gauge({
+  required this.title,
+  required this.value,
+  required this.low,
+  required this.high,
+  required this.unit,
+  required this.icon,
+ });
+
+ @override
+ Widget build(BuildContext context) {
+  final lo=(low as num?)?.toDouble()??0;
+  final hi=(high as num?)?.toDouble()??100;
+  final position=gaugePosition(value,lo,hi,percent:unit=='%');
+  final color=position.state=='In range'?statusGreen:statusDanger;
+  final display=value==null?'—':unit=='%'?formatHumidity(value!):formatTemperature(value!);
+  final description=value==null
+   ?'No reading. Target ${lo.toStringAsFixed(0)} to ${hi.toStringAsFixed(0)} $unit.'
+   :'$title $display, ${position.state.toLowerCase()}, target ${lo.toStringAsFixed(0)} to ${hi.toStringAsFixed(0)} $unit.';
+
+  return Semantics(
+   label:description,
+   child:Card(
+    child:Padding(
+     padding:const EdgeInsets.all(10),
+     child:Column(
+      children:[
+       Row(
+        mainAxisAlignment:MainAxisAlignment.center,
+        children:[
+         Icon(icon,color:green,size:19),
+         const SizedBox(width:6),
+         Flexible(child:Text(title,style:const TextStyle(fontWeight:FontWeight.w700),overflow:TextOverflow.ellipsis)),
+        ],
+       ),
+       TweenAnimationBuilder<double>(
+        key:ValueKey('$title-$value'),
+        tween:Tween<double>(begin:.5,end:position.fraction),
+        duration:MediaQuery.disableAnimationsOf(context)?Duration.zero:const Duration(milliseconds:600),
+        builder:(context,marker,_)=>SizedBox(
+         width:126,
+         height:64,
+         child:CustomPaint(painter:_GaugePainter(position,marker,color)),
+        ),
+       ),
+       Text(display,style:TextStyle(fontWeight:FontWeight.w700,color:color)),
+       Text(position.state,style:TextStyle(fontSize:12,color:color)),
+       Text('Target ${lo.toStringAsFixed(0)}–${hi.toStringAsFixed(0)} $unit',style:const TextStyle(fontSize:11,color:muted)),
+      ],
+     ),
+    ),
+   ),
+  );
+ }
+}
 class _GaugePainter extends CustomPainter{final GaugePosition position;final double marker;final Color color;_GaugePainter(this.position,this.marker,this.color);@override void paint(Canvas canvas,Size size){final rect=Rect.fromLTWH(10,4,size.width-20,size.height*1.7),start=pi,sweep=pi;final track=Paint()..color=line..style=PaintingStyle.stroke..strokeWidth=8..strokeCap=StrokeCap.round;final target=Paint()..color=const Color(0xff1f7a52)..style=PaintingStyle.stroke..strokeWidth=8..strokeCap=StrokeCap.round;canvas.drawArc(rect,start,sweep,false,track);canvas.drawArc(rect,start+sweep*position.bandStart,sweep*(position.bandEnd-position.bandStart),false,target);final center=Offset(rect.center.dx+rect.width/2*cos(start+sweep*marker),rect.center.dy+rect.height/2*sin(start+sweep*marker));canvas.drawCircle(center,6,Paint()..color=color);canvas.drawCircle(center,2,Paint()..color=Colors.white);}@override bool shouldRepaint(covariant _GaugePainter old)=>old.marker!=marker||old.position.fraction!=position.fraction||old.color!=color;}
 
 class _TrendChart extends StatelessWidget {
