@@ -14,11 +14,13 @@ tests were run.
 
 Remaining audit gaps: the dashboard still disables CSP because it uses inline
 scripts and handlers; the security log is incomplete and not exposed in
-Settings; login throttling is per-IP rather than account-based; password and
-phone QR sessions do not yet have idle expiry; and authenticator changes do
-not rotate or revoke existing sessions. Windows Firewall behavior, real-device
-LAN access, and manual visual/accessibility checks remain unverified. CI
-passing is not an independent security review.
+Settings; login throttling is per-IP rather than account-based; and
+authenticator changes do not rotate or revoke existing sessions. A source
+change now applies 30-minute idle expiry to password, phone QR, web QR, and
+demo sessions, including event-stream closure and database cleanup. Focused
+backend tests are added; CI verification is pending. Windows Firewall
+behavior, real-device LAN access, and manual visual/accessibility checks
+remain unverified. CI passing is not an independent security review.
 
 The audit notes below include historical pending statuses; the v100 result
 above supersedes those entries for the latest source.
@@ -28,9 +30,9 @@ above supersedes those entries for the latest source.
 - TOTP authenticator (setup/enable/disable, login gating, approval gating, session inheritance) is implemented in backend with RFC 6238 verification; web and mobile clients expose setup/enable/disable and login code entry. **CI-proven at v94** (run `43160038257`): setup/enable with a correct code → 200 and wrong code → 401, login requires a code, TOTP-re-authenticated approval works, sessions expose `totpVerified`, disable is password-gated (wrong → 401, correct → 200).
 - Android launcher branding is CI-verified at v97 (run `43173464542`): packaged launcher verification passed with the release APK.
 - Windows normal-launch, restart/reset lifecycle, installer acceptance, and encrypted-storage checks passed at v97 (run `43173464542`).
-- Session lifetimes in `backend/src/server.js`: password 168h, phone QR 24h,
-  web QR 8h absolute/30m idle, and demo 2h. Browser cookies follow their
-  session's hard lifetime.
+- Session absolute lifetimes in `backend/src/server.js`: password 168h, phone
+  QR 24h, web QR 8h, and demo 2h. All session types now have 30m idle expiry;
+  browser cookies follow their session's hard lifetime.
 - SSE live events and client reconnect/offline recovery, the 30-item catalog and user additions, biometric app lock, pairing re-authentication, encrypted database migration/recovery, and the Windows installer are implemented and covered by the v97 CI run. Manual visual/accessibility and real-device verification remain open.
 
 ## Windows launch and logo correction (2026-11-11)

@@ -273,12 +273,57 @@ test("rejects foreign web origins and requires CSRF proof for cookie-authenticat
 
   const sessionToken = sessionCookie.slice("py_session=".length);
   const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
-  encrypted.prepare("UPDATE sessions SET idle_timeout_minutes=1,last_seen_at=? WHERE token_hash=?").run(
-    new Date(Date.now() - 2 * 60000).toISOString(),
-    crypto.createHash("sha256").update(sessionToken).digest("hex"),
+  const tokenHash = crypto.createHash("sha256").update(sessionToken).digest("hex");
+  assert.equal(encrypted.prepare("SELECT idle_timeout_minutes FROM sessions WHERE token_hash=?").get(tokenHash).idle_timeout_minutes, 30);
+  encrypted.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=?").run(
+    new Date(Date.now() - 31 * 60000).toISOString(),
+    tokenHash,
   );
   encrypted.close();
   assert.equal((await fetch(`${base}/account`, { headers: { cookie: sessionCookie } })).status, 401);
+});
+
+test("phone QR sessions expire after 30 minutes idle", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const account = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Idle Farmer", phone: "75678902", password: "idle-test-password" }),
+  }).then((response) => response.json());
+  const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
+  const pairing = await fetch(`${base}/qr/phone/create`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "idle-test-password" }),
+  }).then((response) => response.json());
+  const verifier = "phone-idle-test-verifier";
+  const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
+  const claim = await fetch(`${base}/qr/phone/claim`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.codeId, verifierHash, name: "Test phone" }),
+  }).then((response) => response.json());
+  assert.equal((await fetch(`${base}/qr/phone/approve`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: pairing.codeId, matchCode: claim.matchCode }),
+  })).status, 200);
+  const redeemed = await fetch(`${base}/qr/phone/redeem`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.codeId, verifier }),
+  });
+  assert.equal(redeemed.status, 200);
+  const phoneSession = await redeemed.json();
+  const tokenHash = crypto.createHash("sha256").update(phoneSession.token).digest("hex");
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  assert.equal(encrypted.prepare("SELECT idle_timeout_minutes FROM sessions WHERE token_hash=?").get(tokenHash).idle_timeout_minutes, 30);
+  encrypted.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=?").run(
+    new Date(Date.now() - 31 * 60000).toISOString(),
+    tokenHash,
+  );
+  encrypted.close();
+  assert.equal((await fetch(`${base}/account`, { headers: { authorization: `Bearer ${phoneSession.token}` } })).status, 401);
 });
 
 test("approved QR codes cannot be redeemed after their expiry", async (t) => {

@@ -18,10 +18,12 @@ No seeded test account exists; use Instant Demo or register an account.
 
 Open security and verification gaps remain: the dashboard CSP is disabled for
 its inline scripts/handlers; the security log is partial and not shown in
-Settings; login throttling is per-IP rather than account-based; password and
-phone QR sessions lack idle expiry; authenticator changes do not rotate or
-revoke existing sessions. Windows Firewall, real-device LAN access, and
-manual visual/accessibility checks are not verified. See
+Settings; login throttling is per-IP rather than account-based; authenticator
+changes do not rotate or revoke existing sessions. A source change now applies
+30-minute idle expiry to password, phone QR, web QR, and demo sessions,
+including event-stream closure and database cleanup; focused backend tests are
+added, with CI verification pending. Windows Firewall, real-device LAN access,
+and manual visual/accessibility checks are not verified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 
