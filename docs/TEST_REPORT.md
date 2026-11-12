@@ -1,5 +1,23 @@
 # Test report
 
+## GitHub Actions v124 — follow-up issues found
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43297468161
+Commit: `322f829` (Fix showcase CI and polish demo UX).
+
+- **Backend:** 26 of 28 tests passed. One idle-feeder test exposed a final
+  interval-boundary reading; the feeder now stops before its next scheduled
+  tick would reach the idle limit. The cleanup test now updates the existing
+  demo preference instead of attempting a duplicate insert.
+- **Android:** compilation found `_loadPresenterPreflight` outside its state
+  class. The method is now inside `_HomeState`; this correction is awaiting
+  the next Actions run.
+- **Windows:** passed normal launch, opt-in Guided Demo launch, encrypted
+  storage, installer, and uninstall checks.
+- **Manual observation:** **Not verified** for web/mobile screenshots,
+  animation/reduced-motion behavior, keyboard or screen-reader navigation,
+  physical camera permissions, Windows tray operation, or real LAN reachability.
+
 ## GitHub Actions v123 — showcase implementation issues found
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43295613671

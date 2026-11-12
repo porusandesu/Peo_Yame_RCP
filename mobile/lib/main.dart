@@ -32,21 +32,6 @@ GaugePosition gaugePosition(double? value,num lowerBound,num upperBound,{bool pe
  final fraction=value==null ? .5 :((value-minimum)/span).clamp(0.0,1.0).toDouble();
  return GaugePosition(fraction,((low-minimum)/span).clamp(0.0,1.0).toDouble(),((high-minimum)/span).clamp(0.0,1.0).toDouble(),state);
 }
-Future<void> _loadPresenterPreflight({bool force=false})async{
- if(preflightLoading||(!force&&preflightCheckedAt!=null&&DateTime.now().difference(preflightCheckedAt!)<const Duration(seconds:30)))return;
- preflightLoading=true;
- try{
-  final results=await Future.wait<dynamic>([
-   request('/backend/qr',auth:false),
-   if(guided)request('/account/sessions'),
-  ]);
-  detectedLanAddress=(results.first as Map<String,dynamic>)['baseUrl']?.toString();
-  presenterSessions=guided?List<dynamic>.from(results[1] as List):[];
-  showLanAddress=false;
-  preflightError=null;
- }catch(e){detectedLanAddress=null;presenterSessions=[];showLanAddress=false;preflightError=e.toString().replaceFirst('Exception: ','');}
- finally{preflightCheckedAt=DateTime.now();preflightLoading=false;}
-}
 List<double> niceTicks(double minimum,double maximum){
  if(!minimum.isFinite||!maximum.isFinite)return const [];
  if(maximum<=minimum){minimum-=1;maximum+=1;}
@@ -89,6 +74,21 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
  bool manualQrEntry=false;
  final address=TextEditingController(text:'http://10.0.2.2:3000'),phone=TextEditingController(),password=TextEditingController(),confirmPassword=TextEditingController(),name=TextEditingController(),siteName=TextEditingController(),sensorId=TextEditingController(),totpCode=TextEditingController();bool needsTotp=false;String backendStatus='Not checked',savedBackend='http://10.0.2.2:3000';
  final pages=['Overview','Trends','My Crops','Alerts','Settings'];int tab=0;bool entered=false,instant=false,guided=false,demoSimulationActive=false,offline=false,simulatedOffline=false,loading=false,showBackendAddress=false,guidedDemoEnabled=false,appLockEnabled=false,appLocked=false,authPromptActive=false,eventsStarted=false;int consecutiveFailures=0,eventGeneration=0,trendCount=0;String entryMode='welcome',crop='Maize',lastSync='Not synced',error='',trendRange='24h';String? token,inspectionSiteId;Timer? poll;http.Client? eventClient;Map<String,dynamic> data={},trendSummary={};List<dynamic> sites=[],sensors=[],alerts=[],trends=[],catalog=[];
+ Future<void> _loadPresenterPreflight({bool force=false})async{
+  if(preflightLoading||(!force&&preflightCheckedAt!=null&&DateTime.now().difference(preflightCheckedAt!)<const Duration(seconds:30)))return;
+  preflightLoading=true;
+  try{
+   final results=await Future.wait<dynamic>([
+    request('/backend/qr',auth:false),
+    if(guided)request('/account/sessions'),
+   ]);
+   detectedLanAddress=(results.first as Map<String,dynamic>)['baseUrl']?.toString();
+   presenterSessions=guided?List<dynamic>.from(results[1] as List):[];
+   showLanAddress=false;
+   preflightError=null;
+  }catch(e){detectedLanAddress=null;presenterSessions=[];showLanAddress=false;preflightError=e.toString().replaceFirst('Exception: ','');}
+  finally{preflightCheckedAt=DateTime.now();preflightLoading=false;}
+ }
  @override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);restore();poll=Timer.periodic(const Duration(seconds:30),(_)=>refresh());ageTicker=Timer.periodic(const Duration(seconds:1),(_){if(mounted)setState((){});});unawaited(_loadDemoStatus());}
  Future<void> _loadDemoStatus()async{try{final health=Map<String,dynamic>.from(await request('/health',auth:false));guidedDemoEnabled=health['guidedDemoEnabled']==true;if(mounted)setState((){});}catch(_){}}
  Future<void> restore()async{try{final a=await storage.read(key:'backend');final t=await storage.read(key:'session');appLockEnabled=await storage.read(key:'appLockEnabled')=='true';if(a!=null){address.text=a;savedBackend=a;}token=t;if(t!=null){entered=true;if(appLockEnabled)appLocked=true;final initial=Map<String,dynamic>.from(await request('/status'));crop=(initial['crop']??'Maize').toString();await refresh();try{final account=await request('/account');guided=account['isDemo']==true;}catch(_){}startEvents();}}catch(_){}if(mounted)setState((){});}

@@ -120,7 +120,7 @@ function appendSharedReading(){
  publishEvent(null,"reading");
 }
 function sharedFeedTick(){
- if(Date.now()-sharedLastActivity>=SHARED_IDLE_MS){clearInterval(sharedFeeder);sharedFeeder=null;return;}
+ if(Date.now()-sharedLastActivity+SHARED_FEED_MS>=SHARED_IDLE_MS){clearInterval(sharedFeeder);sharedFeeder=null;return;}
  appendSharedReading();
 }
 function touchSharedActivity(){

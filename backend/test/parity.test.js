@@ -1141,8 +1141,8 @@ test("demo reset and expired-session cleanup remove temporary account records", 
   const expiredDemo = await createDemo();
   const expiredDb = openDatabase(path.join(backend.directory, "peo-yame.sqlite"), backend.key);
   const expiredUserId = expiredDb.prepare("SELECT id FROM users WHERE is_demo=1").get().id;
-  expiredDb.prepare("INSERT INTO preferences(user_id,selected_crop,updated_at) VALUES(?,?,?)")
-    .run(expiredUserId, "Sorghum", new Date().toISOString());
+  assert.equal(expiredDb.prepare("UPDATE preferences SET selected_crop=?,updated_at=? WHERE user_id=?")
+    .run("Sorghum", new Date().toISOString(), expiredUserId).changes, 1);
   expiredDb.prepare("UPDATE sessions SET expires_at=? WHERE user_id=?")
     .run(new Date(Date.now() - 1000).toISOString(), expiredUserId);
   expiredDb.close();
