@@ -169,12 +169,12 @@
     detail.textContent = `Device: ${details.deviceName || "Phone"} · ${details.appVersion || "Peo Yame"}\nRequested: ${new Date(details.createdAt).toLocaleTimeString()}`;
     const networkAddress = document.createElement("p");
     networkAddress.className = "muted";
-    networkAddress.textContent = "Network address hidden";
+    networkAddress.textContent = "Network address: " + maskAddress(details.address);
     const revealAddress = makeButton("Show network address", () => {
       const visible = revealAddress.textContent === "Show network address";
       networkAddress.textContent = visible
         ? `Network address: ${details.address || "Unavailable"}`
-        : "Network address hidden";
+        : "Network address: " + maskAddress(details.address);
       revealAddress.textContent = visible ? "Hide network address" : "Show network address";
     });
     const notice = document.createElement("p");
@@ -249,12 +249,66 @@
     return dialog;
   }
 
+  function maskAddress(address) {
+    const value = String(address || "Unavailable");
+    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(value)) return value.replace(/\.\d{1,3}$/, ".•••");
+    return value.length > 4 ? value.slice(0, 4) + "•••" : "Address partially hidden";
+  }
+
+  function passwordDialog(authenticatorEnabled) {
+    return new Promise((resolve) => {
+      const body = document.createElement("div");
+      if (mode === "guided") {
+        const hint = document.createElement("p");
+        hint.className = "muted";
+        hint.textContent = "Use the demo password you saved when the demo started.";
+        body.append(hint);
+      }
+      const password = document.createElement("input");
+      password.type = "password";
+      password.autocomplete = "current-password";
+      password.setAttribute("aria-label", "Password");
+      body.append(password);
+      let code;
+      if (authenticatorEnabled) {
+        code = document.createElement("input");
+        code.inputMode = "numeric";
+        code.maxLength = 6;
+        code.autocomplete = "one-time-code";
+        code.setAttribute("aria-label", "Authenticator code");
+        const label = document.createElement("p");
+        label.textContent = "Authenticator code";
+        body.append(label, code);
+      }
+      const status = document.createElement("p");
+      status.setAttribute("role", "status");
+      const actions = document.createElement("div");
+      actions.className = "py-actions";
+      let dialog;
+      const cancel = makeButton("Cancel", () => { dialog.close(); resolve(null); });
+      const submit = makeButton("Continue", () => {
+        if (!password.value) {
+          status.textContent = "Enter your password to continue.";
+          password.focus();
+          return;
+        }
+        dialog.close();
+        resolve({ password: password.value, totpCode: code?.value.trim() || "" });
+      }, "primary");
+      actions.append(cancel, submit);
+      body.append(status, actions);
+      dialog = makeDialog("Confirm your password", body);
+      password.focus();
+      dialog.addEventListener("close", () => resolve(null), { once: true });
+    });
+  }
+
   async function createPhoneQr(reuseCodeId = null) {
     if (!reuseCodeId) {
-      const password = prompt("Re-enter your password to create a phone sign-in code.");
-      if (password === null || !password) throw Error("Password re-check is required.");
-      const totpCode = prompt("If you use an authenticator app, enter its 6-digit code; otherwise leave this blank.") || "";
-      return requestJson("/qr/phone/create", { password, totpCode });
+      const authenticator = await api("/authenticator/status");
+      const credentials = await passwordDialog(authenticator.enabled === true);
+      if (!credentials) throw Error("Password re-check was cancelled.");
+      return requestJson("/qr/phone/create", credentials);
     }
     return requestJson("/qr/phone/renew", { codeId: reuseCodeId });
   }
