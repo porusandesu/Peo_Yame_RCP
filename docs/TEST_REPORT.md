@@ -1,5 +1,19 @@
 # Test report
 
+## GitHub Actions v91 — Windows green (3rd consecutive); backend failed on a pairing insert bug (fixed); Android forensics solved the icon mystery and exposed the app-label bug
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43103743637
+Commit: `d42d02a` (Manual QR short-code entry, dedicated web sign-in scan, APK forensics).
+
+- Windows: normal-launch check and restart/reset lifecycle both passed; `Peo Yame v91 Windows` artifact uploaded. Third consecutive green Windows run.
+- Backend API tests: failed. `SqliteError: 11 values for 10 columns` in `pairingCreate` — the short-code batch added `short_code_hash` to the INSERT column list but left one extra `?` placeholder. Fixed locally in `backend/src/server.js` (placeholder count now 9 + the literal `'pending'` = 10 columns).
+- Android: analysis, widget tests, and the release APK build passed; the packaged-icon assertion failed again, but the new forensics changed the diagnosis entirely:
+  - `aapt2 dump badging` shows the icon IS packaged: `application-icon-65534:'res/BW.xml'` across all densities.
+  - The APK entry list shows obfuscated resource paths (`res/BW.xml`, `res/-B.png`, `res/0c.9.png`, …) — this toolchain's release builds enable AAPT2 resource path shortening, so filename-based assertions (`res/mipmap-xxxhdpi/ic_launcher.png`) can never match, with or without `-vN` suffixes. Prior failures from v88 on were a broken verification method, not a missing icon.
+  - Badging also exposed a real defect: `application: label='monitor'` — the manifest label was left at the `flutter create` project name instead of "Peo Yame".
+  - Fixes applied locally: the icon assertion now greps `aapt2 dump badging`/`dump resources` output (resource table names survive path shortening) for `mipmap/ic_launcher` with xxxhdpi and anydpi configurations; `android:label="Peo Yame"` is set explicitly; `android.enableResourceOptimizations=false` is appended so resource paths stay inspectable.
+- No local app builds or tests were run.
+
 ## GitHub Actions v90 — Windows and backend green; Android APK contains no launcher resources at all
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43102420479
