@@ -22,7 +22,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
  List<dynamic> demoSteps=[];
  bool manualQrEntry=false;
  final address=TextEditingController(text:'http://10.0.2.2:3000'),phone=TextEditingController(),password=TextEditingController(),confirmPassword=TextEditingController(),name=TextEditingController(),siteName=TextEditingController(),sensorId=TextEditingController(),totpCode=TextEditingController();bool needsTotp=false;String backendStatus='Not checked',savedBackend='http://10.0.2.2:3000';
- final pages=['Overview','Trends','My Crops','Alerts','Settings'];int tab=0;bool entered=false,instant=false,guided=false,demoSimulationActive=false,offline=false,simulatedOffline=false,loading=false,showBackendAddress=false,guidedDemoEnabled=false,appLockEnabled=false,appLocked=false,authPromptActive=false,eventsStarted=false;int consecutiveFailures=0,eventGeneration=0;String entryMode='welcome',crop='Maize',lastSync='Not synced',error='',trendRange='24h';String? token,inspectionSiteId;Timer? poll;http.Client? eventClient;Map<String,dynamic> data={};List<dynamic> sites=[],sensors=[],alerts=[],trends=[],catalog=[];
+ final pages=['Overview','Trends','My Crops','Alerts','Settings'];int tab=0;bool entered=false,instant=false,guided=false,demoSimulationActive=false,offline=false,simulatedOffline=false,loading=false,showBackendAddress=false,guidedDemoEnabled=false,appLockEnabled=false,appLocked=false,authPromptActive=false,eventsStarted=false;int consecutiveFailures=0,eventGeneration=0,trendCount=0;String entryMode='welcome',crop='Maize',lastSync='Not synced',error='',trendRange='24h';String? token,inspectionSiteId;Timer? poll;http.Client? eventClient;Map<String,dynamic> data={},trendSummary={};List<dynamic> sites=[],sensors=[],alerts=[],trends=[],catalog=[];
  @override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);restore();poll=Timer.periodic(const Duration(seconds:30),(_)=>refresh());}
  Future<void> restore()async{try{final a=await storage.read(key:'backend');final t=await storage.read(key:'session');appLockEnabled=await storage.read(key:'appLockEnabled')=='true';if(a!=null){address.text=a;savedBackend=a;}token=t;if(t!=null){entered=true;if(appLockEnabled)appLocked=true;final initial=Map<String,dynamic>.from(await request('/status'));crop=(initial['crop']??'Maize').toString();await refresh();try{final account=await request('/account');guided=account['isDemo']==true;}catch(_){}startEvents();}}catch(_){}if(mounted)setState((){});}
  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.paused&&appLockEnabled&&token!=null&&!instant){setState(()=>appLocked=true);stopEvents();}if(state==AppLifecycleState.resumed&&appLocked&&!authPromptActive){_unlockApp();}}
@@ -50,7 +50,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
    consecutiveFailures=0;offline=false;
    if(token!=null&&!instant){sites=List<dynamic>.from(await request('/sites'));sensors=List<dynamic>.from(await request('/sensors'));if(sites.isNotEmpty&&inspectionSiteId==null)inspectionSiteId=sites.first['id'] as String?;}
    if(tab==3)alerts=List<dynamic>.from(await request('/alerts'));
-   if(tab==1){final t=await request('/readings/trends?range=$trendRange',auth:!instant);trends=t is Map<String,dynamic>?List<dynamic>.from(t['points']??const []):List<dynamic>.from(t);}
+   if(tab==1){final t=await request('/readings/trends?range=$trendRange',auth:!instant);if(t is Map<String,dynamic>){trends=List<dynamic>.from(t['points']??const []);trendSummary=t['summary'] is Map<String,dynamic>?Map<String,dynamic>.from(t['summary'] as Map):<String,dynamic>{};trendCount=(t['count'] as num?)?.toInt()??trends.length;}else{trends=List<dynamic>.from(t);trendSummary={};trendCount=trends.length;}}
   }catch(_){consecutiveFailures++;if(consecutiveFailures>=2)offline=true;}
   if(token!=null&&entered&&!instant&&!eventsStarted)startEvents();
   if(mounted)setState((){});
@@ -172,7 +172,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
   }
   for(final c in [nameController,tMin,tMax,hMin,hMax,baseline]){c.dispose();}
  }
- Widget _trendScreen(){final bands=data['targetBands'] as Map<String,dynamic>? ?? <String,dynamic>{};final tb=(bands['temperatureC'] as List?)?.cast<num>()??const <num>[12,25],hb=(bands['humidityPercent'] as List?)?.cast<num>()??const <num>[50,70];return Column(children:[Wrap(spacing:4,children:[for(final range in ['24h','month','3months'])ChoiceChip(label:Text(range=='24h'?'24 hours':range=='month'?'1 month':'3 months'),selected:trendRange==range,onSelected:(_){setState(()=>trendRange=range);refresh();})]),Wrap(spacing:8,children:[OutlinedButton(onPressed:()=>_exportReadings('csv'),child:const Text('Copy CSV')),OutlinedButton(onPressed:()=>_exportReadings('markdown'),child:const Text('Copy Markdown'))]),_TrendChart(title:'Temperature',unit:'°C',points:trends,field:'temperature',band:tb,color:green),_TrendChart(title:'Humidity',unit:'%',points:trends,field:'humidity',band:hb,color:const Color(0xff2f5fbf))]);}
+ Widget _trendScreen(){final bands=data['targetBands'] as Map<String,dynamic>? ?? <String,dynamic>{};final tb=(bands['temperatureC'] as List?)?.cast<num>()??const <num>[12,25],hb=(bands['humidityPercent'] as List?)?.cast<num>()??const <num>[50,70];final label=trendRange=='24h'?'24 hours':trendRange=='month'?'1 month':'3 months';return Column(children:[Wrap(spacing:4,children:[for(final range in ['24h','month','3months'])ChoiceChip(label:Text(range=='24h'?'24 hours':range=='month'?'1 month':'3 months'),selected:trendRange==range,onSelected:(_){setState(()=>trendRange=range);refresh();})]),Wrap(spacing:8,children:[OutlinedButton(onPressed:()=>_exportReadings('csv'),child:const Text('Copy CSV')),OutlinedButton(onPressed:()=>_exportReadings('markdown'),child:const Text('Copy Markdown'))]),_TrendChart(title:'Temperature',unit:'°C',range:label,count:trendCount,summary:trendSummary['temperature'] as Map<String,dynamic>?,points:trends,field:'temperature',band:tb,color:green),_TrendChart(title:'Humidity',unit:'%',range:label,count:trendCount,summary:trendSummary['humidity'] as Map<String,dynamic>?,points:trends,field:'humidity',band:hb,color:const Color(0xff2f5fbf))]);}
  Future<void> _exportReadings(String format)async{try{final headers={'authorization':'Bearer '+(token??'')};final response=await http.get(url('/readings/export?format=$format'),headers:headers).timeout(const Duration(seconds:10));if(response.statusCode<200||response.statusCode>=300)throw Exception('Could not export readings.');await Clipboard.setData(ClipboardData(text:response.body));if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$format readings copied to clipboard.')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
  Widget _cropList(){final linked=sensors.where((x)=>x['siteId']!=null).length,online=sensors.where((x)=>x['online']==true).length;return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[if(guided&&sites.isEmpty)_demoChecklist(firstRun:true),Padding(padding:const EdgeInsets.symmetric(vertical:8),child:Text('${sites.length} storage locations · $linked sensors linked · $online online',style:const TextStyle(color:muted))),for(final s in sites)Card(child:Column(children:[ListTile(title:Text(s['name']??''),subtitle:Text('${s['crop']} · Account data'),trailing:IconButton(tooltip:'Delete location',onPressed:()=>request('/sites/${s['id']}',method:'DELETE').then((_)=>refresh()),icon:const Icon(LucideIcons.trash2))),if(s['estimate'] is Map<String,dynamic>)_siteEstimate(s['estimate'] as Map<String,dynamic>),Padding(padding:const EdgeInsets.fromLTRB(16,0,16,8),child:Row(children:[Expanded(child:Text('${s['inspectionPrompt']} · Last checked: ${s['lastInspectedAt']==null?'Not recorded':DateTime.parse(s['lastInspectedAt']).toLocal()}',style:const TextStyle(fontSize:12,color:muted))),TextButton(onPressed:()=>_markInspection(s['id'].toString()),child:const Text('I checked my crop'))])),for(final sensor in sensors.where((x)=>x['siteId']==s['id']))ListTile(dense:true,leading:Icon(sensor['online']==true?LucideIcons.circleCheck:LucideIcons.triangleAlert,color:sensor['online']==true?green:muted),title:Text(sensor['externalId']??'Sensor'),subtitle:Text('${sensor['status']}${sensor['synthetic']==true?' · simulated':''}'),trailing:TextButton(onPressed:()=>_unlinkSensor(sensor['id'].toString()),child:const Text('Unlink'))),if(sensors.any((x)=>x['siteId']==null))TextButton(onPressed:()=>_chooseSensorForSite(s['id'].toString()),child:const Text('Link available sensor'))]))]);}
  Widget _siteEstimate(Map<String,dynamic> estimate){final range=estimate['rangeWeeks'] as List;return Padding(padding:const EdgeInsets.fromLTRB(16,0,16,10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Rough storage estimate · About ${range[0]}–${range[1]} weeks · Rough risk: ${estimate['risk']}',style:const TextStyle(fontWeight:FontWeight.w600)),Text(estimate['disclaimer']?.toString()??'A rough guess from temperature and humidity only. It does not inspect your crop. Check your crops by hand every few days.',style:const TextStyle(color:muted,fontSize:12))]));}
@@ -278,7 +278,7 @@ Future<bool> waitForApproval(String codeId,String verifier,String match,String e
  try{return await done.future;}finally{ticker.cancel();seconds.dispose();}
 }
 Future<String?> _askForPassword(String title)async{final controller=TextEditingController();try{return await showDialog<String>(context:context,builder:(c)=>AlertDialog(title:Text(title),content:TextField(controller:controller,obscureText:true,decoration:const InputDecoration(labelText:'Password')),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,controller.text),child:const Text('Continue'))]));}finally{controller.dispose();}}
-Future<void> authenticatorFlow()async{try{final s=Map<String,dynamic>.from(await request('/authenticator/status'));if(s['enabled']==true){final pw=TextEditingController(),code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Turn off authenticator'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:pw,obscureText:true,decoration:const InputDecoration(labelText:'Password')),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn off'))]));if(ok!=true)return;await request('/authenticator/disable',method:'POST',body:{'password':pw.text,'code':code.text.trim()});if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator turned off.')));}else{final password=await _askForPassword('Re-enter your password to set up the authenticator.');if(password==null||password.isEmpty)return;final setup=Map<String,dynamic>.from(await request('/authenticator/setup',method:'POST',body:{'password':password}));if(!mounted)return;final code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Set up authenticator'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Add this setup key to your authenticator app, then enter the 6-digit code it shows:'),SelectableText(setup['secret'].toString(),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn on'))]));if(ok!=true)return;await request('/authenticator/enable',method:'POST',body:{'code':code.text.trim()});if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator is on. Sign-in will now ask for a code.')));}}catch(e){if(mounted)setState(()=>error=e.toString().replaceFirst('Exception: ',''));}}
+Future<void> authenticatorFlow()async{try{final s=Map<String,dynamic>.from(await request('/authenticator/status'));if(s['enabled']==true){final pw=TextEditingController(),code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Turn off authenticator'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:pw,obscureText:true,decoration:const InputDecoration(labelText:'Password')),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn off'))]));if(ok!=true)return;final changed=Map<String,dynamic>.from(await request('/authenticator/disable',method:'POST',body:{'password':pw.text,'code':code.text.trim()}));if(changed['token'] is String){token=changed['token'] as String;await storage.write(key:'session',value:token);}if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator turned off.')));}else{final password=await _askForPassword('Re-enter your password to set up the authenticator.');if(password==null||password.isEmpty)return;final setup=Map<String,dynamic>.from(await request('/authenticator/setup',method:'POST',body:{'password':password}));if(!mounted)return;final code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Set up authenticator'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Add this setup key to your authenticator app, then enter the 6-digit code it shows:'),SelectableText(setup['secret'].toString(),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn on'))]));if(ok!=true)return;final changed=Map<String,dynamic>.from(await request('/authenticator/enable',method:'POST',body:{'code':code.text.trim()}));if(changed['token'] is String){token=changed['token'] as String;await storage.write(key:'session',value:token);}if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator is on. Sign-in will now ask for a code.')));}}catch(e){if(mounted)setState(()=>error=e.toString().replaceFirst('Exception: ',''));}}
 Future<void> approveWeb(String codeId)async{
  final info=Map<String,dynamic>.from(await request('/qr/web/scan',method:'POST',body:{'codeId':codeId,'deviceName':'Peo Yame Android'}));
  while(true){
@@ -407,24 +407,36 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
   } catch(e) { if(mounted)setState(()=>error=e.toString()); }
  }
  Future<void> _showSecurityActivity() async {
-  try {
-   final rows=List<Map<String,dynamic>>.from(await request('/account/security-activity'));
-   if(!mounted)return;
-   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
-    title:const Text('Security activity'),
-    content:SizedBox(width:420,child:rows.isEmpty
-     ? const Text('No account activity recorded.')
-     : SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      for(final item in rows) ListTile(
-       title:Text(item['event'].toString().replaceAll('_',' ')),
-       subtitle:Text(item['createdAt'].toString()),
-      ),
-     ]))),
-    actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Close'))],
-   ));
-  } catch(e) {
-   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));
-  }
+  final activity=request('/account/security-activity');
+  if(!mounted)return;
+  await showDialog<void>(context:context,builder:(dialogContext)=>FutureBuilder<dynamic>(
+   future:activity,
+   builder:(context,snapshot){
+    if(snapshot.connectionState!=ConnectionState.done)return AlertDialog(
+     title:const Text('Security activity'),
+     content:const Row(mainAxisSize:MainAxisSize.min,children:[SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:12),Text('Loading activity…')]),
+     actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Close'))],
+    );
+    if(snapshot.hasError)return AlertDialog(
+     title:const Text('Security activity'),
+     content:Text('Could not load security activity: ${snapshot.error.toString().replaceFirst('Exception: ','')}'),
+     actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Close'))],
+    );
+    final rows=List<Map<String,dynamic>>.from(snapshot.data as List);
+    return AlertDialog(
+     title:const Text('Security activity'),
+     content:SizedBox(width:420,child:rows.isEmpty
+      ? const Text('No account activity recorded.')
+      : SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+       for(final item in rows) ListTile(
+        title:Text(item['event'].toString().replaceAll('_',' ')),
+        subtitle:Text(item['createdAt'].toString()),
+       ),
+      ]))),
+     actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Close'))],
+    );
+   },
+  ));
  }
  Future<void> signOut()async{try{await request('/account/logout',method:'POST');}catch(_){}stopEvents();await storage.delete(key:'session');token=null;entered=false;instant=false;guided=false;appLocked=false;simulatedOffline=false;if(mounted)setState((){});}
 }
@@ -433,5 +445,54 @@ class _Tag extends StatelessWidget{final String text;const _Tag(this.text);@over
 class _Gauge extends StatelessWidget{final String title,unit;final double? value;final dynamic low,high;final IconData icon;const _Gauge({required this.title,required this.value,required this.low,required this.high,required this.unit,required this.icon});@override Widget build(BuildContext c){final lo=(low as num?)?.toDouble()??0,hi=(high as num?)?.toDouble()??100,v=value==null ? .5 :((value!-lo)/(hi-lo)).clamp(0.0,1.0).toDouble();return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[Icon(icon,color:green),SizedBox(width:95,height:82,child:CustomPaint(painter:_GaugePainter(v),child:Center(child:Text(value==null?'—':value!.toStringAsFixed(1)+unit,style:const TextStyle(fontWeight:FontWeight.w700))))),Text(title,style:const TextStyle(fontWeight:FontWeight.w600)),const Text('Low · Target · High',style:TextStyle(fontSize:10,color:muted))])));}}
 class _GaugePainter extends CustomPainter{final double value;_GaugePainter(this.value);@override void paint(Canvas canvas,Size size){final rect=Rect.fromLTWH(5,5,size.width-10,size.height*1.65);final bg=Paint()..color=line..style=PaintingStyle.stroke..strokeWidth=9..strokeCap=StrokeCap.round;final fg=Paint()..color=green..style=PaintingStyle.stroke..strokeWidth=9..strokeCap=StrokeCap.round;canvas.drawArc(rect,3.14,3.14,false,bg);canvas.drawArc(rect,3.14,3.14*value,false,fg);}@override bool shouldRepaint(covariant _GaugePainter old)=>old.value!=value;}
 
-class _TrendChart extends StatelessWidget{final String title,unit,field;final List<dynamic> points;final List<num> band;final Color color;const _TrendChart({required this.title,required this.unit,required this.points,required this.field,required this.band,required this.color});@override Widget build(BuildContext context)=>Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:16)),Text('Target band ${band[0]}–${band[1]} $unit',style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:8),SizedBox(height:165,width:double.infinity,child:CustomPaint(painter:_TrendPainter(points,field,band.map((e)=>e.toDouble()).toList(),color)))])));}
-class _TrendPainter extends CustomPainter{final List<dynamic> points;final String field;final List<double> band;final Color color;_TrendPainter(this.points,this.field,this.band,this.color);@override void paint(Canvas canvas,Size size){const left=28.0,right=6.0,top=8.0,bottom=8.0;final rect=Rect.fromLTRB(left,top,size.width-right,size.height-bottom);final vals=points.map((x)=>(x[field] as num?)?.toDouble()).whereType<double>().toList();final low=vals.isEmpty?band[0]-3:([band[0]-2,...vals].reduce((a,b)=>a<b?a:b)),high=vals.isEmpty?band[1]+3:([band[1]+2,...vals].reduce((a,b)=>a>b?a:b));double yy(double v)=>rect.bottom-(v-low)/(high-low)*rect.height;final grid=Paint()..color=line..strokeWidth=1;for(var i=0;i<4;i++){final y=rect.top+i*rect.height/3;canvas.drawLine(Offset(rect.left,y),Offset(rect.right,y),grid);}final bp=Paint()..color=color.withOpacity(.12);canvas.drawRect(Rect.fromLTRB(rect.left,yy(band[1].clamp(low,high).toDouble()),rect.right,yy(band[0].clamp(low,high).toDouble())),bp);if(vals.length>1){final path=Path();for(var i=0;i<vals.length;i++){final x=rect.left+i*rect.width/(vals.length-1),y=yy(vals[i]);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,Paint()..color=color..strokeWidth=2.5..style=PaintingStyle.stroke..strokeCap=StrokeCap.round..strokeJoin=StrokeJoin.round);}}@override bool shouldRepaint(covariant _TrendPainter old)=>old.points!=points||old.field!=field||old.band!=band;}
+class _TrendChart extends StatelessWidget {
+ final String title,unit,field,range;
+ final List<dynamic> points;
+ final List<num> band;
+ final Color color;
+ final int count;
+ final Map<String,dynamic>? summary;
+ const _TrendChart({required this.title,required this.unit,required this.range,required this.count,required this.summary,required this.points,required this.field,required this.band,required this.color});
+ List<double> get values=>points.map((point)=>(point[field] as num?)?.toDouble()).whereType<double>().where((value)=>value.isFinite).toList();
+ @override Widget build(BuildContext context){
+  final readings=values;
+  final low=(summary?['low'] as num?)?.toDouble()??(readings.isEmpty?null:readings.reduce((a,b)=>a<b?a:b));
+  final high=(summary?['high'] as num?)?.toDouble()??(readings.isEmpty?null:readings.reduce((a,b)=>a>b?a:b));
+  return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Text(title,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:16)),
+   Text('$range · Target band ${band[0]}–${band[1]} $unit',style:const TextStyle(color:muted,fontSize:12)),
+   const SizedBox(height:8),
+   if(readings.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:28),child:Text('No readings for this time range.',style:TextStyle(color:muted)))
+   else Semantics(container:true,label:'$title trend for $range, $count readings, target band ${band[0]} to ${band[1]} $unit. Low ${low!.toStringAsFixed(1)} $unit. High ${high!.toStringAsFixed(1)} $unit.',child:ExcludeSemantics(child:SizedBox(height:205,width:double.infinity,child:CustomPaint(painter:_TrendPainter(points,field,band.map((value)=>value.toDouble()).toList(),color,range))))),
+   if(low!=null&&high!=null)Padding(padding:const EdgeInsets.only(top:6),child:Text('$title · $range: Low ${low.toStringAsFixed(1)} $unit, High ${high.toStringAsFixed(1)} $unit',style:const TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:darkGreen)))
+  ])));
+ }
+}
+class _TrendPainter extends CustomPainter {
+ final List<dynamic> points;
+ final String field,range;
+ final List<double> band;
+ final Color color;
+ _TrendPainter(this.points,this.field,this.band,this.color,this.range);
+ String _timeLabel(dynamic value){final date=DateTime.tryParse(value?.toString()??'')?.toLocal();if(date==null)return '';if(range=='24 hours')return '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}';const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return '${months[date.month-1]} ${date.day}';}
+ void _drawLabel(Canvas canvas,String text,Offset position,{TextAlign align=TextAlign.left}){final painter=TextPainter(text:TextSpan(text:text,style:const TextStyle(fontSize:9,color:muted)),textDirection:TextDirection.ltr,textAlign:align)..layout();painter.paint(canvas,Offset(align==TextAlign.right?position.dx-painter.width:position.dx,position.dy));}
+ @override void paint(Canvas canvas,Size size){
+  const left=54.0,right=8.0,top=10.0,bottom=32.0;
+  final rect=Rect.fromLTRB(left,top,size.width-right,size.height-bottom);
+  if(rect.width<=0||rect.height<=0)return;
+  final readings=points.whereType<Map>().where((point)=>(point[field] as num?)?.toDouble().isFinite??false).toList();
+  final values=readings.map((point)=>(point[field] as num).toDouble()).toList();
+  if(values.isEmpty)return;
+  final low=[band[0]-2,...values].reduce((a,b)=>a<b?a:b),high=[band[1]+2,...values].reduce((a,b)=>a>b?a:b);
+  double yy(double value)=>rect.bottom-(value-low)/(high-low)*rect.height;
+  double xx(int index)=>rect.left+index*rect.width/(values.length>1?values.length-1:1);
+  final grid=Paint()..color=line..strokeWidth=1;
+  for(var index=0;index<5;index++){final value=low+(high-low)*index/4,y=yy(value);canvas.drawLine(Offset(rect.left,y),Offset(rect.right,y),grid);_drawLabel(canvas,value.toStringAsFixed(1),Offset(rect.left-8,y-6),align:TextAlign.right);}
+  final bandPaint=Paint()..color=color.withOpacity(.12);
+  canvas.drawRect(Rect.fromLTRB(rect.left,yy(band[1].clamp(low,high).toDouble()),rect.right,yy(band[0].clamp(low,high).toDouble())),bandPaint);
+  if(values.length>1){final path=Path();for(var index=0;index<values.length;index++){final point=Offset(xx(index),yy(values[index]));if(index==0)path.moveTo(point.dx,point.dy);else path.lineTo(point.dx,point.dy);}canvas.drawPath(path,Paint()..color=color..strokeWidth=2.5..style=PaintingStyle.stroke..strokeCap=StrokeCap.round..strokeJoin=StrokeJoin.round);}else{canvas.drawCircle(Offset(rect.left,yy(values.first)),3,Paint()..color=color);}
+  final labelIndexes=<int>{0,(values.length-1)~/2,values.length-1};
+  for(final index in labelIndexes){final label=_timeLabel(readings[index]['created_at']);if(label.isEmpty)continue;final alignment=index==0?TextAlign.left:index==values.length-1?TextAlign.right:TextAlign.center;final painter=TextPainter(text:TextSpan(text:label,style:const TextStyle(fontSize:9,color:muted)),textDirection:TextDirection.ltr,textAlign:alignment)..layout();final x=index==0?rect.left:index==values.length-1?rect.right-painter.width:rect.left+rect.width/2-painter.width/2;painter.paint(canvas,Offset(x,rect.bottom+8));}
+ }
+ @override bool shouldRepaint(covariant _TrendPainter old)=>old.points!=points||old.field!=field||old.band!=band||old.range!=range||old.color!=color;
+}

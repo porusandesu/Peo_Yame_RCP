@@ -1,5 +1,20 @@
 # Feature parity status
 
+## Security hardening and trend charts — pending CI
+
+The current continuation externalizes dashboard HTML assets and removes inline
+event/style attributes so the dashboard can use a per-response nonce-based
+strict CSP. Authenticator enable/disable rotates the active token/cookies and
+revokes other sessions. Security activity now includes failed sign-ins,
+lockouts, QR outcomes, and session expiry, with visible loading states on both
+clients. Trend charts now share time ranges, labelled value/time axes, units,
+target-band shading, timestamps, accessible summaries, and exact low/high
+statistics. The API returns at most 500 plotted samples while preserving full
+range summaries and extrema. Focused API/static-asset tests were added. These
+changes are **pending GitHub Actions verification**; no local application
+builds or tests were run. Windows Firewall, real-device LAN access, camera
+permissions, and manual visual/accessibility checks remain open.
+
 ## Guided Demo Settings refresh and presentation — v114 CI verified
 
 The manual refresh action is now in Settings on both web and mobile; automatic
@@ -65,11 +80,10 @@ other sessions after authenticator enable/disable while retaining the current
 session. The source applies 30-minute idle expiry to every session type and
 closes idle event streams.
 
-Remaining audit gaps: the dashboard still disables CSP because it uses inline
-scripts and handlers. A scoped activity feed now appears in Settings and records account
-creation/sign-in/out, authenticator changes, session revokes, QR
-approvals/sign-ins, sensor links, and crop inspections; failed sign-ins and
-lockouts are not yet included.
+At the v107 audit snapshot, dashboard CSP was disabled for inline scripts and
+handlers, and the activity feed did not yet record failed sign-ins or lockouts.
+Those are historical gaps; the current unverified work is tracked at the top
+of this document.
 The verified source adds five-failure phone+IP lockout for 15 minutes within a
 rolling 15-minute window, plus a server-side 3-second Guided Demo simulator,
 QR sharing across mobile/web, and event-driven refresh for every screen. QR
@@ -108,7 +122,10 @@ The Windows launcher is a single self-contained executable with its Node.js runt
 
 Crop inspection reminders are implemented in source: each owned storage location is due every three days by default, site-linked readings outside target bands prompt “Check your crop now,” and “I checked my crop” records a server timestamp and resets the reminder. v85 backend tests passed; Android compile/analyzer/release also passed, but the inspection UI was not manually exercised.
 
-Remaining parity work includes verified TOTP, CSV/Markdown export, a functional server-sent-event stream, client polling/offline recovery, full Guided Demo checklist/run sheet, and accessibility/responsive checks. QR flows have backend tests but still need fuller client and security verification. Do not mark these complete without source support and GitHub Actions evidence.
+At the v87 snapshot, the remaining work included TOTP, exports, events, client
+recovery, Guided Demo checklist, and accessibility checks. Later verified
+sections above supersede that historical list; manual device/browser and
+accessibility checks are still open.
 
 Sensor account records, linking/unlinking, per-account authorization, sensor readings, and simulated demo sensor data are now implemented in source for web, Android, and backend. Physical pairing/discovery is not implemented; the web UI states this. Backend coverage and Android compilation are pending the next GitHub Actions run. Sensor history uses the location captured when each reading arrives; pre-link readings without a location can appear after linking.
 

@@ -1,6 +1,19 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (Guided Demo Settings verified)
+## Active continuation — security hardening and trend parity (pending CI)
+
+Work is in `/tmp/peo-yame-feature-parity` on `copilot/feature-parity`, tracking
+`exe-work`. The current uncommitted changes replace the dashboard's inline
+scripts/styles/handlers with external assets and nonce-based strict CSP, rotate
+sessions after authenticator enable/disable, extend security-event records and
+loading states, and bring web/mobile trend charts into parity with axes, units,
+timestamp labels, target bands, accessible descriptions, and full-range
+low/high statistics. Trend responses are capped at 500 plotted samples while
+retaining full-range summaries and extrema. **These changes are not yet
+verified; use GitHub Actions for backend tests and Android/Windows builds.**
+Do not run local application builds or tests.
+
+## Latest verified baseline — 2026-11-12 (Guided Demo Settings)
 
 The demo Settings polish is pushed to `exe-work` at `f73378d`. GitHub Actions
 v114 ([run `43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617))
@@ -15,12 +28,8 @@ builds or tests were run.
 Earlier security audit fixes remain verified by v102–v107: session idle
 expiry, account+IP lockout, QR-shared demo sessions, QR demo lifetime, and
 authenticator session revocation. No seeded test account exists; use Instant
-Demo or register an account.
-
-Open verification gaps remain: dashboard CSP is disabled for its inline
-scripts/handlers; the activity feed does not include failed sign-ins or
-lockouts. Windows Firewall, real-device LAN access, camera permissions, and
-manual visual/accessibility checks are unverified. See
+Demo or register an account. Windows Firewall, real-device LAN access, camera
+permissions, and manual visual/accessibility checks remain unverified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 

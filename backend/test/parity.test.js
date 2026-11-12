@@ -247,11 +247,15 @@ test("authenticator changes revoke other sessions and retain the current session
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
   });
   assert.equal(enabled.status, 200);
-  assert.equal((await enabled.json()).revokedSessions, 1);
+  const enabledData = await enabled.json();
+  assert.equal(enabledData.revokedSessions, 1);
+  assert.notEqual(enabledData.token, account.token);
   assert.equal((await fetch(`${base}/account`, {
     headers: { authorization: `Bearer ${secondSession.token}` },
   })).status, 401);
-  assert.equal((await fetch(`${base}/account`, { headers: { authorization: `Bearer ${account.token}` } })).status, 200);
+  assert.equal((await fetch(`${base}/account`, { headers: { authorization: `Bearer ${account.token}` } })).status, 401);
+  let currentAuth = { authorization: `Bearer ${enabledData.token}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/account`, { headers: currentAuth })).status, 200);
 
   const thirdLogin = await fetch(`${base}/account/login`, {
     method: "POST",
@@ -266,15 +270,20 @@ test("authenticator changes revoke other sessions and retain the current session
   const thirdSession = await thirdLogin.json();
   const disabledResponse = await fetch(`${base}/authenticator/disable`, {
     method: "POST",
-    headers: auth,
+    headers: currentAuth,
     body: JSON.stringify({ password: "session-password", code: currentTotp(setup.secret) }),
   });
   assert.equal(disabledResponse.status, 200);
-  assert.equal((await disabledResponse.json()).revokedSessions, 1);
+  const disabledData = await disabledResponse.json();
+  assert.equal(disabledData.revokedSessions, 1);
+  assert.notEqual(disabledData.token, enabledData.token);
   assert.equal((await fetch(`${base}/account`, {
     headers: { authorization: `Bearer ${thirdSession.token}` },
   })).status, 401);
-  const sessionsAfterDisable = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());
+  assert.equal((await fetch(`${base}/account`, { headers: currentAuth })).status, 401);
+  currentAuth = { authorization: `Bearer ${disabledData.token}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/account`, { headers: currentAuth })).status, 200);
+  const sessionsAfterDisable = await fetch(`${base}/account/sessions`, { headers: currentAuth }).then((result) => result.json());
   assert.equal(sessionsAfterDisable.length, 1);
   assert.equal(sessionsAfterDisable[0].totpVerified, false);
 });
@@ -287,6 +296,12 @@ test("security activity is authenticated and scoped to the signed-in account", a
     body: JSON.stringify({ name: "Activity Farmer", phone: "74789012", password: "activity-password" }),
   }).then((result) => result.json());
   assert.equal((await fetch(`${base}/account/security-activity`)).status, 401);
+  const failedSignIn = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: "74789012", password: "wrong-activity-password" }),
+  });
+  assert.equal(failedSignIn.status, 401);
   const signIn = await fetch(`${base}/account/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -296,7 +311,8 @@ test("security activity is authenticated and scoped to the signed-in account", a
   const firstEvents = await fetch(`${base}/account/security-activity`, {
     headers: { authorization: `Bearer ${first.token}` },
   }).then((result) => result.json());
-  assert.deepEqual(firstEvents.map((event) => event.event), ["sign_in", "account_created"]);
+  assert.deepEqual(firstEvents.map((event) => event.event), ["sign_in", "sign_in_failed", "account_created"]);
+  assert.ok(firstEvents.every((event) => Object.keys(event).sort().join(",") === "createdAt,event,id"));
 
   const second = await fetch(`${base}/account/register`, {
     method: "POST",
@@ -329,8 +345,8 @@ test("rejects foreign web origins and requires CSRF proof for cookie-authenticat
   assert.equal(registered.headers.get("access-control-allow-origin"), origin);
   assert.equal((await registered.json()).token, undefined);
   const cookies = registered.headers.getSetCookie();
-  const sessionCookie = cookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0];
-  const csrfCookie = cookies.find((cookie) => cookie.startsWith("py_csrf="))?.split(";")[0];
+  let sessionCookie = cookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0];
+  let csrfCookie = cookies.find((cookie) => cookie.startsWith("py_csrf="))?.split(";")[0];
   assert.ok(sessionCookie);
   assert.ok(csrfCookie);
   assert.match(cookies.find((cookie) => cookie.startsWith("py_session=")), /HttpOnly/i);
@@ -356,6 +372,45 @@ test("rejects foreign web origins and requires CSRF proof for cookie-authenticat
     body,
   });
   assert.equal(created.status, 201);
+  const setup = await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: { ...headers, "x-csrf-token": csrf },
+    body: JSON.stringify({ password: "cookie-test-password" }),
+  }).then((response) => response.json());
+  const enabled = await fetch(`${base}/authenticator/enable`, {
+    method: "POST",
+    headers: { ...headers, "x-csrf-token": csrf },
+    body: JSON.stringify({ code: currentTotp(setup.secret) }),
+  });
+  assert.equal(enabled.status, 200);
+  assert.equal((await enabled.json()).token, undefined);
+  const rotatedCookies = enabled.headers.getSetCookie();
+  sessionCookie = rotatedCookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0];
+  csrfCookie = rotatedCookies.find((cookie) => cookie.startsWith("py_csrf="))?.split(";")[0];
+  assert.ok(sessionCookie);
+  assert.ok(csrfCookie);
+  assert.equal((await fetch(`${base}/account`, { headers: { cookie: cookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0] } })).status, 401);
+  assert.equal((await fetch(`${base}/account`, { headers: { cookie: sessionCookie } })).status, 200);
+
+  const disabled = await fetch(`${base}/authenticator/disable`, {
+    method: "POST",
+    headers: {
+      origin,
+      cookie: `${sessionCookie}; ${csrfCookie}`,
+      "x-csrf-token": csrfCookie.slice("py_csrf=".length),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ password: "cookie-test-password", code: currentTotp(setup.secret) }),
+  });
+  assert.equal(disabled.status, 200);
+  assert.equal((await disabled.json()).token, undefined);
+  const disabledCookies = disabled.headers.getSetCookie();
+  const previousSessionCookie = sessionCookie;
+  sessionCookie = disabledCookies.find((cookie) => cookie.startsWith("py_session="))?.split(";")[0];
+  csrfCookie = disabledCookies.find((cookie) => cookie.startsWith("py_csrf="))?.split(";")[0];
+  assert.ok(sessionCookie);
+  assert.ok(csrfCookie);
+  assert.equal((await fetch(`${base}/account`, { headers: { cookie: previousSessionCookie } })).status, 401);
   assert.equal((await fetch(`${base}/account`, { headers: { cookie: sessionCookie } })).status, 200);
 
   const sessionToken = sessionCookie.slice("py_session=".length);
@@ -420,7 +475,7 @@ test("login locks the phone and IP after five failures without locking other acc
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name, phone, password }),
   }).then((response) => response.json());
-  await register("Locked Farmer", "75678903", "lockout-test-password");
+  const lockedAccount = await register("Locked Farmer", "75678903", "lockout-test-password");
   await register("Other Farmer", "75678904", "other-lockout-password");
   const login = (phone, password) => fetch(`${base}/account/login`, {
     method: "POST",
@@ -436,6 +491,11 @@ test("login locks the phone and IP after five failures without locking other acc
   const locked = await login("75678903", "lockout-test-password");
   assert.equal(locked.status, 401);
   assert.equal((await locked.json()).error, genericMessage);
+  const lockoutEvents = await fetch(`${base}/account/security-activity`, {
+    headers: { authorization: `Bearer ${lockedAccount.token}` },
+  }).then((response) => response.json());
+  assert.ok(lockoutEvents.some((event) => event.event === "sign_in_locked"));
+  assert.ok(lockoutEvents.some((event) => event.event === "sign_in_blocked"));
   assert.equal((await login("75678904", "other-lockout-password")).status, 200);
 
   const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
@@ -573,25 +633,28 @@ test("guided demo exposes a one-time password for real TOTP setup and persists i
   });
   assert.equal(setupResponse.status, 200);
   const setup = await setupResponse.json();
-  assert.equal((await fetch(`${base}/authenticator/enable`, {
+  const enabled = await fetch(`${base}/authenticator/enable`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
-  })).status, 200);
+  });
+  assert.equal(enabled.status, 200);
+  const rotatedDemo = await enabled.json();
+  const rotatedAuth = { authorization: `Bearer ${rotatedDemo.token}`, "content-type": "application/json" };
 
-  const initial = await fetch(`${base}/demo/checklist`, { headers: auth }).then((result) => result.json());
+  const initial = await fetch(`${base}/demo/checklist`, { headers: rotatedAuth }).then((result) => result.json());
   assert.equal(initial.steps.length, 16);
   assert.equal(initial.steps[0].completed, false);
   assert.equal((await fetch(`${base}/demo/checklist/1`, {
     method: "PATCH",
-    headers: auth,
+    headers: rotatedAuth,
     body: JSON.stringify({ completed: true }),
   })).status, 200);
-  const updated = await fetch(`${base}/demo/checklist`, { headers: auth }).then((result) => result.json());
+  const updated = await fetch(`${base}/demo/checklist`, { headers: rotatedAuth }).then((result) => result.json());
   assert.equal(updated.steps[0].completed, true);
   assert.equal((await fetch(`${base}/demo/checklist/17`, {
     method: "PATCH",
-    headers: auth,
+    headers: rotatedAuth,
     body: JSON.stringify({ completed: true }),
   })).status, 400);
 });
@@ -644,6 +707,50 @@ test("guided demo storage and alert estimates are ranged, disclosed, and hidden 
   assert.equal(staleSite.estimate, null);
   const staleAlerts = await fetch(`${base}/alerts`, { headers: auth }).then((response) => response.json());
   assert.equal(staleAlerts[0].estimate, null);
+});
+
+test("trend responses keep timestamped chart points bounded and summarize the full range", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const demo = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }).then((response) => response.json());
+  const database = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  const userId = database.prepare("SELECT id FROM users WHERE is_demo=1").get().id;
+  const insert = database.prepare(
+    "INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,1)",
+  );
+  database.transaction(() => {
+    for (let index = 0; index < 505; index++) {
+      insert.run(
+        userId,
+        index === 0 ? 5 : index === 504 ? 40 : 20,
+        index === 0 ? 10 : index === 504 ? 99 : 60,
+        new Date(Date.now() - 10000 + index * 10).toISOString(),
+      );
+    }
+  })();
+  database.close();
+
+  const response = await fetch(`${base}/readings/trends?range=24h`, {
+    headers: { authorization: `Bearer ${demo.token}` },
+  });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.range, "24h");
+  assert.ok(result.count >= 529);
+  assert.ok(result.points.length <= 500 && result.points.length >= 496);
+  assert.ok(result.points.every((point) => point.created_at && Number.isFinite(point.temperature) && Number.isFinite(point.humidity)));
+  assert.ok(result.points.some((point) => point.temperature === 5));
+  assert.ok(result.points.some((point) => point.temperature === 40));
+  assert.ok(result.points.some((point) => point.humidity === 10));
+  assert.ok(result.points.some((point) => point.humidity === 99));
+  assert.deepEqual(result.summary.temperature, { low: 5, high: 40 });
+  assert.deepEqual(result.summary.humidity, { low: 10, high: 99 });
+  assert.equal((await fetch(`${base}/readings/trends?range=weekly`, {
+    headers: { authorization: `Bearer ${demo.token}` },
+  })).status, 400);
 });
 
 test("backend connection QR contains only the backend address and purpose", async (t) => {
@@ -776,6 +883,10 @@ test("approved QR codes cannot be redeemed after their expiry", async (t) => {
 
   const status = await fetch(`${base}/qr/web/status?codeId=${encodeURIComponent(created.codeId)}&verifier=${encodeURIComponent(verifier)}`).then((response) => response.json());
   assert.equal(status.state, "expired");
+  const activity = await fetch(`${base}/account/security-activity`, {
+    headers: { authorization: `Bearer ${account.token}` },
+  }).then((response) => response.json());
+  assert.ok(activity.some((event) => event.event === "web_qr_expired"));
   assert.equal((await fetch(`${base}/qr/web/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
