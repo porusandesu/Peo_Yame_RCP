@@ -463,7 +463,7 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   assert.equal((await fetch(`${base}/qr/phone/create`, {
     method: "POST",
     headers: auth,
-    body: "{}",
+    body: JSON.stringify({ password: demoSession.demoPassword }),
   })).status, 200);
   const verifier = "shared-demo-verifier-0123456789abcdef";
   const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
@@ -532,6 +532,200 @@ test("guided demo live simulation syncs readings to a second QR session", async 
     method: "POST",
     headers: { authorization: `Bearer ${browserSession.token}` },
   })).status, 200);
+});
+
+test("guided demo exposes a one-time password for real TOTP setup and persists its run-sheet checklist", async (t) => {
+  const { base } = await startBackend(t);
+  const response = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(response.status, 201);
+  const demo = await response.json();
+  assert.equal(typeof demo.demoPassword, "string");
+  assert.ok(demo.demoPassword.length >= 32);
+  const auth = { authorization: `Bearer ${demo.token}`, "content-type": "application/json" };
+  const account = await fetch(`${base}/account`, { headers: auth }).then((result) => result.json());
+  assert.match(account.phone, /^demo-[a-f0-9]+@peo-yame\.invalid$/);
+  assert.equal((await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: auth,
+    body: "{}",
+  })).status, 401);
+  const setupResponse = await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: demo.demoPassword }),
+  });
+  assert.equal(setupResponse.status, 200);
+  const setup = await setupResponse.json();
+  assert.equal((await fetch(`${base}/authenticator/enable`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ code: currentTotp(setup.secret) }),
+  })).status, 200);
+
+  const initial = await fetch(`${base}/demo/checklist`, { headers: auth }).then((result) => result.json());
+  assert.equal(initial.steps.length, 16);
+  assert.equal(initial.steps[0].completed, false);
+  assert.equal((await fetch(`${base}/demo/checklist/1`, {
+    method: "PATCH",
+    headers: auth,
+    body: JSON.stringify({ completed: true }),
+  })).status, 200);
+  const updated = await fetch(`${base}/demo/checklist`, { headers: auth }).then((result) => result.json());
+  assert.equal(updated.steps[0].completed, true);
+  assert.equal((await fetch(`${base}/demo/checklist/17`, {
+    method: "PATCH",
+    headers: auth,
+    body: JSON.stringify({ completed: true }),
+  })).status, 400);
+});
+
+test("guided demo storage and alert estimates are ranged, disclosed, and hidden when stale", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const demo = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }).then((response) => response.json());
+  const auth = { authorization: `Bearer ${demo.token}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/demo/sensor-reading`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ sensorId: "PY-DEMO-1" }),
+  })).status, 201);
+  const createdSite = await fetch(`${base}/sites`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ name: "Demo storage", crop: "Maize" }),
+  }).then((response) => response.json());
+  const sensor = (await fetch(`${base}/sensors?unlinked=true`, { headers: auth }).then((response) => response.json()))[0];
+  assert.equal((await fetch(`${base}/sensors/${sensor.id}/link`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ siteId: createdSite.id }),
+  })).status, 200);
+  const site = (await fetch(`${base}/sites`, { headers: auth }).then((response) => response.json()))
+    .find((item) => item.name === "Demo storage");
+  assert.ok(site.estimate);
+  assert.equal(site.estimate.rangeWeeks.length, 2);
+  assert.match(site.estimate.disclaimer, /Check your crops by hand/);
+
+  assert.equal((await fetch(`${base}/demo/breach`, { method: "POST", headers: auth })).status, 201);
+  const alerts = await fetch(`${base}/alerts`, { headers: auth }).then((response) => response.json());
+  assert.ok(alerts[0].estimate);
+  assert.equal(alerts[0].estimate.rangeWeeks.length, 2);
+  assert.match(alerts[0].estimate.disclaimer, /does not inspect your crop/);
+
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  const userId = encrypted.prepare("SELECT id FROM users WHERE is_demo=1").get().id;
+  encrypted.prepare("UPDATE readings SET created_at=? WHERE user_id=?").run(
+    new Date(Date.now() - 16 * 60 * 1000).toISOString(),
+    userId,
+  );
+  encrypted.close();
+  const staleSite = (await fetch(`${base}/sites`, { headers: auth }).then((response) => response.json()))
+    .find((item) => item.name === "Demo storage");
+  assert.equal(staleSite.estimate, null);
+  const staleAlerts = await fetch(`${base}/alerts`, { headers: auth }).then((response) => response.json());
+  assert.equal(staleAlerts[0].estimate, null);
+});
+
+test("backend connection QR contains only the backend address and purpose", async (t) => {
+  const { base } = await startBackend(t);
+  const response = await fetch(`${base}/backend/qr`);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.ok(result.qrDataUrl.startsWith("data:image/png;base64,"));
+  const payload = JSON.parse(result.payload);
+  assert.equal(payload.flow, "backend");
+  assert.equal(payload.baseUrl, result.baseUrl);
+  assert.equal(Object.hasOwn(payload, "token"), false);
+  assert.equal(Object.hasOwn(payload, "codeId"), false);
+});
+
+test("phone pairing renewal expires the old code and stays bound to its owner session", async (t) => {
+  const { base } = await startBackend(t);
+  const account = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Pairing Farmer", phone: "76789013", password: "pairing-test-password" }),
+  }).then((response) => response.json());
+  const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
+  const first = await fetch(`${base}/qr/phone/create`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "pairing-test-password" }),
+  }).then((response) => response.json());
+  const renewedResponse = await fetch(`${base}/qr/phone/renew`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: first.codeId }),
+  });
+  assert.equal(renewedResponse.status, 200);
+  const renewed = await renewedResponse.json();
+  assert.notEqual(renewed.codeId, first.codeId);
+  assert.equal((await fetch(`${base}/qr/phone/owner-status?codeId=${encodeURIComponent(first.codeId)}`, {
+    headers: auth,
+  }).then((response) => response.json())).state, "expired");
+
+  const other = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Other Farmer", phone: "76789014", password: "other-pairing-password" }),
+  }).then((response) => response.json());
+  const denied = await fetch(`${base}/qr/phone/renew`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${other.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ codeId: renewed.codeId }),
+  });
+  assert.equal(denied.status, 404);
+});
+
+test("phone pairing cancellation is verifier-bound and can be restarted", async (t) => {
+  const { base } = await startBackend(t);
+  const account = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Cancel Farmer", phone: "76789015", password: "cancel-pairing-password" }),
+  }).then((response) => response.json());
+  const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
+  const pairing = await fetch(`${base}/qr/phone/create`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "cancel-pairing-password" }),
+  }).then((response) => response.json());
+  const verifier = "cancel-phone-verifier-0123456789abcdef";
+  const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
+  assert.equal((await fetch(`${base}/qr/phone/claim`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.shortCode, verifierHash }),
+  })).status, 200);
+  assert.equal((await fetch(`${base}/qr/phone/withdraw`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.codeId, verifier: "wrong-verifier" }),
+  })).status, 401);
+  const withdrawn = await fetch(`${base}/qr/phone/withdraw`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.codeId, verifier }),
+  });
+  assert.equal(withdrawn.status, 200);
+  assert.equal((await withdrawn.json()).state, "cancelled");
+  assert.equal((await fetch(`${base}/qr/phone/status?codeId=${encodeURIComponent(pairing.codeId)}&verifier=${encodeURIComponent(verifier)}`)
+    .then((response) => response.json())).state, "cancelled");
+
+  const renewed = await fetch(`${base}/qr/phone/renew`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: pairing.codeId }),
+  });
+  assert.equal(renewed.status, 200);
+  assert.notEqual((await renewed.json()).codeId, pairing.codeId);
 });
 
 test("approved QR codes cannot be redeemed after their expiry", async (t) => {
