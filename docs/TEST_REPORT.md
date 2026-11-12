@@ -1,5 +1,32 @@
 # Test report
 
+## GitHub Actions v121 — security audit passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43242139397
+Commit: `3977e93` (Protect mobile backend switching).
+
+- Backend API tests passed, including demo cleanup, invalid-credential handling,
+  rate-limit, and reset/pairing regressions from the preceding audit commit.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed. The new HTTP backend-host validation tests passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- Artifacts `Peo Yame v121 Android` and `Peo Yame v121 Windows` were uploaded.
+- No local application builds or tests were run. Physical-device LAN,
+  camera-permission, and manual visual/accessibility checks remain outstanding.
+
+## GitHub Actions v120 — backend audit fixes passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43240631070
+Commit: `a903d87` (Harden demo cleanup and optional authentication).
+
+- Backend API tests passed for rejecting invalid optional credentials, demo
+  account cleanup, expired-demo cleanup, pairing invalidation on reset, and
+  demo-start rate limiting.
+- Android tests/analysis/release APK and Windows launch/lifecycle/installer
+  checks passed.
+- No local application builds or tests were run.
+
 ## GitHub Actions v118 — final design-parity follow-up passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43235790290

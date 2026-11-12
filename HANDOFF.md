@@ -1,21 +1,26 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest verification — design-parity follow-up v118 passed
+## Latest verification — security audit v121 passed
 
 Work is in `/tmp/peo-yame-feature-parity` on `copilot/feature-parity`, tracking
-`exe-work`. Commit `52815f7` is pushed to `exe-work`; GitHub Actions v118
-([run `43235790290`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43235790290))
+`exe-work`. Commit `3977e93` is pushed to `exe-work`; GitHub Actions v121
+([run `43242139397`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43242139397))
 passed backend API tests, Android tests/analysis/release APK, and Windows
-launch/lifecycle/installer checks. Artifacts `Peo Yame v118 Android` and
-`Peo Yame v118 Windows` were uploaded.
+launch/lifecycle/installer checks. Artifacts `Peo Yame v121 Android` and
+`Peo Yame v121 Windows` were uploaded.
 
-The verified source includes nonce-based strict CSP, authenticator session
-rotation, expanded security activity, web/mobile trend parity, separate mobile
-backend setup, phone-flow-only QR sign-in, crop-safety disclaimers, distinct
-crop/location actions, Settings exports, and rough estimates in web alerts.
-The 34-row design-defect disposition is recorded in `docs/FEATURE_PARITY.md`.
-No local application builds/tests were run. Manual visual/accessibility,
-camera-permission, and real-device LAN checks remain open.
+The audit fixed invalid credentials falling through to anonymous demo routes,
+orphaned temporary-demo records and QR pairings surviving reset, and missing
+rate limits on demo creation. Mobile authenticated requests now target only the
+verified backend, not an editable candidate address; canceled/failed switches
+restore the editor, and QR flows use the active backend. HTTP backend URLs now
+require literal private/loopback IP addresses, preventing public hostnames that
+merely resemble private addresses. No local application builds/tests were run.
+
+Plain HTTP on private LANs still exposes traffic on untrusted networks.
+Physical-device LAN, camera-permission, and manual visual/accessibility checks
+remain open. Windows runtime folders are versioned and older extracted versions
+may accumulate under LocalAppData; this is a low-impact cleanup item.
 
 ## Earlier verified baseline — v114 Settings polish
 
