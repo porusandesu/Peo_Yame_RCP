@@ -627,11 +627,42 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   assert.equal(demo.status, 201);
   const demoSession = await demo.json();
   const auth = { authorization: `Bearer ${demoSession.token}`, "content-type": "application/json" };
-  assert.equal((await fetch(`${base}/qr/phone/create`, {
+  const phoneCodeResponse = await fetch(`${base}/qr/phone/create`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ password: demoSession.demoPassword }),
+  });
+  assert.equal(phoneCodeResponse.status, 200);
+  const phoneCode = await phoneCodeResponse.json();
+  const phoneVerifier = "guided-phone-verifier-0123456789abcdef";
+  const phoneVerifierHash = crypto.createHash("sha256").update(phoneVerifier).digest("hex");
+  const phoneClaimResponse = await fetch(`${base}/qr/phone/claim`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      codeId: phoneCode.shortCode,
+      verifierHash: phoneVerifierHash,
+      name: "Guided Demo phone",
+      version: "1",
+    }),
+  });
+  assert.equal(phoneClaimResponse.status, 200);
+  const phoneClaim = await phoneClaimResponse.json();
+  assert.equal((await fetch(`${base}/qr/phone/approve`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: phoneCode.codeId, matchCode: phoneClaim.matchCode }),
   })).status, 200);
+  const phoneSessionResponse = await fetch(`${base}/qr/phone/redeem`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: phoneCode.codeId, verifier: phoneVerifier }),
+  });
+  assert.equal(phoneSessionResponse.status, 200);
+  const phoneSession = await phoneSessionResponse.json();
+  assert.equal(phoneSession.isDemo, true);
+  const phoneAuth = { authorization: `Bearer ${phoneSession.token}`, "content-type": "application/json" };
+
   const verifier = "shared-demo-verifier-0123456789abcdef";
   const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
   const pairing = await fetch(`${base}/qr/web/create`, {
@@ -641,12 +672,12 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   }).then((response) => response.json());
   assert.equal((await fetch(`${base}/qr/web/scan`, {
     method: "POST",
-    headers: auth,
+    headers: phoneAuth,
     body: JSON.stringify({ codeId: pairing.codeId }),
   })).status, 200);
   assert.equal((await fetch(`${base}/qr/web/approve`, {
     method: "POST",
-    headers: auth,
+    headers: phoneAuth,
     body: JSON.stringify({ codeId: pairing.codeId, matchCode: pairing.matchCode }),
   })).status, 200);
   const browserSession = await fetch(`${base}/qr/web/redeem`, {
@@ -666,7 +697,7 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   const mobileAbort = new AbortController();
   const webAbort = new AbortController();
   t.after(() => { mobileAbort.abort(); webAbort.abort(); });
-  const mobileStream = await fetch(`${base}/events`, { headers: auth, signal: mobileAbort.signal });
+  const mobileStream = await fetch(`${base}/events`, { headers: phoneAuth, signal: mobileAbort.signal });
   const webStream = await fetch(`${base}/events`, {
     headers: { authorization: `Bearer ${browserSession.token}` },
     signal: webAbort.signal,

@@ -22,6 +22,7 @@ String readingAgeCaption(int seconds)=>seconds>60?'Simulated readings are paused
 String partialNetworkAddress(Object? address){final value=(address??'Unavailable').toString();if(RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(value))return value.replaceFirst(RegExp(r'\.\d{1,3}$'),'.•••');return value.length>4?'${value.substring(0,4)}•••':'Address partially hidden';}
 String maskedBackendAddress(Object? address){final value=(address??'').toString();final uri=Uri.tryParse(value);if(uri==null||!uri.hasAuthority)return partialNetworkAddress(value);return '${uri.scheme}://${partialNetworkAddress(uri.host)}${uri.hasPort?':${uri.port}':''}';}
 class GaugePosition{final double fraction,bandStart,bandEnd;final String state;const GaugePosition(this.fraction,this.bandStart,this.bandEnd,this.state);}
+enum _PhonePairingOutcome{approved,cancelled,denied,expired}
 GaugePosition gaugePosition(double? value,num lowerBound,num upperBound,{bool percent=false}){
  final low=lowerBound.toDouble(),high=upperBound.toDouble();
  final width=high-low;
@@ -372,23 +373,28 @@ Future<void> scanPhoneQr()async{
   final verifier=base64UrlEncode(List<int>.generate(32,(_)=>Random.secure().nextInt(256)));
   final verifierHash=sha256.convert(utf8.encode(verifier)).toString();
   final claim=Map<String,dynamic>.from(await request('/qr/phone/claim',method:'POST',auth:false,body:{'codeId':codeId,'verifierHash':verifierHash,'name':'Peo Yame Android','version':'1'}));
-  final approved=await waitForApproval(codeId,verifier,claim['matchCode'].toString(),claim['expiresAt'].toString());
-  if(!approved)return;
+  final outcome=await waitForApproval(codeId,verifier,claim['matchCode'].toString(),claim['expiresAt'].toString());
+  if(outcome!=_PhonePairingOutcome.approved){
+   if(outcome!=_PhonePairingOutcome.cancelled&&mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(outcome==_PhonePairingOutcome.denied?'The computer denied this phone sign-in. Start a new code to try again.':'This phone sign-in code expired. Start a new code on the computer.')));
+   return;
+  }
   final session=Map<String,dynamic>.from(await request('/qr/phone/redeem',method:'POST',auth:false,body:{'codeId':codeId,'verifier':verifier}));
   token=session['token'];instant=false;guided=session['isDemo']==true;entered=true;
   await storage.write(key:'session',value:token);await refresh();
  }catch(e){address.text=savedBackend;if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}
 }
-Future<bool> waitForApproval(String codeId,String verifier,String match,String expiry)async{
+Future<_PhonePairingOutcome> waitForApproval(String codeId,String verifier,String match,String expiry)async{
  final expires=DateTime.tryParse(expiry)??DateTime.now().add(const Duration(seconds:90));
  final seconds=ValueNotifier<int>(max(0,expires.difference(DateTime.now()).inSeconds).toInt());
- final done=Completer<bool>();
+ final connectionStatus=ValueNotifier<String?>(null);
+ final done=Completer<_PhonePairingOutcome>();
  final ticker=Timer.periodic(const Duration(seconds:1),(_)=>seconds.value=max(0,expires.difference(DateTime.now()).inSeconds).toInt());
  showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>AlertDialog(
   title:const Text('Approve on your computer'),
   content:Column(mainAxisSize:MainAxisSize.min,children:[
    Text(match,style:const TextStyle(fontSize:56,fontWeight:FontWeight.w700,color:darkGreen)),
    const Text('Enter this number on your computer.'),
+   ValueListenableBuilder<String?>(valueListenable:connectionStatus,builder:(_,value,__)=>value==null?const SizedBox.shrink():Padding(padding:const EdgeInsets.only(top:8),child:Text(value,style:const TextStyle(color:statusWarning)))),
    const SizedBox(height:8),
    ValueListenableBuilder<int>(valueListenable:seconds,builder:(_,value,__)=>Text('Expires in ${value~/60}:${(value%60).toString().padLeft(2,'0')}'))
   ]),
@@ -396,27 +402,30 @@ Future<bool> waitForApproval(String codeId,String verifier,String match,String e
    try{await request('/qr/phone/withdraw',method:'POST',auth:false,body:{'codeId':codeId,'verifier':verifier});}
    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}
    if(dialogContext.mounted&&Navigator.canPop(dialogContext))Navigator.pop(dialogContext);
-   if(!done.isCompleted)done.complete(false);
+   if(!done.isCompleted)done.complete(_PhonePairingOutcome.cancelled);
   },child:const Text('Cancel'))]));
  unawaited(()async{
   while(DateTime.now().isBefore(expires)&&!done.isCompleted){
    await Future<void>.delayed(const Duration(seconds:1));
+   if(done.isCompleted)return;
    try{
     final state=Map<String,dynamic>.from(await request('/qr/phone/status?codeId='+Uri.encodeComponent(codeId)+'&verifier='+Uri.encodeComponent(verifier),auth:false));
+    if(done.isCompleted)return;
+    connectionStatus.value=null;
     final value=state['state'];
     if(value=='approved'||value=='denied'||value=='cancelled'||value=='expired'){
      if(mounted&&Navigator.canPop(context))Navigator.pop(context);
-     if(!done.isCompleted)done.complete(value=='approved');
+     if(!done.isCompleted)done.complete(value=='approved'?_PhonePairingOutcome.approved:value=='denied'?_PhonePairingOutcome.denied:value=='cancelled'?_PhonePairingOutcome.cancelled:_PhonePairingOutcome.expired);
      return;
     }
-   }catch(_){}
+   }catch(_){if(!done.isCompleted)connectionStatus.value='Connection interrupted. Retrying approval check.';}
   }
   if(!done.isCompleted){
    if(mounted&&Navigator.canPop(context))Navigator.pop(context);
-   done.complete(false);
+   done.complete(_PhonePairingOutcome.expired);
   }
  }());
- try{return await done.future;}finally{ticker.cancel();seconds.dispose();}
+ try{return await done.future;}finally{ticker.cancel();seconds.dispose();connectionStatus.dispose();}
 }
 Future<String?> _askForPassword(String title)async{final controller=TextEditingController();try{return await showDialog<String>(context:context,builder:(c)=>AlertDialog(title:Text(title),content:TextField(controller:controller,obscureText:true,decoration:const InputDecoration(labelText:'Password')),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,controller.text),child:const Text('Continue'))]));}finally{controller.dispose();}}
 Future<void> authenticatorFlow()async{try{final s=Map<String,dynamic>.from(await request('/authenticator/status'));if(s['enabled']==true){final pw=TextEditingController(),code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Turn off authenticator'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:pw,obscureText:true,decoration:const InputDecoration(labelText:'Password')),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn off'))]));if(ok!=true)return;final changed=Map<String,dynamic>.from(await request('/authenticator/disable',method:'POST',body:{'password':pw.text,'code':code.text.trim()}));if(changed['token'] is String){token=changed['token'] as String;await storage.write(key:'session',value:token);}if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator turned off.')));}else{final password=await _askForPassword('Re-enter your password to set up the authenticator.');if(password==null||password.isEmpty)return;final setup=Map<String,dynamic>.from(await request('/authenticator/setup',method:'POST',body:{'password':password}));if(!mounted)return;final code=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Set up authenticator'),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Add this setup key to your authenticator app, then enter the 6-digit code it shows:'),SelectableText(setup['secret'].toString(),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:18)),TextField(controller:code,keyboardType:TextInputType.number,maxLength:6,decoration:const InputDecoration(labelText:'6-digit code'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Turn on'))]));if(ok!=true)return;final changed=Map<String,dynamic>.from(await request('/authenticator/enable',method:'POST',body:{'code':code.text.trim()}));if(changed['token'] is String){token=changed['token'] as String;await storage.write(key:'session',value:token);}if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Authenticator is on. Sign-in will now ask for a code.')));}}catch(e){if(mounted)setState(()=>error=e.toString().replaceFirst('Exception: ',''));}}
@@ -438,10 +447,15 @@ Future<void> approveWeb(String codeId)async{
    ]),
   )));
   if(approve!=true){match.dispose();await request('/qr/web/deny',method:'POST',body:{'codeId':codeId});return;}
-  final supported=await deviceAuth.isDeviceSupported();
-  if(!supported){match.dispose();throw Exception('Device lock is not set up on this phone, so this approval cannot be confirmed.');}
-  final unlocked=await deviceAuth.authenticate(localizedReason:'Confirm this computer sign-in',biometricOnly:false);
-  if(!unlocked){match.dispose();throw Exception('Device confirmation was not completed.');}
+  Future<void> denyRequest()async{await request('/qr/web/deny',method:'POST',body:{'codeId':codeId});}
+  bool supported;
+  try{supported=await deviceAuth.isDeviceSupported();}
+  catch(e){try{await denyRequest();}finally{match.dispose();}throw Exception('Could not verify device authentication. The computer request was denied. ${e.toString().replaceFirst('Exception: ','')}');}
+  if(!supported){try{await denyRequest();}finally{match.dispose();}throw Exception('Device lock is not set up on this phone. The computer request was denied.');}
+  bool unlocked;
+  try{unlocked=await deviceAuth.authenticate(localizedReason:'Confirm this computer sign-in',biometricOnly:false);}
+  catch(e){try{await denyRequest();}finally{match.dispose();}throw Exception('Device confirmation failed. The computer request was denied. ${e.toString().replaceFirst('Exception: ','')}');}
+  if(!unlocked){try{await denyRequest();}finally{match.dispose();}throw Exception('Device confirmation was not completed. The computer request was denied.');}
   try{
    await request('/qr/web/approve',method:'POST',body:{'codeId':codeId,'matchCode':match.text.trim()});
    if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Computer sign-in approved.')));
@@ -510,7 +524,7 @@ Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,childre
  _settingsSection('Backend connection','The address is masked by default. HTTP is for a controlled demo Wi-Fi network only.',Icons.dns_outlined,[
   _backendConnectionPanel(),
  ]),
- _settingsSection('Devices','Connect this phone to another computer using a one-time sign-in code.',Icons.devices_other,[
+ _settingsSection('Devices',guided?'Connect this phone to another computer using a one-time sign-in code. This shares the current Guided Demo profile.':'Connect this phone to another computer using a one-time sign-in code.',Icons.devices_other,[
   SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:scanWebQr,icon:const Icon(Icons.qr_code_scanner),label:const Text('Log in on computer'))),
  ]),
  if((instant||guided)&&guidedDemoEnabled)_settingsSection('Demo tools','Practice simulated syncing, alerts, sensor, and QR flows using temporary data.',Icons.science_outlined,[

@@ -337,7 +337,9 @@
     image.width = 220;
     const address = document.createElement("p");
     address.className = "muted";
-    address.textContent = "Phone and computer must be on the same Wi-Fi. HTTP is for a controlled private network.";
+    address.textContent = mode === "guided"
+      ? "Phone and computer must be on the same Wi-Fi. This signs the phone into this Guided Demo profile so readings sync. HTTP is for a controlled private network."
+      : "Phone and computer must be on the same Wi-Fi. HTTP is for a controlled private network.";
     const countdown = document.createElement("p");
     countdown.className = "py-qr-countdown";
     const manual = document.createElement("p");
