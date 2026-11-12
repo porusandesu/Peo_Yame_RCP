@@ -41,22 +41,18 @@ const userColumns=new Set(db.prepare("PRAGMA table_info(users)").all().map(x=>x.
 if(!sessionColumns.has("totp_verified"))db.exec("ALTER TABLE sessions ADD COLUMN totp_verified INTEGER NOT NULL DEFAULT 0");
 const crops=Object.fromEntries(BUILT_IN_CROPS.map(item=>[item.name,item]));
 const DEMO_STEPS=[
- "Explore Instant Demo and explain that readings are simulated.",
- "Simulate a breach and review the rough storage estimate.",
- "Mark the simulated alert as reviewed.",
- "Switch crops and compare target bands.",
- "Start Guided Demo, save its generated password, and set up the authenticator.",
- "Add a storage location, simulate a sensor reading, and link the sensor.",
- "Use Flow A to connect a phone with QR sign-in.",
- "Approve the phone request using the matching number.",
- "Change crop on one device and simulate a breach on the other.",
- "Simulate network loss, then restore the connection.",
- "Use Flow B to request computer sign-in from the phone.",
- "Match the number, confirm on the phone, and approve with device authentication.",
- "Revoke the browser session from Active sessions.",
- "Show expired, already-used, and wrong-number QR outcomes.",
- "Export readings and point out the estimate note.",
- "Reset Guided Demo and return to Instant Demo.",
+ {part:"B",title:"Start Showcase Guided Demo and save its password",where:"Settings",hint:"The temporary password is shown once."},
+ {part:"B",title:"Start simulated readings and review an alert",where:"Overview",hint:"A reading arrives every 3 seconds; the first automatic alert is later."},
+ {part:"B",title:"Set up the authenticator",where:"Settings",hint:"Re-enter the generated demo password."},
+ {part:"B",title:"Add a location, sensor reading and custom crop",where:"My Crops",hint:"Link the spare synthetic sensor to a location."},
+ {part:"B",title:"Connect a phone with Flow A",where:"Settings",hint:"The signed-in computer explicitly approves the typed match number."},
+ {part:"B",title:"Sync a crop change and simulated breach",where:"Overview",hint:"Make the change on one device and observe the other."},
+ {part:"B",title:"Show network loss and recovery",where:"Settings",hint:"The simulator keeps running on the backend."},
+ {part:"B",title:"Sign in on a computer with Flow B",where:"Settings",hint:"Type the number shown by the browser before approving."},
+ {part:"B",title:"Revoke the browser session",where:"Settings",hint:"Open Active sessions and revoke the selected session."},
+ {part:"B",title:"Show QR expiry and failure controls",where:"Settings",hint:"Wait for expiry, scan twice, or enter three incorrect numbers."},
+ {part:"B",title:"Export readings and inspect security activity",where:"Settings",hint:"Point out the estimate note and QR activity."},
+ {part:"B",title:"Reset Guided Demo",where:"Settings",hint:"Reset deletes temporary demo data and returns to Instant Demo."},
 ];
 const now=()=>new Date().toISOString(),id=()=>crypto.randomUUID(),hash=s=>crypto.createHash("sha256").update(s).digest("hex");
 const safeEq=(a,b)=>{const x=Buffer.from(String(a??""),"utf8"),y=Buffer.from(String(b??""),"utf8");return x.length===y.length&&crypto.timingSafeEqual(x,y);};
@@ -108,28 +104,61 @@ app.use((req,res,next)=>{
 });
 const eventClients=new Set();
 db.exec("CREATE TABLE IF NOT EXISTS login_failures(attempt_key TEXT NOT NULL,failed_at TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_login_failures_key_time ON login_failures(attempt_key,failed_at); CREATE TABLE IF NOT EXISTS login_lockouts(attempt_key TEXT PRIMARY KEY,locked_until TEXT NOT NULL)");
-const demoSimulations=new Map(),DEMO_SIMULATION_INTERVAL_MS=3000;
+const demoSimulations=new Map(),demoAutoAlerts=new Map(),DEMO_SIMULATION_INTERVAL_MS=3000;
+const SHARED_FEED_MS=Math.max(200,Number(process.env.PEO_YAME_SHARED_FEED_MS)||10000);
+const SHARED_IDLE_MS=Math.max(1000,Number(process.env.PEO_YAME_SHARED_IDLE_MS)||120000);
+const SHARED_READING_LIMIT=2500;
+let sharedLastActivity=0,sharedFeeder=null;
 function stopDemoSimulation(userId){const simulation=demoSimulations.get(userId);if(!simulation)return false;clearInterval(simulation.timer);demoSimulations.delete(userId);return true;}
 function variedReadingValue(current,min,max,minStep,maxStep,precision){const delta=(minStep+crypto.randomInt(0,Math.floor((maxStep-minStep)*precision)+1)/precision),direction=crypto.randomInt(0,2)?1:-1;let next=current+direction*delta;if(next<min)next=min+(min-next);if(next>max)next=max-(next-max);next=Math.max(min,Math.min(max,next));return Math.round(next*precision)/precision;}
 function demoOutsideValue([low,high],sensorLow,sensorHigh,precision){const unit=1/precision,above=high+unit+crypto.randomInt(0,Math.floor(2*precision)+1)/precision;if(above<=sensorHigh)return Math.round(above*precision)/precision;const below=low-unit-crypto.randomInt(0,Math.floor(2*precision)+1)/precision;return Math.max(sensorLow,Math.round(below*precision)/precision);}
+function appendSharedReading(){
+ const latest=db.prepare("SELECT temperature,humidity FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1").get();
+ const temperature=variedReadingValue(latest?.temperature??19.3,14,24,0.2,0.8,10),humidity=variedReadingValue(latest?.humidity??63,48,72,1,3,1),stamp=now();
+ db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(NULL,?,?,?,1)").run(temperature,humidity,stamp);
+ db.prepare("DELETE FROM readings WHERE user_id IS NULL AND synthetic=1 AND (created_at<? OR id NOT IN (SELECT id FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT ?))").run(new Date(Date.now()-90*86400000).toISOString(),SHARED_READING_LIMIT);
+ publishEvent(null,"reading");
+}
+function sharedFeedTick(){
+ if(Date.now()-sharedLastActivity>SHARED_IDLE_MS){clearInterval(sharedFeeder);sharedFeeder=null;return;}
+ appendSharedReading();
+}
+function touchSharedActivity(){
+ sharedLastActivity=Date.now();
+ if(!sharedFeeder){sharedFeeder=setInterval(sharedFeedTick,SHARED_FEED_MS);sharedFeeder.unref();}
+ const latest=db.prepare("SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1").get();
+ if(!latest||Date.now()-Date.parse(latest.created_at)>10000)appendSharedReading();
+}
 function demoSimulationTick(userId,simulation){
  const user=db.prepare("SELECT id FROM users WHERE id=? AND is_demo=1").get(userId),sessions=db.prepare("SELECT token_hash FROM sessions WHERE user_id=?").all(userId);
  if(!user||!sessions.some(session=>sessionActive(session.token_hash))){stopDemoSimulation(userId);return;}
- const sensor=db.prepare("SELECT * FROM sensors WHERE user_id=? AND synthetic=1 ORDER BY created_at LIMIT 1").get(userId);
- if(!sensor){stopDemoSimulation(userId);return;}
- const selectedCrop=db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(userId)?.selected_crop||"Maize",band=cropBand(selectedCrop,userId),step=simulation.step++,stamp=now(),isAlertPoint=step%6===0,temperature=isAlertPoint&&band?demoOutsideValue(band.t,-40,85,10):variedReadingValue(simulation.temperature,14,25,1,4,10),humidity=isAlertPoint&&band?demoOutsideValue(band.h,0,100,1):variedReadingValue(simulation.humidity,48,70,4,12,1);
- simulation.temperature=temperature;simulation.humidity=humidity;
+ const linked=db.prepare("SELECT se.*,si.crop AS site_crop,si.name AS site_name FROM sensors se LEFT JOIN sites si ON si.id=se.site_id AND si.user_id=se.user_id WHERE se.user_id=? AND se.synthetic=1 ORDER BY se.created_at").all(userId);
+ if(!linked.length){stopDemoSimulation(userId);return;}
+ const step=simulation.step++,sensor=linked[step%linked.length],selectedCrop=sensor.site_crop||db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(userId)?.selected_crop||"Maize",band=cropBand(selectedCrop,userId),stamp=now(),isAlertPoint=simulation.autoAlerts&&step>0&&step%6===0;
+ simulation.valuesBySensor??=new Map();
+ const previous=simulation.valuesBySensor.get(sensor.id),temperature=isAlertPoint&&band?demoOutsideValue(band.t,-40,85,10):variedReadingValue(previous?.temperature??(band.t[0]+band.t[1])/2,band.t[0],band.t[1],0.2,0.8,10),humidity=isAlertPoint&&band?demoOutsideValue(band.h,0,100,1):variedReadingValue(previous?.humidity??(band.h[0]+band.h[1])/2,band.h[0],band.h[1],1,3,1);
+ simulation.valuesBySensor.set(sensor.id,{temperature,humidity});
  db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,1)").run(userId,sensor.site_id,sensor.id,temperature,humidity,stamp);
  db.prepare("UPDATE sensors SET last_seen_at=? WHERE id=?").run(stamp,sensor.id);
  const outside=band&&(temperature<band.t[0]||temperature>band.t[1]||humidity<band.h[0]||humidity>band.h[1]);
- if(outside&&!simulation.alertActive){
+ if(isAlertPoint&&outside&&!simulation.alertActive){
   const pending=db.prepare("SELECT id FROM alerts WHERE user_id=? AND reviewed=0 AND synthetic=1 LIMIT 1").get(userId);
-  if(!pending){db.prepare("INSERT INTO alerts VALUES(?,?,?,?,0,1)").run(id(),userId,"Demo readings are outside the "+selectedCrop+" target band. Check your crop now.",stamp);publishEvent(userId,"alert");}
+  if(!pending){db.prepare("INSERT INTO alerts VALUES(?,?,?,?,0,1)").run(id(),userId,"Demo readings at "+(sensor.site_name||sensor.external_id)+" are outside the "+selectedCrop+" target band ("+temperature.toFixed(1)+" °C, "+humidity.toFixed(0)+" %). Check your crop now.",stamp);publishEvent(userId,"alert");}
  }
  simulation.alertActive=!!outside;
  publishEvent(userId,"reading");
 }
-function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,temperature:18,humidity:61,alertActive:false,timer:null};simulation.timer=setInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);simulation.timer.unref();demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
+function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,temperature:18,humidity:61,alertActive:false,autoAlerts:demoAutoAlerts.get(userId)??true,timer:null};simulation.timer=setInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);simulation.timer.unref();demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
+function writeDemoReading(userId,inBand){
+ const sensor=db.prepare("SELECT se.*,si.crop AS site_crop,si.name AS site_name FROM sensors se LEFT JOIN sites si ON si.id=se.site_id AND si.user_id=se.user_id WHERE se.user_id=? AND se.synthetic=1 ORDER BY se.created_at LIMIT 1").get(userId);
+ if(!sensor)return null;
+ const crop=sensor.site_crop||db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(userId)?.selected_crop||"Maize",band=cropBand(crop,userId),temperature=inBand&&band?(band.t[0]+band.t[1])/2:42,humidity=inBand&&band?(band.h[0]+band.h[1])/2:90,stamp=now();
+ db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,1)").run(userId,sensor.site_id,sensor.id,temperature,humidity,stamp);
+ db.prepare("UPDATE sensors SET last_seen_at=? WHERE id=?").run(stamp,sensor.id);
+ if(!inBand){const alertId=id();db.prepare("INSERT INTO alerts VALUES(?,?,?,?,0,1)").run(alertId,userId,"Simulated breach at "+(sensor.site_name||sensor.external_id)+" · "+crop+" · "+temperature.toFixed(1)+" °C / "+humidity.toFixed(0)+" %.",stamp);publishEvent(userId,"alert");}
+ publishEvent(userId,"reading");
+ return stamp;
+}
 function publishEvent(userId,event){
  for(const client of eventClients){
   if(client.userId!==userId||client.res.writableEnded)continue;
@@ -147,6 +176,7 @@ function deleteDemoAccount(userId){
   db.prepare("DELETE FROM users WHERE id=? AND is_demo=1").run(userId);
  })();
  stopDemoSimulation(userId);
+ demoAutoAlerts.delete(userId);
  for(const client of eventClients){
   if(client.userId!==userId)continue;
   clearInterval(client.timer);
@@ -155,12 +185,13 @@ function deleteDemoAccount(userId){
  }
 }
 app.use((req,res,next)=>{if(["POST","PATCH","PUT","DELETE"].includes(req.method)){res.once("finish",()=>{if(res.statusCode<200||res.statusCode>=300)return;const user=req.user||currentUser(req),path=req.path;let event;if(path.includes("/readings")||path.includes("/sensors/")||path==="/sensors"||path.includes("/demo/breach")||path.includes("/demo/reading")||path.includes("/demo/sensor-reading"))event="reading";else if(path.includes("/crop-selection"))event="crop";else if(path.includes("/alerts"))event="alert";else if(path.includes("/account")||path.includes("/authenticator")||path.includes("/qr/"))event="session";else if(path.includes("/sites")||path.includes("/crops"))event="account";if(event)publishEvent(user?.id??null,event);});}next();});
+app.use("/api",(req,_res,next)=>{if(req.method==="GET"&&!req.get("authorization")&&!cookieValue(req,"py_session")&&req.path!=="/health")touchSharedActivity();next();});
 if(process.env.PEO_YAME_RESET_INSTANCE==="true"){db.exec("DELETE FROM pairings; DELETE FROM readings; DELETE FROM alerts; DELETE FROM sensors; DELETE FROM sites;");}
 app.get("/api/health",(_q,r)=>r.json({ok:true,authEnabled:true,guidedDemoEnabled:process.env.PEO_YAME_DEMO_ENABLED==="true",version:process.env.PEO_YAME_VERSION||"dev",time:now()}));
 app.get("/api/backend/qr",async(q,r)=>{try{const base=lanBase(q),payload=JSON.stringify({baseUrl:base,flow:"backend"}),qrDataUrl=await QRCode.toDataURL(payload,{errorCorrectionLevel:"M",margin:4,width:240});r.json({baseUrl:base,payload,qrDataUrl});}catch(e){r.status(503).json({error:"Could not create a backend connection QR code. Check the network address."});}});
 app.get("/api/crops",(req,res)=>{const user=optionalUser(req,res);if(user===undefined)return;const owned=user?db.prepare("SELECT name,category,temperature_min,temperature_max,humidity_min,humidity_max,baseline_weeks,user_id FROM custom_crops WHERE user_id=? ORDER BY name").all(user.id):[];res.json([...BUILT_IN_CROPS.map(catalogItem),...owned.map(catalogItem)]);});
 app.post("/api/crops",requireUser,(req,res)=>{const name=String(req.body?.name||"").trim(),category=String(req.body?.category||""),temperatureMin=req.body?.temperatureMin,temperatureMax=req.body?.temperatureMax,humidityMin=req.body?.humidityMin,humidityMax=req.body?.humidityMax,baselineWeeks=req.body?.baselineWeeks;const normalizedName=name.toLowerCase();if(name.length<2||name.length>40||!/^[\p{L}\p{N}][\p{L}\p{N} '\u2019-]*$/u.test(name))return res.status(400).json({error:"Enter a crop name using 2–40 letters, numbers, spaces, apostrophes or dashes."});if(!["fruit","vegetable","crop"].includes(category))return res.status(400).json({error:"Choose fruit, vegetable or crop."});if([temperatureMin,temperatureMax,humidityMin,humidityMax].some(v=>typeof v!=="number"||!Number.isFinite(v))||temperatureMin< -40||temperatureMax>85||temperatureMin>=temperatureMax||humidityMin<0||humidityMax>100||humidityMin>=humidityMax||!Number.isInteger(baselineWeeks)||baselineWeeks<1||baselineWeeks>52)return res.status(400).json({error:"Enter valid temperature, humidity and estimate reference ranges."});if(BUILT_IN_CROPS.some(c=>c.name.toLowerCase()===normalizedName))return res.status(409).json({error:"That name is already in the built-in catalog."});try{db.prepare("INSERT INTO custom_crops(user_id,name,normalized_name,category,temperature_min,temperature_max,humidity_min,humidity_max,baseline_weeks,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(req.user.id,name,normalizedName,category,temperatureMin,temperatureMax,humidityMin,humidityMax,baselineWeeks,now());res.status(201).json({name,category,temperatureC:[temperatureMin,temperatureMax],humidityPercent:[humidityMin,humidityMax],baselineWeeks,custom:true});}catch(error){if(error.code==="SQLITE_CONSTRAINT_PRIMARYKEY"||error.code==="SQLITE_CONSTRAINT_UNIQUE")return res.status(409).json({error:"That crop is already in your catalog."});throw error;}});
-app.post("/api/crop-selection",(req,res)=>{const user=optionalUser(req,res);if(user===undefined)return;const crop=String(req.body?.crop||"").trim();if(!cropBand(crop,user?.id))return res.status(400).json({error:"Choose a crop from your catalog."});const key=user?.id||"shared-demo",stamp=now();db.prepare("INSERT INTO preferences(user_id,selected_crop,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET selected_crop=excluded.selected_crop,updated_at=excluded.updated_at").run(key,crop,stamp);res.json({crop,updatedAt:stamp});});
+app.post("/api/crop-selection",(req,res)=>{const user=optionalUser(req,res);if(user===undefined)return;const crop=String(req.body?.crop||"").trim();if(!cropBand(crop,user?.id))return res.status(400).json({error:"Choose a crop from your catalog."});const stamp=now();if(user)db.prepare("INSERT INTO preferences(user_id,selected_crop,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET selected_crop=excluded.selected_crop,updated_at=excluded.updated_at").run(user.id,crop,stamp);res.json({crop,updatedAt:stamp});});
 app.post("/api/account/register",(q,r)=>{try{if(!rateLimit("reg:"+q.ip,10,60000))return tooMany(q,r);const name=String(q.body?.name||"").trim(),phone=phoneValue(q.body?.phone),password=String(q.body?.password||"");if(name.length<2)throw Error("Enter your name.");if(password.length<12)throw Error("Use a password with at least 12 characters.");const salt=crypto.randomBytes(16).toString("hex"),user={id:id(),name,phone};db.prepare("INSERT INTO users(id,name,phone,password_hash,salt,created_at) VALUES(?,?,?,?,?,?)").run(user.id,name,phone,passwordHash(password,salt),salt,now());recordSecurityEvent(user.id,"account_created");const token=issueSession(user,"password",q);setAuthCookies(r,token,"password",q);r.status(201).json({...clientSession(q,token),user:{name,phone}});}catch(e){if(/UNIQUE/.test(e.message))return r.status(400).json({error:"That phone number already has an account."});r.status(400).json({error:e.code||e.errno?"Could not create the account. Please try again.":e.message});}});
 app.post("/api/account/login",(q,r)=>{try{
  if(!rateLimit("login:"+q.ip,10,60000))return tooMany(q,r);
@@ -181,19 +212,60 @@ app.post("/api/account/logout",requireUser,(q,r)=>{const tok=q.get("authorizatio
 app.get("/api/account/sessions",requireUser,(q,r)=>r.json(db.prepare("SELECT token_hash,device_name,kind,created_at,expires_at,last_seen_at,totp_verified,idle_timeout_minutes FROM sessions WHERE user_id=? AND expires_at>? AND (idle_timeout_minutes IS NULL OR last_seen_at>?) ORDER BY created_at DESC").all(q.user.id,now(),new Date(Date.now()-30*60000).toISOString()).map(s=>({id:s.token_hash,deviceName:s.device_name,kind:s.kind,createdAt:s.created_at,expiresAt:s.expires_at,lastSeenAt:s.last_seen_at,totpVerified:!!s.totp_verified,current:s.token_hash===q.user.token_hash}))));
 app.delete("/api/account/sessions/:id",requireUser,(q,r)=>{const target=db.prepare("SELECT token_hash FROM sessions WHERE user_id=? AND token_hash=?").get(q.user.id,q.params.id);if(!target)return r.status(404).json({error:"Session not found."});db.prepare("DELETE FROM sessions WHERE token_hash=? AND user_id=?").run(target.token_hash,q.user.id);recordSecurityEvent(q.user.id,"session_revoked");r.json({ok:true,current:target.token_hash===q.user.token_hash});});
 app.delete("/api/account/sessions",requireUser,(q,r)=>{const out=db.prepare("DELETE FROM sessions WHERE user_id=? AND token_hash<>?").run(q.user.id,q.user.token_hash);if(out.changes)recordSecurityEvent(q.user.id,"other_sessions_revoked");r.json({ok:true,revoked:out.changes});});
-app.post("/api/demo/start",(q,r)=>{if(process.env.PEO_YAME_DEMO_ENABLED!=="true")return r.sendStatus(404);if(!rateLimit("demo-start:"+q.ip,5,60000))return tooMany(q,r);const salt=crypto.randomBytes(16).toString("hex"),u={id:id(),name:"Demo Farmer (temporary)",phone:"demo-"+crypto.randomBytes(12).toString("hex")+"@peo-yame.invalid",is_demo:1},demoPassword=crypto.randomBytes(32).toString("base64url");db.prepare("INSERT INTO users(id,name,phone,password_hash,salt,is_demo,created_at) VALUES(?,?,?,?,?,?,?)").run(u.id,u.name,u.phone,passwordHash(demoPassword,salt),salt,1,now());db.prepare("INSERT INTO sensors(id,user_id,external_id,name,created_at,synthetic) VALUES(?,?,?,?,?,1)").run(id(),u.id,"PY-DEMO-1","Demo sensor 1",now());const seed=db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,1)");for(let i=24;i>=0;i--)seed.run(u.id,18+Math.sin(i/3)*2,61+Math.cos(i/4)*5,new Date(Date.now()-i*3600000).toISOString());const token=issueSession(u,"demo",q);setAuthCookies(r,token,"demo",q);r.status(201).json({...clientSession(q,token),isDemo:true,demoPassword});});
-app.get("/api/demo/simulation",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);r.json({active:demoSimulations.has(q.user.id),intervalSeconds:DEMO_SIMULATION_INTERVAL_MS/1000});});
+app.post("/api/demo/start",(q,r)=>{if(process.env.PEO_YAME_DEMO_ENABLED!=="true")return r.sendStatus(404);if(!rateLimit("demo-start:"+q.ip,5,60000))return tooMany(q,r);const profile=q.body?.profile==="showcase"?"showcase":"walkthrough",salt=crypto.randomBytes(16).toString("hex"),u={id:id(),name:"Demo Farmer (temporary)",phone:"demo-"+crypto.randomBytes(12).toString("hex")+"@peo-yame.invalid",is_demo:1},demoPassword=crypto.randomBytes(32).toString("base64url"),created=now();db.transaction(()=>{
+ db.prepare("INSERT INTO users(id,name,phone,password_hash,salt,is_demo,created_at) VALUES(?,?,?,?,?,?,?)").run(u.id,u.name,u.phone,passwordHash(demoPassword,salt),salt,1,created);
+ db.prepare("INSERT INTO preferences(user_id,selected_crop,updated_at) VALUES(?,?,?)").run(u.id,"Maize",created);
+ const insertSite=db.prepare("INSERT INTO sites(id,user_id,name,crop,created_at) VALUES(?,?,?,?,?)"),insertSensor=db.prepare("INSERT INTO sensors(id,user_id,external_id,name,created_at,synthetic,site_id,last_seen_at) VALUES(?,?,?,?,?,1,?,?)"),insertReading=db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,1)");
+ const showcase=profile==="showcase",specs=showcase?[{name:"Grain store A",crop:"Maize",sensor:"PY-DEMO-1"},{name:"Fruit cold room",crop:"Mango",sensor:"PY-DEMO-2"}]:[];
+ const sensorsForHistory=[];
+ if(showcase)for(const item of specs){const siteId=id(),sensorId=id();insertSite.run(siteId,u.id,item.name,item.crop,created);insertSensor.run(sensorId,u.id,item.sensor,"Demo sensor "+item.sensor,created,siteId,created);sensorsForHistory.push({siteId,sensorId,crop:item.crop});}
+ if(showcase)insertSensor.run(id(),u.id,"PY-DEMO-3","Unlinked demo sensor",created,null,null);
+ else insertSensor.run(id(),u.id,"PY-DEMO-1","Demo sensor 1",created,null,null);
+ for(const sensor of (showcase?sensorsForHistory:[{siteId:null,sensorId:db.prepare("SELECT id FROM sensors WHERE user_id=? ORDER BY created_at LIMIT 1").get(u.id).id,crop:"Maize"}])){
+  const band=cropBand(sensor.crop,u.id),midT=(band.t[0]+band.t[1])/2,halfT=(band.t[1]-band.t[0])/3,midH=(band.h[0]+band.h[1])/2,halfH=(band.h[1]-band.h[0])/3;
+  for(let hour=720;hour>=0;hour--){const t=new Date(Date.now()-hour*3600000).toISOString(),temperature=midT+Math.sin(hour/9)*halfT,humidity=midH+Math.cos(hour/11)*halfH;insertReading.run(u.id,sensor.siteId,sensor.sensorId,temperature,humidity,t);}
+ }
+ if(showcase){const alert=db.prepare("INSERT INTO alerts VALUES(?,?,?,?,?,1)");for(const item of [{day:20,crop:"Maize",site:"Grain store A",reviewed:1},{day:11,crop:"Mango",site:"Fruit cold room",reviewed:1},{day:3,crop:"Maize",site:"Grain store A",reviewed:1}])alert.run(id(),u.id,item.crop+" · "+item.site+" · historical simulated target-band alert.",new Date(Date.now()-item.day*86400000).toISOString(),item.reviewed);}
+ })();
+ const token=issueSession(u,"demo",q);setAuthCookies(r,token,"demo",q);r.status(201).json({...clientSession(q,token),isDemo:true,profile,demoPassword});});
+app.get("/api/demo/simulation",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const simulation=demoSimulations.get(q.user.id);r.json({active:!!simulation,autoAlerts:simulation?.autoAlerts??demoAutoAlerts.get(q.user.id)??true,intervalSeconds:DEMO_SIMULATION_INTERVAL_MS/1000});});
 app.post("/api/demo/simulation/start",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);startDemoSimulation(q.user.id);r.json({active:true,intervalSeconds:DEMO_SIMULATION_INTERVAL_MS/1000});});
 app.post("/api/demo/simulation/stop",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);stopDemoSimulation(q.user.id);publishEvent(q.user.id,"reading");r.json({active:false});});
+app.post("/api/demo/simulation/settings",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);if(typeof q.body?.autoAlerts!=="boolean")return r.status(400).json({error:"Choose whether automatic breach alerts are on or off."});demoAutoAlerts.set(q.user.id,q.body.autoAlerts);const simulation=demoSimulations.get(q.user.id);if(simulation)simulation.autoAlerts=q.body.autoAlerts;r.json({autoAlerts:q.body.autoAlerts,active:!!simulation});});
+app.post("/api/demo/simulation/in-band",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const createdAt=writeDemoReading(q.user.id,true);if(!createdAt)return r.status(409).json({error:"Register a synthetic sensor first."});const simulation=demoSimulations.get(q.user.id);if(simulation)simulation.alertActive=false;r.status(201).json({ok:true,createdAt});});
 app.post("/api/demo/reset",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);deleteDemoAccount(q.user.id);r.clearCookie("py_session",{httpOnly:true,sameSite:"strict",secure:q.secure,path:"/"});r.clearCookie("py_csrf",{sameSite:"strict",secure:q.secure,path:"/"});r.json({ok:true});});
-app.get("/api/demo/checklist",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const completed=new Set(db.prepare("SELECT step FROM demo_checklist WHERE user_id=? AND completed=1").all(q.user.id).map(item=>item.step));r.json({steps:DEMO_STEPS.map((title,index)=>({step:index+1,title,completed:completed.has(index+1)}))});});
-app.patch("/api/demo/checklist/:step",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const step=Number(q.params.step),completed=q.body?.completed;if(!Number.isInteger(step)||step<1||step>DEMO_STEPS.length||typeof completed!=="boolean")return r.status(400).json({error:"Choose a valid demo step and completion state."});if(completed)db.prepare("INSERT INTO demo_checklist(user_id,step,completed) VALUES(?,?,1) ON CONFLICT(user_id,step) DO UPDATE SET completed=1").run(q.user.id,step);else db.prepare("DELETE FROM demo_checklist WHERE user_id=? AND step=?").run(q.user.id,step);r.json({ok:true,step,completed});});
-app.get("/api/status",(q,r)=>{const u=optionalUser(q,r);if(u===undefined)return;const key=u?.id||"shared-demo",selected=db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(key)?.selected_crop,crop=String(q.query.crop||selected||"Maize"),c=cropBand(crop,u?.id);if(!c)return r.status(400).json({error:"Choose a crop from your catalog"});const reading=u?.is_demo?db.prepare("SELECT * FROM readings WHERE user_id=? ORDER BY id DESC LIMIT 1").get(u.id):u?db.prepare("SELECT * FROM readings WHERE user_id=? ORDER BY id DESC LIMIT 1").get(u.id):db.prepare("SELECT * FROM readings WHERE user_id IS NULL ORDER BY id DESC LIMIT 1").get();const stale=!reading||Date.now()-Date.parse(reading.created_at)>900000,inside=reading&&reading.temperature>=c.t[0]&&reading.temperature<=c.t[1]&&reading.humidity>=c.h[0]&&reading.humidity<=c.h[1];r.json({lastSyncedAt:now(),reading:reading?{temperature:reading.temperature,humidity:reading.humidity,createdAt:reading.created_at,synthetic:!!reading.synthetic}:null,stale,statusLabel:!reading?"No readings":inside?"In range":"Outside target band",targetBands:{temperatureC:c.t,humidityPercent:c.h},estimate:roughEstimate(reading,crop,stale,u?.id),crop,dataLabel:reading?.synthetic?"simulated readings":"sensor readings",isDemo:!!u?.is_demo});});
+function demoChecklist(userId){
+ const checked=new Set(db.prepare("SELECT step FROM demo_checklist WHERE user_id=? AND completed=1").all(userId).map(item=>item.step));
+ const user=db.prepare("SELECT totp_enabled FROM users WHERE id=? AND is_demo=1").get(userId);
+ const sites=db.prepare("SELECT COUNT(*) AS n FROM sites WHERE user_id=?").get(userId).n;
+ const linked=db.prepare("SELECT COUNT(*) AS n FROM sensors WHERE user_id=? AND site_id IS NOT NULL").get(userId).n;
+ const sessions=db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE user_id=? AND expires_at>? AND (idle_timeout_minutes IS NULL OR last_seen_at>?)").get(userId,now(),new Date(Date.now()-30*60000).toISOString()).n;
+ const security=db.prepare("SELECT event FROM security_log WHERE user_id=?").all(userId).map(item=>item.event);
+ const reviewed=db.prepare("SELECT COUNT(*) AS n FROM alerts WHERE user_id=? AND reviewed=1").get(userId).n;
+ const automatic=[
+  false,
+  demoSimulations.has(userId)&&reviewed>0,
+  !!user?.totp_enabled,
+  sites>0&&linked>0,
+  security.includes("phone_qr_sign_in"),
+  false,
+  false,
+  security.includes("web_qr_sign_in")||sessions>1,
+  security.includes("session_revoked"),
+  security.includes("phone_qr_expired")||security.includes("web_qr_expired"),
+  false,
+  false,
+ ];
+ return {steps:DEMO_STEPS.map((item,index)=>({step:index+5,...item,completed:checked.has(index+5)||automatic[index],auto:automatic[index]}))};
+}
+app.get("/api/demo/checklist",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);r.json(demoChecklist(q.user.id));});
+app.patch("/api/demo/checklist/:step",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const step=Number(q.params.step),completed=q.body?.completed;if(!Number.isInteger(step)||step<5||step>DEMO_STEPS.length+4||typeof completed!=="boolean")return r.status(400).json({error:"Choose a valid demo step and completion state."});if(completed)db.prepare("INSERT INTO demo_checklist(user_id,step,completed) VALUES(?,?,1) ON CONFLICT(user_id,step) DO UPDATE SET completed=1").run(q.user.id,step);else db.prepare("DELETE FROM demo_checklist WHERE user_id=? AND step=?").run(q.user.id,step);r.json({ok:true,step,completed});});
+app.get("/api/status",(q,r)=>{const u=optionalUser(q,r);if(u===undefined)return;if(!u)touchSharedActivity();const selected=u?db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(u.id)?.selected_crop:null,crop=String((u?selected:q.query.crop)||"Maize"),c=cropBand(crop,u?.id);if(!c)return r.status(400).json({error:"Choose a crop from your catalog"});const reading=u?db.prepare("SELECT * FROM readings WHERE user_id=? ORDER BY id DESC LIMIT 1").get(u.id):db.prepare("SELECT * FROM readings WHERE user_id IS NULL ORDER BY created_at DESC,id DESC LIMIT 1").get(),stale=!reading||Date.now()-Date.parse(reading.created_at)>900000,inside=reading&&reading.temperature>=c.t[0]&&reading.temperature<=c.t[1]&&reading.humidity>=c.h[0]&&reading.humidity<=c.h[1];r.json({lastSyncedAt:now(),reading:reading?{temperature:reading.temperature,humidity:reading.humidity,createdAt:reading.created_at,synthetic:!!reading.synthetic}:null,stale,statusLabel:!reading?"No readings":inside?"In range":"Outside target band",targetBands:{temperatureC:c.t,humidityPercent:c.h},estimate:roughEstimate(reading,crop,stale,u?.id),crop,dataLabel:reading?.synthetic?"simulated readings":"sensor readings",isDemo:!!u?.is_demo,sessionExpiresAt:u?.is_demo?u.expires_at:null,simulationActive:!!(u?.is_demo&&demoSimulations.has(u.id))});});
 app.get("/api/readings/trends",(q,r)=>{
  const range=q.query.range||"24h",days=range==="3months"?90:range==="month"?30:1;
  if(!["24h","month","3months"].includes(range))return r.status(400).json({error:"Choose 24 hours, 1 month or 3 months"});
  const cutoff=new Date(Date.now()-days*86400000).toISOString();
- const user=optionalUser(q,r);if(user===undefined)return;const rows=user
+ const user=optionalUser(q,r);if(user===undefined)return;if(!user)touchSharedActivity();const selected=user?db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(user.id)?.selected_crop:null,crop=String((user?selected:q.query.crop)||"Maize"),band=cropBand(crop,user?.id);if(!band)return r.status(400).json({error:"Choose a crop from your catalog"});const rows=user
   ?db.prepare("SELECT temperature,humidity,created_at,synthetic FROM readings WHERE user_id=? AND created_at>? ORDER BY created_at,id").all(user.id,cutoff)
   :db.prepare("SELECT temperature,humidity,created_at,synthetic FROM readings WHERE user_id IS NULL AND created_at>? ORDER BY created_at,id").all(cutoff);
  const summary=Object.fromEntries(["temperature","humidity"].map(metric=>{
@@ -214,7 +286,7 @@ app.get("/api/readings/trends",(q,r)=>{
   for(let index=0;index<regularCount;index++)indices.add(Math.round(index*(rows.length-1)/(regularCount-1)));
   points=[...indices].sort((a,b)=>a-b).map(index=>rows[index]);
  }
- r.json({range,points,summary,count:rows.length});
+ r.json({range,points,summary,count:rows.length,crop,targetBands:{temperatureC:band.t,humidityPercent:band.h}});
 });
 app.get("/api/readings/export",(q,r)=>{const format=String(q.query.format||"csv"),u=optionalUser(q,r);if(u===undefined)return;if(!["csv","markdown"].includes(format))return r.status(400).json({error:"Choose CSV or Markdown export."});const rows=u?db.prepare("SELECT temperature,humidity,created_at,synthetic FROM readings WHERE user_id=? ORDER BY id").all(u.id):db.prepare("SELECT temperature,humidity,created_at,synthetic FROM readings WHERE user_id IS NULL ORDER BY id").all(),records=rows.map(x=>[x.created_at,x.temperature,x.humidity,x.synthetic?"Simulated":"Sensor"]);let body,type,filename;const estimateNote="Rough estimate from temperature and humidity only. Check your crop.";if(format==="csv"){const cell=x=>'"'+String(x).replaceAll('"','""')+'"';body=["timestamp,temperature_c,humidity_percent,source,estimate_note",...records.map(row=>row.map(cell).join(",")+","+cell(estimateNote))].join("\n");type="text/csv; charset=utf-8";filename="peo-yame-readings.csv";}else{body=["# Peo Yame readings","","| Timestamp | Temperature (°C) | Humidity (%) | Source | Estimate note |","|---|---:|---:|---|---|",...records.map(row=>"| "+row.map(x=>String(x).replaceAll("|","\\|")).join(" | ")+" | "+estimateNote.replaceAll("|","\\|")+" |")].join("\n");type="text/markdown; charset=utf-8";filename="peo-yame-readings.md";}r.setHeader("Content-Type",type);r.setHeader("Content-Disposition",'attachment; filename="'+filename+'"');r.send(body);});
 app.get("/api/sites",requireUser,(q,r)=>{const rows=db.prepare("SELECT * FROM sites WHERE user_id=? ORDER BY created_at DESC").all(q.user.id),day=86400000;r.json(rows.map(s=>{const c=cropBand(s.crop,q.user.id),latest=latestSiteReading(q.user.id,s.id),stale=!latest||Date.now()-Date.parse(latest.created_at)>900000,linkedSensors=db.prepare("SELECT id,external_id,name,last_seen_at FROM sensors WHERE user_id=? AND site_id=? ORDER BY external_id").all(q.user.id,s.id),outside=!!(latest&&c&&(latest.temperature<c.t[0]||latest.temperature>c.t[1]||latest.humidity<c.h[0]||latest.humidity>c.h[1])),due=!s.last_inspected_at||Date.now()-Date.parse(s.last_inspected_at)>=3*day;return {...s,sensors:linkedSensors,sensorCount:linkedSensors.length,lastInspectedAt:s.last_inspected_at,inspectionDue:outside||due,inspectionPrompt:outside?"Check your crop now":due?"Manual crop check due":"Inspection up to date",nextInspectionDueAt:s.last_inspected_at?new Date(Date.parse(s.last_inspected_at)+3*day).toISOString():now(),estimate:roughEstimate(latest,s.crop,stale,q.user.id)};}));});
@@ -227,9 +299,9 @@ app.delete("/api/sensors/:id/link",requireUser,(q,r)=>{const out=db.prepare("UPD
 app.post("/api/sensors/:id/readings",requireUser,(q,r)=>{const sensor=db.prepare("SELECT * FROM sensors WHERE id=? AND user_id=?").get(q.params.id,q.user.id);if(!sensor)return r.status(404).json({error:"Sensor not found."});const temperature=Number(q.body?.temperature),humidity=Number(q.body?.humidity);if(!Number.isFinite(temperature)||temperature< -40||temperature>85||!Number.isFinite(humidity)||humidity<0||humidity>100)return r.status(400).json({error:"Enter a temperature from -40 to 85 °C and humidity from 0 to 100 percent."});const stamp=now();db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,?)").run(q.user.id,sensor.site_id,sensor.id,temperature,humidity,stamp,sensor.synthetic);db.prepare("UPDATE sensors SET last_seen_at=? WHERE id=?").run(stamp,sensor.id);r.status(201).json({ok:true,createdAt:stamp,synthetic:!!sensor.synthetic});});
 app.post("/api/demo/sensor-reading",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const sensor=db.prepare("SELECT * FROM sensors WHERE user_id=? AND external_id=?").get(q.user.id,String(q.body?.sensorId||""));if(!sensor)return r.status(404).json({error:"Demo sensor not found."});const temperature=Number(q.body?.temperature??18),humidity=Number(q.body?.humidity??61);if(!Number.isFinite(temperature)||!Number.isFinite(humidity)||temperature< -40||temperature>85||humidity<0||humidity>100)return r.status(400).json({error:"Enter valid simulated sensor values."});const stamp=now();db.prepare("INSERT INTO readings(user_id,site_id,sensor_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,?,?,1)").run(q.user.id,sensor.site_id,sensor.id,temperature,humidity,stamp);db.prepare("UPDATE sensors SET last_seen_at=? WHERE id=?").run(stamp,sensor.id);r.status(201).json({ok:true,createdAt:stamp,synthetic:true,sensorId:sensor.external_id});});
 app.delete("/api/sites/:id",requireUser,(q,r)=>{const out=db.prepare("DELETE FROM sites WHERE id=? AND user_id=?").run(q.params.id,q.user.id);r.status(out.changes?200:404).json({ok:!!out.changes});});
-app.get("/api/alerts",(q,r)=>{const u=optionalUser(q,r);if(u===undefined)return;const key=u?.id||"shared-demo",rows=u?db.prepare("SELECT * FROM alerts WHERE user_id=? ORDER BY created_at DESC LIMIT 200").all(u.id):db.prepare("SELECT * FROM alerts WHERE user_id IS NULL ORDER BY created_at DESC LIMIT 200").all(),crop=db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(key)?.selected_crop||"Maize";r.json(rows.map(alert=>{const reading=u?db.prepare("SELECT temperature,humidity,created_at FROM readings WHERE user_id=? AND created_at<=? ORDER BY created_at DESC LIMIT 1").get(u.id,alert.created_at):db.prepare("SELECT temperature,humidity,created_at FROM readings WHERE user_id IS NULL AND created_at<=? ORDER BY created_at DESC LIMIT 1").get(alert.created_at),stale=!reading||Date.now()-Date.parse(reading.created_at)>900000;return {...alert,estimate:roughEstimate(reading,crop,stale,u?.id)};}));});
+app.get("/api/alerts",(q,r)=>{const u=optionalUser(q,r);if(u===undefined)return;if(!u)touchSharedActivity();const rows=u?db.prepare("SELECT * FROM alerts WHERE user_id=? ORDER BY created_at DESC LIMIT 200").all(u.id):db.prepare("SELECT * FROM alerts WHERE user_id IS NULL ORDER BY created_at DESC LIMIT 200").all(),selected=u?db.prepare("SELECT selected_crop FROM preferences WHERE user_id=?").get(u.id)?.selected_crop:null,crop=String(q.query.crop||selected||"Maize");r.json(rows.map(alert=>{const reading=u?db.prepare("SELECT temperature,humidity,created_at FROM readings WHERE user_id=? AND created_at<=? ORDER BY created_at DESC LIMIT 1").get(u.id,alert.created_at):db.prepare("SELECT temperature,humidity,created_at FROM readings WHERE user_id IS NULL AND created_at<=? ORDER BY created_at DESC LIMIT 1").get(alert.created_at),stale=!reading||Date.now()-Date.parse(reading.created_at)>900000;return {...alert,estimate:roughEstimate(reading,crop,stale,u?.id)};}));});
 app.patch("/api/alerts/:id",requireUser,(q,r)=>{db.prepare("UPDATE alerts SET reviewed=1 WHERE id=? AND user_id=?").run(q.params.id,q.user.id);r.json({ok:true});});
-app.post("/api/demo/breach",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const stamp=now();db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,1)").run(q.user.id,42,90,stamp);const alertId=id();db.prepare("INSERT INTO alerts VALUES(?,?,?,?,0,1)").run(alertId,q.user.id,"Conditions are outside the target band. Check your crop now.",stamp);r.status(201).json({ok:true,alertId});});
+app.post("/api/demo/breach",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const createdAt=writeDemoReading(q.user.id,false);if(!createdAt)return r.status(409).json({error:"Register a synthetic sensor first."});r.status(201).json({ok:true,createdAt});});
 app.post("/api/demo/reading",requireUser,(q,r)=>{if(!q.user.is_demo)return r.sendStatus(404);const t=Number(q.body?.temperature),h=Number(q.body?.humidity);if(!Number.isFinite(t)||!Number.isFinite(h))return r.status(400).json({error:"Enter numeric temperature and humidity."});db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(?,?,?,?,1)").run(q.user.id,t,h,now());r.status(201).json({ok:true});});
 const SHORT_ALPHABET="0123456789ABCDEFGHJKMNPQRSTVWXYZ";const normalizeShort=s=>String(s||"").toUpperCase().replace(/[\s-]/g,"").replace(/O/g,"0").replace(/[IL]/g,"1").replace(/U/g,"V");const pairingBy=(raw,flow)=>{const v=String(raw||"");return db.prepare("SELECT * FROM pairings WHERE id_hash=? AND flow=?").get(hash(v),flow)||db.prepare("SELECT * FROM pairings WHERE short_code_hash=? AND flow=?").get(hash(normalizeShort(v)),flow);};
 function pairingState(p){if(!p)return "missing";if(Date.parse(p.expires_at)<Date.now()&& !["completed","denied","expired"].includes(p.state)){const changed=db.prepare("UPDATE pairings SET state='expired' WHERE id_hash=? AND state NOT IN ('completed','denied','expired')").run(p.id_hash);if(changed.changes)recordSecurityEvent(p.owner_user_id||p.device_user_id,p.flow+"_qr_expired");return "expired";}return p.state;}
@@ -272,7 +344,22 @@ purgeExpired();setInterval(purgeExpired,15*60000).unref();
 const dashboardHtml=fs.readFileSync(path.resolve(root,"../public/index.html"),"utf8");
 app.get(["/","/index.html"],(_req,res)=>res.type("html").send(dashboardHtml.replaceAll("__CSP_NONCE__",res.locals.cspNonce)));
 app.use(express.static(path.resolve(root,"../public")));
-if(db.prepare("SELECT COUNT(*) AS n FROM readings WHERE user_id IS NULL").get().n===0){const seed=db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(NULL,?,?,?,1)");for(let i=24;i>=0;i--)seed.run(18+Math.sin(i/3)*2,61+Math.cos(i/4)*5,new Date(Date.now()-i*3600000).toISOString());}
+function seedSharedDemo(){
+ const newest=db.prepare("SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1").get();
+ if(newest&&Date.now()-Date.parse(newest.created_at)<=3600000)return;
+ db.transaction(()=>{
+  db.prepare("DELETE FROM readings WHERE user_id IS NULL AND synthetic=1").run();
+  db.prepare("DELETE FROM alerts WHERE user_id IS NULL AND synthetic=1").run();
+  const insertReading=db.prepare("INSERT INTO readings(user_id,temperature,humidity,created_at,synthetic) VALUES(NULL,?,?,?,1)");
+  for(let hour=2160;hour>=0;hour--){const timestamp=Date.now()-hour*3600000;insertReading.run(19.2+Math.sin(hour/7)*1.8+Math.cos(hour/19)*0.4,62+Math.cos(hour/8)*5+Math.sin(hour/21)*1.2,new Date(timestamp).toISOString());}
+  const insertAlert=db.prepare("INSERT INTO alerts VALUES(?,?,?,?,?,1)");
+  for(const item of [{day:32,reviewed:1,temp:27,humidity:72},{day:18,reviewed:1,temp:11,humidity:46},{day:6,reviewed:0,temp:26,humidity:74}]){
+   const timestamp=new Date(Date.now()-item.day*86400000).toISOString();
+   insertAlert.run(id(),null,"Maize · Shared demo store · Simulated reading "+item.temp+" °C / "+item.humidity+" % outside target bands 12–25 °C / 50–70 %.",timestamp,item.reviewed);
+  }
+ })();
+}
+seedSharedDemo();
 app.get("/api/events",(req,res)=>{const user=currentUser(req);if((req.get("authorization")||req.get("cookie"))&&!user)return res.sendStatus(401);res.setHeader("Content-Type","text/event-stream");res.setHeader("Cache-Control","no-cache, no-transform");res.setHeader("Connection","keep-alive");res.setHeader("X-Accel-Buffering","no");res.flushHeaders?.();const client={userId:user?.id??null,tokenHash:user?.token_hash??null,res,timer:null};eventClients.add(client);res.write("event: connected\ndata: {}\n\n");client.timer=setInterval(()=>{if(client.tokenHash&&!sessionActive(client.tokenHash)){clearInterval(client.timer);eventClients.delete(client);res.end();return;}res.write(": ping\n\n");},20000);req.on("close",()=>{clearInterval(client.timer);eventClients.delete(client);});});
 const port=Number(process.env.PORT||3000),host=process.env.HOST||"127.0.0.1",server=app.listen(port,host);
 if(host==="127.0.0.1"&&process.env.PEO_YAME_LAN_HOST&&process.env.PEO_YAME_LAN_HOST!==host){const lanServer=app.listen(port,process.env.PEO_YAME_LAN_HOST);lanServer.on("error",error=>{console.error("Could not bind the Peo Yame LAN listener:",error);server.close(()=>process.exit(1));});}

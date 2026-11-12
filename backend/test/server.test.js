@@ -40,12 +40,14 @@ test("web assets use external scripts and contain no inline styles or handlers",
  const html=fs.readFileSync(new URL("../public/index.html",import.meta.url),"utf8");
  const app=fs.readFileSync(new URL("../public/app.js",import.meta.url),"utf8");
  const demo=fs.readFileSync(new URL("../public/guided-demo.js",import.meta.url),"utf8");
+ const experience=fs.readFileSync(new URL("../public/demo-experience.js",import.meta.url),"utf8");
  const styles=fs.readFileSync(new URL("../public/styles.css",import.meta.url),"utf8");
  const demoStyles=fs.readFileSync(new URL("../public/guided-demo.css",import.meta.url),"utf8");
- for(const label of ["Overview","Trends","My Crops","Alerts","Settings","Explore Demo mode"])assert.ok((html+app).includes(label),label);
+ for(const label of ["Overview","Trends","My Crops","Alerts","Settings","Demo mode"])assert.ok((html+app).includes(label),label);
+ assert.doesNotMatch(html+app,/Explore Demo mode/);
  assert.match(app,/Check your crops by hand every few days/);
  assert.match(app,/I checked my crop/);
- assert.match(app,/does not verify crop safety/);
+ assert.match(app,/does not check the crop itself/);
  assert.match(app,/Add crop to monitor/);
  assert.match(app,/Rough storage estimate:/);
  assert.match(app,/x\.estimate\.rangeWeeks/);
@@ -58,11 +60,39 @@ test("web assets use external scripts and contain no inline styles or handlers",
  assert.doesNotMatch(app,/\sstyle\s*=/i);
  assert.doesNotMatch(demo,/[\s]on[a-z]+\s*=/i);
  assert.doesNotMatch(demo,/\sstyle\s*=/i);
+ assert.doesNotMatch(experience,/[\s]on[a-z]+\s*=/i);
+ assert.doesNotMatch(experience,/\sstyle\s*=/i);
  assert.match(html,/href="\/styles\.css"/);
  assert.match(html,/href="\/guided-demo\.css"/);
+ assert.match(html,/src="\/demo-experience\.js"/);
  assert.ok(styles.length>0&&demoStyles.length>0);
  new vm.Script(app);
  new vm.Script(demo);
+ new vm.Script(experience);
+});
+
+test("web demo presentation helpers share gauge, axis, age and address rules", () => {
+ const source=fs.readFileSync(new URL("../public/demo-experience.js",import.meta.url),"utf8");
+ const window={addEventListener(){}};
+ vm.runInNewContext(source,{window,document:{},URL,console});
+ const {gaugePosition,niceTicks,maskedAddress,readingAgeCaption}=window.PeoYameDemoMath;
+ const inBand=gaugePosition(15,12,16);
+ assert.equal(inBand.state,"In range");
+ assert.ok(Math.abs(inBand.fraction-.625)<.001);
+ assert.ok(Math.abs(inBand.bandStart-.25)<.001);
+ assert.ok(Math.abs(inBand.bandEnd-.75)<.001);
+ assert.equal(gaugePosition(30,12,16).state,"Above target");
+ assert.equal(gaugePosition(-20,12,16).state,"Below target");
+ assert.equal(gaugePosition(null,12,16).state,"No reading");
+ assert.equal(gaugePosition(0,0,20,true).bandStart,0);
+ for(const [low,high] of [[11.3,18.7],[45,93],[.2,.9]]){
+  const ticks=niceTicks(low,high);
+  assert.ok(ticks.length>=4&&ticks.length<=6);
+  assert.ok(ticks[0]<=low&&ticks[ticks.length-1]>=high);
+ }
+ assert.equal(maskedAddress("http://192.168.1.42:3000"),"http://192.168.1.•••:3000");
+ assert.equal(readingAgeCaption(8),"Simulated · updated 8 s ago");
+ assert.equal(readingAgeCaption(61),"Simulated readings are paused");
 });
 
 test("reading exports return the selected format and account-owned rows",async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),"py-export-test-")),port=49000+Math.floor(Math.random()*1000),child=spawn(process.execPath,["src/server.js"],{cwd:new URL("..",import.meta.url),env:{...process.env,PORT:String(port),HOST:"127.0.0.1",PEO_YAME_DATA_DIR:dir,PEO_YAME_DEMO_ENABLED:"true"},stdio:"inherit"}),base="http://127.0.0.1:"+port+"/api";try{let ready=false;for(let i=0;i<40;i++){try{if((await fetch(base+"/health")).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,250))}assert.ok(ready,"backend did not start");let response=await fetch(base+"/demo/start",{method:"POST",headers:{"content-type":"application/json"},body:"{}"}),demo=await response.json(),auth={authorization:"Bearer "+demo.token};response=await fetch(base+"/demo/sensor-reading",{method:"POST",headers:{...auth,"content-type":"application/json"},body:JSON.stringify({sensorId:"PY-DEMO-1",temperature:42,humidity:90})});assert.equal(response.status,201);response=await fetch(base+"/readings/export?format=csv",{headers:auth});assert.equal(response.status,200);assert.match(response.headers.get("content-type"),/text\/csv/);const csv=await response.text();assert.match(csv,/42/);assert.match(csv,/estimate_note/);assert.match(csv,/Rough estimate from temperature and humidity only\. Check your crop\./);response=await fetch(base+"/readings/export?format=markdown",{headers:auth});assert.match(response.headers.get("content-type"),/text\/markdown/);const markdown=await response.text();assert.match(markdown,/\| Timestamp \|/);assert.match(markdown,/Estimate note \|/);assert.match(markdown,/Rough estimate from temperature and humidity only\. Check your crop\./);response=await fetch(base+"/readings/export?format=html",{headers:auth});assert.equal(response.status,400);}finally{if(child.exitCode===null&&child.signalCode===null)child.kill("SIGTERM");if(child.exitCode===null&&child.signalCode===null)await new Promise(resolve=>{const timer=setTimeout(resolve,3000);child.once("exit",()=>{clearTimeout(timer);resolve()})});fs.rmSync(dir,{recursive:true,force:true})}});

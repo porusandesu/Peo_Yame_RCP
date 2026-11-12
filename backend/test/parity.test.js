@@ -5,9 +5,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { openDatabase } from "../src/database.js";
+import { databasePath, openDatabase } from "../src/database.js";
 
-async function startBackend(t, { lanHost = "" } = {}) {
+async function startBackend(t, { lanHost = "", extraEnv = {} } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "peo-yame-parity-"));
   const port = 35000 + Math.floor(Math.random() * 10000);
   const key = crypto.randomBytes(32).toString("hex");
@@ -19,6 +19,7 @@ async function startBackend(t, { lanHost = "" } = {}) {
     PEO_YAME_DB_KEY: key,
     PEO_YAME_DEMO_ENABLED: "true",
     PEO_YAME_LAN_HOST: lanHost,
+    ...extraEnv,
   };
   let child = spawn(process.execPath, ["src/server.js"], { cwd: new URL("..", import.meta.url), env, stdio: "ignore" });
   const base = `http://127.0.0.1:${port}/api`;
@@ -99,6 +100,95 @@ function currentTotp(secret) {
     (digest[offset + 3] & 255)) % 1000000;
   return String(code).padStart(6, "0");
 }
+
+test("Instant Demo readings vary, stay bounded, and stop feeding after anonymous activity ends", async (t) => {
+  const { base, directory, key } = await startBackend(t, {
+    extraEnv: { PEO_YAME_SHARED_FEED_MS: "200", PEO_YAME_SHARED_IDLE_MS: "1000" },
+  });
+  const readStatus = () => fetch(`${base}/status?crop=Maize`).then((response) => response.json());
+  const first = await readStatus();
+  assert.equal(first.stale, false);
+  assert.notDeepEqual([first.reading.temperature, first.reading.humidity], [18, 66]);
+  await new Promise((resolve) => setTimeout(resolve, 650));
+  const refreshed = await readStatus();
+  assert.notEqual(refreshed.reading.createdAt, first.reading.createdAt);
+  assert.ok(
+    refreshed.reading.temperature !== first.reading.temperature ||
+      refreshed.reading.humidity !== first.reading.humidity,
+  );
+  const database = openDatabase(databasePath(directory), key);
+  try {
+    const count = database.prepare(
+      "SELECT COUNT(*) AS count FROM readings WHERE user_id IS NULL AND synthetic=1",
+    ).get().count;
+    assert.ok(count <= 2500);
+    const latest = database.prepare(
+      "SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1",
+    ).get().created_at;
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    const afterIdle = database.prepare(
+      "SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1",
+    ).get().created_at;
+    assert.equal(afterIdle, latest);
+  } finally {
+    database.close();
+  }
+});
+
+test("Showcase and Walkthrough seed isolated demos while keeping anonymous actions read-only", async (t) => {
+  const { base } = await startBackend(t);
+  const showcaseResponse = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ profile: "showcase" }),
+  });
+  assert.equal(showcaseResponse.status, 201);
+  const showcase = await showcaseResponse.json();
+  assert.equal(showcase.profile, "showcase");
+  const showcaseAuth = { authorization: `Bearer ${showcase.token}` };
+  const sites = await fetch(`${base}/sites`, { headers: showcaseAuth }).then((response) => response.json());
+  const sensors = await fetch(`${base}/sensors`, { headers: showcaseAuth }).then((response) => response.json());
+  const alerts = await fetch(`${base}/alerts`, { headers: showcaseAuth }).then((response) => response.json());
+  const trends = await fetch(`${base}/readings/trends?range=3months`, { headers: showcaseAuth }).then((response) => response.json());
+  assert.equal(sites.length, 2);
+  assert.equal(sensors.length, 3);
+  assert.equal(sensors.filter((sensor) => sensor.siteId).length, 2);
+  assert.equal(alerts.length, 3);
+  assert.ok(trends.count >= 1400);
+  const checklist = await fetch(`${base}/demo/checklist`, { headers: showcaseAuth }).then((response) => response.json());
+  assert.ok(checklist.steps.some((step) => step.auto && step.completed));
+  assert.equal((await fetch(`${base}/demo/checklist`)).status, 401);
+  assert.equal((await fetch(`${base}/demo/breach`, { method: "POST" })).status, 401);
+  assert.equal((await fetch(`${base}/alerts/unknown`, { method: "PATCH" })).status, 401);
+  const simulation = await fetch(`${base}/demo/simulation`, { headers: showcaseAuth }).then((response) => response.json());
+  assert.equal(simulation.autoAlerts, true);
+  assert.equal((await fetch(`${base}/demo/simulation/settings`, {
+    method: "POST",
+    headers: { ...showcaseAuth, "content-type": "application/json" },
+    body: JSON.stringify({ autoAlerts: false }),
+  })).status, 200);
+  assert.equal((await fetch(`${base}/demo/simulation`, { headers: showcaseAuth }).then((response) => response.json())).autoAlerts, false);
+  assert.equal((await fetch(`${base}/demo/simulation/start`, { method: "POST", headers: showcaseAuth })).status, 200);
+  const firstTick = await fetch(`${base}/status`, { headers: showcaseAuth }).then((response) => response.json());
+  assert.equal(firstTick.statusLabel, "In range");
+  assert.equal((await fetch(`${base}/demo/breach`, { method: "POST", headers: showcaseAuth })).status, 201);
+  assert.equal((await fetch(`${base}/demo/simulation/stop`, { method: "POST", headers: showcaseAuth })).status, 200);
+
+  const walkthroughResponse = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ profile: "walkthrough" }),
+  });
+  assert.equal(walkthroughResponse.status, 201);
+  const walkthrough = await walkthroughResponse.json();
+  const walkthroughAuth = { authorization: `Bearer ${walkthrough.token}` };
+  assert.equal(walkthrough.profile, "walkthrough");
+  assert.equal((await fetch(`${base}/sites`, { headers: walkthroughAuth }).then((response) => response.json())).length, 0);
+  const walkthroughSensors = await fetch(`${base}/sensors`, { headers: walkthroughAuth }).then((response) => response.json());
+  assert.equal(walkthroughSensors.length, 1);
+  assert.equal(walkthroughSensors[0].externalId, "PY-DEMO-1");
+  assert.equal((await fetch(`${base}/readings/trends?range=month`, { headers: walkthroughAuth }).then((response) => response.json())).count, 721);
+});
 
 test("catalog is complete, custom crops are private, and selections persist and stream", async (t) => {
   const { base, restart } = await startBackend(t);
@@ -596,11 +686,11 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   assert.equal(status.isDemo, true);
   assert.equal(status.reading.synthetic, true);
   assert.ok(Date.parse(status.reading.createdAt) >= startedAt - 1000);
-  const generatedAlerts = await fetch(`${base}/alerts`, {
+  assert.equal(status.statusLabel, "In range");
+  const initialAlerts = await fetch(`${base}/alerts`, {
     headers: { authorization: `Bearer ${browserSession.token}` },
   }).then((response) => response.json());
-  assert.equal(generatedAlerts[0].synthetic, 1);
-  assert.match(generatedAlerts[0].message, /outside the Maize target band/);
+  assert.equal(initialAlerts.length, 0);
   await new Promise((resolve) => setTimeout(resolve, simulation.intervalSeconds * 1000 + 150));
   const refreshedStatus = await fetch(`${base}/status`, {
     headers: { authorization: `Bearer ${browserSession.token}` },
@@ -612,6 +702,12 @@ test("guided demo live simulation syncs readings to a second QR session", async 
   }).then((response) => response.json());
   assert.equal(sensors[0].online, true);
   assert.equal(sensors[0].latestReading.synthetic, 1);
+  await new Promise((resolve) => setTimeout(resolve, simulation.intervalSeconds * 5 * 1000 + 150));
+  const generatedAlerts = await fetch(`${base}/alerts`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  }).then((response) => response.json());
+  assert.equal(generatedAlerts[0].synthetic, 1);
+  assert.match(generatedAlerts[0].message, /outside the Maize target band/);
   assert.equal((await fetch(`${base}/demo/simulation/stop`, {
     method: "POST",
     headers: { authorization: `Bearer ${browserSession.token}` },
@@ -654,9 +750,9 @@ test("guided demo exposes a one-time password for real TOTP setup and persists i
   const rotatedAuth = { authorization: `Bearer ${rotatedDemo.token}`, "content-type": "application/json" };
 
   const initial = await fetch(`${base}/demo/checklist`, { headers: rotatedAuth }).then((result) => result.json());
-  assert.equal(initial.steps.length, 16);
+  assert.equal(initial.steps.length, 12);
   assert.equal(initial.steps[0].completed, false);
-  assert.equal((await fetch(`${base}/demo/checklist/1`, {
+  assert.equal((await fetch(`${base}/demo/checklist/5`, {
     method: "PATCH",
     headers: rotatedAuth,
     body: JSON.stringify({ completed: true }),
