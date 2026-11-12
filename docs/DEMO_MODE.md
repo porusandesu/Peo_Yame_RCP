@@ -112,10 +112,14 @@ request as active.
 
 ## Evidence and known limits
 
-- **Source inspection:** the current branch implements the behavior described
-  above; the working diff still requires review.
-- **Automated test:** new backend and client regressions are being added, but
-  this changeset has not been run locally or through GitHub Actions.
+- **Source inspection:** the `exe-work` changes at `ef61f46` add explicit
+  tray web-app launch, Guided Demo pairing guidance, phone-side QR failure
+  handling, and integration coverage for both QR directions and live sync.
+- **Automated test:** GitHub Actions run
+  [v128](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43309830523)
+  passed backend API tests, Android tests/analyze/release packaging, and
+  Windows launch, restart, installer, and encrypted-storage checks. The
+  integration test exercises both QR directions and cross-session live sync.
 - **Manual observation:** Windows tray use, QR camera prompts, visual layout,
   screen-reader/keyboard behavior, and real Wi-Fi reachability remain **Not
   verified**.

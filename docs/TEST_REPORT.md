@@ -1,5 +1,20 @@
 # Test report
 
+## GitHub Actions v128 — demo QR pairing and tray launch passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43309830523
+Commit: `ef61f46` (Fix demo QR pairing and tray launch).
+
+- **Backend:** API tests passed, including the integration test signing a
+  Guided Demo phone in through Flow A, using that phone for Flow B, and
+  verifying both sessions receive simulator events and see changing readings.
+- **Android:** tests, analysis, release APK build, and packaged launcher
+  verification passed; the APK artifact was uploaded.
+- **Windows:** launch, restart/reset, installer, launch-from-installer, and
+  encrypted-storage checks passed; the Windows artifact was uploaded.
+- No local application builds or tests were run. Physical camera, Wi-Fi,
+  tray-interaction, and visual/accessibility checks remain unverified.
+
 ## GitHub Actions v126 — all build checks passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43300121532
