@@ -1,5 +1,18 @@
 # Test report
 
+## GitHub Actions v130 — mobile backend QR setup guidance passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43324180007
+Commit: `6edaa37` (Clarify mobile backend QR setup).
+
+- **Backend:** API tests passed.
+- **Android:** widget tests, analysis, release APK build, and packaged launcher
+  verification passed. Artifact `Peo Yame v130.apk` was uploaded.
+- **Windows:** launch, restart/reset, installer, launch-from-installer, and
+  encrypted-storage checks passed.
+- Physical camera scanning and real Wi-Fi/firewall reachability remain
+  unverified.
+
 ## GitHub Actions v128 — demo QR pairing and tray launch passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43309830523
