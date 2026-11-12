@@ -54,6 +54,8 @@ void main() {
     await tester.pumpWidget(const PeoYameApp());
     expect(find.text('Demo mode'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Scan sign-in or backend QR'), findsOneWidget);
+    expect(find.textContaining('open the Peo Yame web dashboard'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('Backend address'), findsNothing);
     expect(find.text('Connect to backend'), findsNothing);

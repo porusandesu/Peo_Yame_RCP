@@ -107,6 +107,12 @@ request as active.
   session token or pairing code. Mobile validates the address and asks before
   switching. Backend configuration is not shown on the Android Welcome page;
   its QR sign-in path accepts a backend QR or a manually entered address/code.
+- **Finding the backend QR:** on the PC web dashboard, choose **Demo mode**
+  from the welcome screen, then open Settings → **Backend connection** →
+  **Show backend connection QR**. On Android Welcome, tap **Scan sign-in or
+  backend QR** and allow camera access. The Android emulator default
+  `10.0.2.2:3000` is not the physical phone's PC address; use the QR to get the
+  correct private-network address and port.
 - **Address privacy:** network addresses are partially hidden by default in
   approval prompts and presenter preflight. Reveal is an explicit user action.
 
