@@ -1,5 +1,18 @@
 # Test report
 
+## GitHub Actions v104 — demo QR lifetime passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43200357299
+Commit: `d3488d6` (Cap demo QR sessions at demo lifetime).
+
+- Backend API tests passed, including the two-hour absolute lifetime for
+  QR-created Guided Demo sessions and the 30-minute idle timeout.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer, encrypted
+  storage, and uninstall checks passed.
+- No local application builds or tests were run.
+
 ## GitHub Actions v103 — account/IP lockout and demo sync passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43199378655

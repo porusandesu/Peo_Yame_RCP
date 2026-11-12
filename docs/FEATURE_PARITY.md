@@ -1,25 +1,28 @@
 # Feature parity status
 
-## Session security and demo sync — v103 verified; QR lifetime follow-up pending
+## Session security and demo sync — v104 verified
 
 The v100 browser-origin, CSRF, QR, and authenticator hardening passed
 GitHub Actions; v102 (run `43197194366`, commit `6aaf89e`) additionally verified
 30-minute idle expiry for password and phone QR sessions across backend,
 Android, and Windows jobs. v103 (run `43199378655`, commit `fa6cf58`) passed
 account+IP lockout and shared Guided Demo simulation tests, plus Android and
-Windows checks. The source applies 30-minute idle expiry to every session type
-and closes idle event streams.
+Windows checks. v104 (run `43200357299`, commit `d3488d6`) verified the
+two-hour absolute lifetime for QR-created Guided Demo sessions across all
+three jobs. The source applies 30-minute idle expiry to every session type and
+closes idle event streams.
 
 Remaining audit gaps: the dashboard still disables CSP because it uses inline
 scripts and handlers; the security log is incomplete and not exposed in
-Settings; and authenticator changes do not rotate or revoke existing sessions.
+Settings; and authenticator changes do not revoke other active sessions.
 The verified source adds five-failure phone+IP lockout for 15 minutes within a
 rolling 15-minute window, plus a server-side 10-second Guided Demo simulator,
-QR sharing across mobile/web, and event-driven refresh for every screen. A
-follow-up caps QR-created demo sessions at the demo profile's two-hour
-absolute lifetime; CI verification is pending. Windows Firewall behavior,
-real-device LAN access, and manual visual/accessibility checks remain
-unverified. CI passing is not an independent security review.
+QR sharing across mobile/web, and event-driven refresh for every screen. QR
+sessions are capped at the demo profile's two-hour absolute lifetime. A
+follow-up now revokes other sessions when the authenticator is enabled or
+disabled; CI verification is pending. Windows Firewall behavior, real-device
+LAN access, and manual visual/accessibility checks remain unverified. CI
+passing is not an independent security review.
 
 The audit notes below include historical pending statuses; the v100 result
 above supersedes those entries for the latest source.

@@ -1,12 +1,15 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (shared demo sync verified)
+## Latest status — 2026-11-12 (demo QR lifetime verified)
 
 The source audit fixes are pushed to `exe-work`; GitHub Actions v102
 (`43197194366`) verified session idle expiry and v103
 (`43199378655`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43199378655)
 passed backend, Android, and Windows jobs for account+IP lockout and shared
-Guided Demo live sync. No local application builds or tests were run.
+Guided Demo live sync. v104
+(`43200357299`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43200357299)
+verified the two-hour lifetime for QR-created Guided Demo sessions across
+backend, Android, and Windows. No local application builds or tests were run.
 
 The audit tightened browser origin and CSRF checks, added cookie-based web
 session restoration/idle expiry, required password re-authentication for
@@ -17,9 +20,9 @@ No seeded test account exists; use Instant Demo or register an account.
 
 Open security and verification gaps remain: the dashboard CSP is disabled for
 its inline scripts/handlers; the security log is partial and not shown in
-Settings; authenticator changes do not rotate or revoke existing sessions.
-A follow-up caps QR-created demo sessions at two hours to match the demo
-profile's absolute lifetime; CI is pending. Windows Firewall, real-device LAN
+Settings; authenticator changes do not revoke other sessions. A source
+follow-up now revokes other sessions on authenticator changes while retaining
+the current verified session; CI is pending. Windows Firewall, real-device LAN
 access, and manual visual/accessibility checks are not verified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.

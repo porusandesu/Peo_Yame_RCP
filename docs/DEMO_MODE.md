@@ -66,7 +66,7 @@ the backend process restarts.
 The live simulator, QR sharing, event-driven screen refresh, and demo-session
 idle policy are implemented in the active source. GitHub Actions v103 passed
 backend tests for live reading generation and delivery to a second QR session,
-as well as Android and Windows checks. A follow-up caps QR-created demo
-sessions at the demo profile's two-hour absolute lifetime; CI verification is
-pending. Visual presentation and physical-device behavior have not yet been
-manually verified.
+as well as Android and Windows checks. GitHub Actions v104 verified that
+QR-created demo sessions have the demo profile's two-hour absolute lifetime.
+Visual presentation and physical-device behavior have not yet been manually
+verified.

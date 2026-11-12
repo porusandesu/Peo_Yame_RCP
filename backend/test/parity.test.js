@@ -199,11 +199,26 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   });
   assert.equal(setupResponse.status, 200);
   const setup = await setupResponse.json();
-  assert.equal((await fetch(`${base}/authenticator/enable`, {
+  const secondLogin = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: "74567890", password: "authenticator-password" }),
+  });
+  assert.equal(secondLogin.status, 200);
+  const secondSession = await secondLogin.json();
+  const enabledResponse = await fetch(`${base}/authenticator/enable`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
-  })).status, 200);
+  });
+  assert.equal(enabledResponse.status, 200);
+  assert.equal((await enabledResponse.json()).revokedSessions, 1);
+  const activeSessions = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());
+  assert.equal(activeSessions.length, 1);
+  assert.equal(activeSessions[0].totpVerified, true);
+  assert.equal((await fetch(`${base}/status`, {
+    headers: { authorization: `Bearer ${secondSession.token}` },
+  })).status, 401);
   assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 409);
 
   const missingCode = await fetch(`${base}/qr/phone/create`, {
@@ -220,6 +235,31 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
     body: JSON.stringify({ password: "authenticator-password", totpCode: currentTotp(setup.secret) }),
   });
   assert.equal(accepted.status, 200);
+
+  const thirdLogin = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      phone: "74567890",
+      password: "authenticator-password",
+      totpCode: currentTotp(setup.secret),
+    }),
+  });
+  assert.equal(thirdLogin.status, 200);
+  const thirdSession = await thirdLogin.json();
+  const disabledResponse = await fetch(`${base}/authenticator/disable`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "authenticator-password", code: currentTotp(setup.secret) }),
+  });
+  assert.equal(disabledResponse.status, 200);
+  assert.equal((await disabledResponse.json()).revokedSessions, 1);
+  assert.equal((await fetch(`${base}/status`, {
+    headers: { authorization: `Bearer ${thirdSession.token}` },
+  })).status, 401);
+  const sessionsAfterDisable = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());
+  assert.equal(sessionsAfterDisable.length, 1);
+  assert.equal(sessionsAfterDisable[0].totpVerified, false);
 });
 
 test("rejects foreign web origins and requires CSRF proof for cookie-authenticated changes", async (t) => {
