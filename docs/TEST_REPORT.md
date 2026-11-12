@@ -1,5 +1,16 @@
 # Test report
 
+## GitHub Actions v106 — authenticator revocation test hit rate limit
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43202684795
+Commit: `d6e841d` (Preserve TOTP sign-in verification semantics).
+
+- Windows and Android jobs passed; backend tests passed except the expanded
+  authenticator test, which exhausted the existing per-account TOTP attempt
+  limit while also exercising QR pairing.
+- The revocation checks are now isolated in a separate account/test from the
+  QR rate-limit assertions. Follow-up CI is pending.
+
 ## GitHub Actions v105 — authenticator revocation regression needs follow-up
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43201617670

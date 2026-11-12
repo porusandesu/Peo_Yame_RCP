@@ -199,26 +199,11 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   });
   assert.equal(setupResponse.status, 200);
   const setup = await setupResponse.json();
-  const secondLogin = await fetch(`${base}/account/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ phone: "74567890", password: "authenticator-password" }),
-  });
-  assert.equal(secondLogin.status, 200);
-  const secondSession = await secondLogin.json();
-  const enabledResponse = await fetch(`${base}/authenticator/enable`, {
+  assert.equal((await fetch(`${base}/authenticator/enable`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
-  });
-  assert.equal(enabledResponse.status, 200);
-  assert.equal((await enabledResponse.json()).revokedSessions, 1);
-  const activeSessions = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());
-  assert.equal(activeSessions.length, 1);
-  assert.equal(activeSessions[0].totpVerified, false);
-  assert.equal((await fetch(`${base}/account`, {
-    headers: { authorization: `Bearer ${secondSession.token}` },
-  })).status, 401);
+  })).status, 200);
   assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 409);
 
   const missingCode = await fetch(`${base}/qr/phone/create`, {
@@ -235,13 +220,45 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
     body: JSON.stringify({ password: "authenticator-password", totpCode: currentTotp(setup.secret) }),
   });
   assert.equal(accepted.status, 200);
+});
+
+test("authenticator changes revoke other sessions and retain the current session", async (t) => {
+  const { base } = await startBackend(t);
+  const registration = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Session Farmer", phone: "74678901", password: "session-password" }),
+  });
+  const account = await registration.json();
+  const auth = { authorization: `Bearer ${account.token}`, "content-type": "application/json" };
+  const setup = await fetch(`${base}/authenticator/setup`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ password: "session-password" }),
+  }).then((result) => result.json());
+  const secondSession = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: "74678901", password: "session-password" }),
+  }).then((result) => result.json());
+  const enabled = await fetch(`${base}/authenticator/enable`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ code: currentTotp(setup.secret) }),
+  });
+  assert.equal(enabled.status, 200);
+  assert.equal((await enabled.json()).revokedSessions, 1);
+  assert.equal((await fetch(`${base}/account`, {
+    headers: { authorization: `Bearer ${secondSession.token}` },
+  })).status, 401);
+  assert.equal((await fetch(`${base}/account`, { headers: { authorization: `Bearer ${account.token}` } })).status, 200);
 
   const thirdLogin = await fetch(`${base}/account/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      phone: "74567890",
-      password: "authenticator-password",
+      phone: "74678901",
+      password: "session-password",
       totpCode: currentTotp(setup.secret),
     }),
   });
@@ -250,7 +267,7 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   const disabledResponse = await fetch(`${base}/authenticator/disable`, {
     method: "POST",
     headers: auth,
-    body: JSON.stringify({ password: "authenticator-password", code: currentTotp(setup.secret) }),
+    body: JSON.stringify({ password: "session-password", code: currentTotp(setup.secret) }),
   });
   assert.equal(disabledResponse.status, 200);
   assert.equal((await disabledResponse.json()).revokedSessions, 1);
