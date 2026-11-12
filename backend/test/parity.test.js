@@ -364,7 +364,7 @@ test("login locks the phone and IP after five failures without locking other acc
 });
 
 test("guided demo live simulation syncs readings to a second QR session", async (t) => {
-  const { base } = await startBackend(t);
+  const { base, directory, key } = await startBackend(t);
   const demo = await fetch(`${base}/demo/start`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -401,6 +401,13 @@ test("guided demo live simulation syncs readings to a second QR session", async 
     body: JSON.stringify({ codeId: pairing.codeId, verifier }),
   }).then((response) => response.json());
   assert.equal(browserSession.isDemo, true);
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  const browserTokenHash = crypto.createHash("sha256").update(browserSession.token).digest("hex");
+  const browserSessionRow = encrypted.prepare("SELECT idle_timeout_minutes,expires_at FROM sessions WHERE token_hash=?").get(browserTokenHash);
+  assert.equal(browserSessionRow.idle_timeout_minutes, 30);
+  const demoTimeRemaining = Date.parse(browserSessionRow.expires_at) - Date.now();
+  assert.ok(demoTimeRemaining > 116 * 60000 && demoTimeRemaining <= 2 * 60 * 60000);
+  encrypted.close();
 
   const mobileAbort = new AbortController();
   const webAbort = new AbortController();

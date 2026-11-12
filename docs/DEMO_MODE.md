@@ -38,6 +38,11 @@ same live data on both:
 - Start the live simulation from either device. The other signed-in device
   receives the same readings and updates its visible screen.
 
+For a temporary demo profile, creating a phone QR skips the password
+re-check because its generated password is not available to the user. The
+one-time code, short expiry, match-code verification, and explicit approval
+remain in place. Normal accounts still require password re-authentication.
+
 Starting Guided Demo independently on both devices creates two different
 temporary users, so their readings do not sync. Starting the simulation again
 for the same user is idempotent. Either device can stop it for both. The
@@ -59,7 +64,9 @@ the backend process restarts.
 ## Implementation and verification
 
 The live simulator, QR sharing, event-driven screen refresh, and demo-session
-idle policy are implemented in the active source. Backend tests cover live
-reading generation and delivery to a second QR session. GitHub Actions
-verification is pending; visual presentation and physical-device behavior have
-not yet been manually verified.
+idle policy are implemented in the active source. GitHub Actions v103 passed
+backend tests for live reading generation and delivery to a second QR session,
+as well as Android and Windows checks. A follow-up caps QR-created demo
+sessions at the demo profile's two-hour absolute lifetime; CI verification is
+pending. Visual presentation and physical-device behavior have not yet been
+manually verified.

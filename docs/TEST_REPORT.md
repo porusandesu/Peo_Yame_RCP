@@ -1,5 +1,19 @@
 # Test report
 
+## GitHub Actions v103 — account/IP lockout and demo sync passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43199378655
+Commit: `fa6cf58` (Add live sync to Guided Demo).
+
+- Backend API tests passed for five-failure phone+IP lockout, account
+  isolation, QR-shared demo sessions, live synthetic readings, and delivery
+  to a second session.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer, encrypted
+  storage, and uninstall checks passed.
+- No local application builds or tests were run.
+
 ## GitHub Actions v102 — session idle expiry passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43197194366
