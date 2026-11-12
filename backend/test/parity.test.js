@@ -257,6 +257,12 @@ test("rejects foreign web origins and requires CSRF proof for cookie-authenticat
     body,
   })).status, 403);
   const csrf = csrfCookie.slice("py_csrf=".length);
+  const login = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { cookie: sessionCookie, "content-type": "application/json" },
+    body: JSON.stringify({ phone: "75678901", password: "cookie-test-password" }),
+  });
+  assert.equal(login.status, 200);
   const created = await fetch(`${base}/sites`, {
     method: "POST",
     headers: { ...headers, "x-csrf-token": csrf },

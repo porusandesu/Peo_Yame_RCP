@@ -59,7 +59,23 @@ function rateLimit(key,max,windowMs){const t=Date.now();if(rateHits.size>5000)fo
 const tooMany=(q,r,scope)=>r.status(429).json({error:scope||"Too many requests. Try again in a minute."});
 const normalizeOrigin=value=>{try{return new URL(value).origin;}catch{return null;}};
 const allowedOrigins=new Set(String(process.env.PEO_YAME_ALLOWED_ORIGINS||"").split(",").map(value=>normalizeOrigin(value.trim())).filter(Boolean));
-app.use((req,res,next)=>{const origin=req.get("origin");if(origin){const normalized=normalizeOrigin(origin),own=normalizeOrigin(`${req.protocol}://${req.get("host")}`);if(!normalized||(normalized!==own&&!allowedOrigins.has(normalized)))return res.status(403).json({error:"This origin is not allowed."});res.setHeader("Access-Control-Allow-Origin",origin);res.setHeader("Access-Control-Allow-Credentials","true");res.setHeader("Access-Control-Allow-Headers","content-type,authorization,x-csrf-token");res.setHeader("Access-Control-Allow-Methods","GET,HEAD,POST,PATCH,DELETE,OPTIONS");res.vary("Origin");}if(req.method==="OPTIONS")return res.sendStatus(204);if(req.method==="GET"&&cookieValue(req,"py_session")&&!cookieValue(req,"py_csrf"))res.cookie("py_csrf",crypto.randomBytes(32).toString("base64url"),{sameSite:"strict",secure:req.secure,path:"/",maxAge:7*24*60*60*1000});const sessionCookie=cookieValue(req,"py_session"),csrfCookie=cookieValue(req,"py_csrf"),csrfHeader=req.get("x-csrf-token");if(!["GET","HEAD","OPTIONS"].includes(req.method)&&sessionCookie&&!req.get("authorization")&&(!csrfCookie||!csrfHeader||!safeEq(csrfCookie,csrfHeader)))return res.status(403).json({error:"A valid CSRF token is required."});next();});
+app.use((req,res,next)=>{
+ const origin=req.get("origin");
+ if(origin){
+  const normalized=normalizeOrigin(origin),own=normalizeOrigin(`${req.protocol}://${req.get("host")}`);
+  if(!normalized||(normalized!==own&&!allowedOrigins.has(normalized)))return res.status(403).json({error:"This origin is not allowed."});
+  res.setHeader("Access-Control-Allow-Origin",origin);
+  res.setHeader("Access-Control-Allow-Credentials","true");
+  res.setHeader("Access-Control-Allow-Headers","content-type,authorization,x-csrf-token");
+  res.setHeader("Access-Control-Allow-Methods","GET,HEAD,POST,PATCH,DELETE,OPTIONS");
+  res.vary("Origin");
+ }
+ if(req.method==="OPTIONS")return res.sendStatus(204);
+ if(req.method==="GET"&&cookieValue(req,"py_session")&&!cookieValue(req,"py_csrf"))res.cookie("py_csrf",crypto.randomBytes(32).toString("base64url"),{sameSite:"strict",secure:req.secure,path:"/",maxAge:7*24*60*60*1000});
+ const sessionCookie=cookieValue(req,"py_session"),csrfCookie=cookieValue(req,"py_csrf"),csrfHeader=req.get("x-csrf-token"),csrfExempt=["/api/account/login","/api/account/register"].includes(req.path);
+ if(!["GET","HEAD","OPTIONS"].includes(req.method)&&sessionCookie&&!req.get("authorization")&&!csrfExempt&&(!csrfCookie||!csrfHeader||!safeEq(csrfCookie,csrfHeader)))return res.status(403).json({error:"A valid CSRF token is required."});
+ next();
+});
 const eventClients=new Set();
 function publishEvent(userId,event){for(const client of eventClients){if(client.userId!==userId||client.res.writableEnded)continue;if(client.tokenHash&&!db.prepare("SELECT 1 FROM sessions WHERE token_hash=? AND expires_at>? AND (idle_timeout_minutes IS NULL OR last_seen_at>?)").get(client.tokenHash,now(),new Date(Date.now()-30*60000).toISOString())){clearInterval(client.timer);eventClients.delete(client);client.res.end();continue;}client.res.write(`event: ${event}\ndata: {"at":"${now()}"}\n\n`);}}
 app.use((req,res,next)=>{if(["POST","PATCH","PUT","DELETE"].includes(req.method)){res.once("finish",()=>{if(res.statusCode<200||res.statusCode>=300)return;const user=req.user||currentUser(req),path=req.path;let event;if(path.includes("/readings")||path.includes("/sensors/")||path==="/sensors"||path.includes("/demo/breach")||path.includes("/demo/reading")||path.includes("/demo/sensor-reading"))event="reading";else if(path.includes("/crop-selection"))event="crop";else if(path.includes("/alerts"))event="alert";else if(path.includes("/account")||path.includes("/authenticator")||path.includes("/qr/"))event="session";else if(path.includes("/sites")||path.includes("/crops"))event="account";if(event)publishEvent(user?.id??null,event);});}next();});
