@@ -1,5 +1,20 @@
 # Test report
 
+## GitHub Actions v126 — all build checks passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43300121532
+Commit: `fcb4634` (Stabilize anonymous feed idle test).
+
+- **Backend:** all API tests passed, including anonymous-feed idle handling,
+  demo cleanup, QR pairing, and simulator sync.
+- **Android:** tests, analysis, release APK build, and packaged launcher
+  verification passed. Artifact `Peo Yame v126.apk` was uploaded.
+- **Windows:** normal launch, opt-in Guided Demo launch, encrypted storage,
+  installer, and uninstall checks passed.
+- **Manual observation:** **Not verified** for web/mobile screenshots,
+  animation/reduced-motion behavior, keyboard or screen-reader navigation,
+  physical camera permissions, Windows tray operation, or real LAN reachability.
+
 ## GitHub Actions v125 — Android and Windows passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43298703384
