@@ -10,6 +10,16 @@
     .py-qr-countdown{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
     .py-demo-step{display:flex;align-items:flex-start;gap:10px;padding:8px 0}
     .py-demo-step input{width:20px;height:20px;margin-top:2px}
+    .py-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .py-settings-card{margin:0;box-shadow:0 8px 26px #1128210b}
+    .py-settings-card.py-settings-wide{grid-column:1/-1}
+    .py-settings-heading{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+    .py-settings-heading h2{margin:0 0 5px}
+    .py-settings-heading p{margin:0}
+    .py-settings-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:14px;background:#e1f0e6;color:#0f4a35;font-weight:800}
+    .py-settings-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .py-settings-card .py-settings-actions button{min-width:160px}
+    @media(max-width:700px){.py-settings-grid{grid-template-columns:1fr}}
   `;
   document.head.append(style);
 
@@ -514,6 +524,12 @@
   originalRender = window.render;
   window.render = function renderWithBackendQr(...args) {
     const result = originalRender(...args);
+    const refreshButton = document.querySelector("#refresh-data-button");
+    if (refreshButton) {
+      refreshButton.textContent = mode === "guided" || mode === "instant"
+        ? "Refresh demo data"
+        : "Refresh data now";
+    }
     if (page === "Settings") {
       ensureBackendQrControls();
       if (mode === "guided") window.refreshDemoSettings().catch((error) => banner(error.message, true));
@@ -523,7 +539,8 @@
 
   function ensureBackendQrControls() {
     const heading = [...document.querySelectorAll("h2")].find((item) => item.textContent === "Backend connection");
-    if (!heading || heading.parentElement.querySelector("#backend-qr-controls")) return;
+    const host = heading?.closest(".py-settings-card") || heading?.parentElement;
+    if (!heading || !host || host.querySelector("#backend-qr-controls")) return;
     const controls = document.createElement("div");
     controls.id = "backend-qr-controls";
     const button = makeButton("Show backend connection QR", async () => {
@@ -555,6 +572,6 @@
       }
     });
     controls.append(button);
-    heading.parentElement.append(controls);
+    host.append(controls);
   }
 })();

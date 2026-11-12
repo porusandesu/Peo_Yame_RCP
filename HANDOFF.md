@@ -27,6 +27,27 @@ manual visual/accessibility checks are unverified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 
+## New request — make the demo feel fully featured (2026-11-12)
+
+The user wants the live demo to make refresh/sync behavior obvious and the
+settings experience to look more polished. Previously completed and verified
+in v112: variable temperature/humidity readings every 3 seconds, simulated
+out-of-band alerts, custom crop/fruit/vegetable entry and selection, masked
+backend/network addresses with deliberate reveal, and removal of backend
+configuration from mobile Welcome while retaining QR-based first-time setup.
+
+**Implemented in source, pending CI:** the app-bar refresh button is moved to
+Settings as an explicit refresh action, while automatic SSE/polling and
+pull-to-refresh remain available. Mobile Settings is regrouped into styled
+sections for sync, account/security, backend, devices, and demo tools. Web
+Settings now uses a responsive card grid with matching sections and a manual
+refresh control; the guided-demo tools remain intact.
+
+**Remaining:** run the next GitHub Actions build and resolve any failures;
+visually review both Settings screens and the full demo presentation on
+devices/browsers. This follow-up does not declare overall feature parity
+complete; continue from open items in `docs/FEATURE_PARITY.md`.
+
 ## Correction to the Windows launch history — 2026-11-11
 
 The user reports that the v83 Windows app did not launch its backend in actual Windows use. The earlier v83 “passed startup” wording was wrong for the user's reported outcome: v83 CI passed only the special --self-test path and did not launch the normal tray app. v84 also tested a dashboard URL marker from that self-test rather than normal app startup; v85 reused that insufficient check. Do not treat v83–v85 as proof the normal Windows app works. The new workflow must start the unmodified single executable normally from a clean folder on Windows and verify its live backend and dashboard.

@@ -64,7 +64,61 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
  Future<void> enterInstant()async{instant=true;token=null;entered=true;tab=0;try{final initial=Map<String,dynamic>.from(await request('/status',auth:false));crop=(initial['crop']??'Maize').toString();}catch(_){}startEvents();await refresh();}
  Future<void> auth(bool register)async{if(register&&password.text!=confirmPassword.text){setState(()=>error='Passwords do not match.');return;}setState(()=>loading=true);try{final loginBody=register?{'name':name.text,'phone':phone.text,'password':password.text}:{'phone':phone.text,'password':password.text,'totpCode':totpCode.text.trim()};final d=Map<String,dynamic>.from(await request(register?'/account/register':'/account/login',method:'POST',auth:false,body:loginBody));token=d['token'] as String;instant=false;await storage.write(key:'session',value:token);entered=true;final initial=Map<String,dynamic>.from(await request('/status'));crop=(initial['crop']??'Maize').toString();error='';needsTotp=false;totpCode.clear();startEvents();await refresh();}catch(e){final message=e.toString().replaceFirst('Exception: ','');if(message.contains('authenticator code')){needsTotp=true;}error=message;}finally{if(mounted)setState(()=>loading=false);}}
  String? get estimate{final e=data['estimate'];if(offline||data['stale']==true||e==null)return null;final r=e['rangeWeeks'];return r is List&&r.length>=2?'About ${r[0]}–${r[1]} weeks':null;}
- @override Widget build(BuildContext context){if(appLocked)return _lockedScreen();if(!entered)return _welcome();final reading=data['reading'] as Map<String,dynamic>?;final Map<String,dynamic> bands=(data['targetBands'] as Map<String,dynamic>?) ?? <String,dynamic>{};final tv=(reading?['temperature'] as num?)?.toDouble(),hv=(reading?['humidity'] as num?)?.toDouble();return Scaffold(appBar:AppBar(leading:Padding(padding:const EdgeInsets.all(7),child:Image.asset('assets/brand/peo-yame-512.png')),title:const Text('Peo Yame',style:TextStyle(fontWeight:FontWeight.w700)),actions:[IconButton(onPressed:()=>refresh(manual:true),icon:const Icon(LucideIcons.refreshCw)),Padding(padding:const EdgeInsets.only(right:10),child:Center(child:Text(instant?'Demo data':offline?'Offline':'Connected')))]),body:RefreshIndicator(onRefresh:()=>refresh(manual:true),child:ListView(padding:const EdgeInsets.all(16),children:[if(instant)const _Banner('Shared Demo profile · Mr Lesego Lefoko · simulated readings'),if(guided)const _Banner('Demo session. Data is simulated and will be deleted.'),if(offline)const _Banner('Offline. Last known values may be out of date.',warning:true),Text(pages[tab],style:const TextStyle(fontSize:25,fontWeight:FontWeight.w700,color:ink)),const SizedBox(height:12),if(tab==0)...[_statusCard(),Row(children:[Expanded(child:_Gauge(title:'Temperature',value:tv,low:bands['temperatureC']?[0],high:bands['temperatureC']?[1],unit:'°C',icon:LucideIcons.thermometer)),const SizedBox(width:10),Expanded(child:_Gauge(title:'Humidity',value:hv,low:bands['humidityPercent']?[0],high:bands['humidityPercent']?[1],unit:'%',icon:LucideIcons.droplet))]),if(estimate!=null)_estimateCard(),_cropCard()],if(tab==1)...[_trendScreen()],if(tab==2)...[_cropList(),_addCrop()],if(tab==3)...[_alertsScreen()],if(tab==4)...[_settings()],const SizedBox(height:16),Text('Last synced: $lastSync',style:const TextStyle(color:muted,fontSize:12))])),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(i){setState(()=>tab=i);refresh();},destinations:const[NavigationDestination(icon:Icon(LucideIcons.house),label:'Overview'),NavigationDestination(icon:Icon(LucideIcons.chartNoAxesCombined),label:'Trends'),NavigationDestination(icon:Icon(LucideIcons.sprout),label:'My Crops'),NavigationDestination(icon:Icon(LucideIcons.bell),label:'Alerts'),NavigationDestination(icon:Icon(LucideIcons.settings),label:'Settings')]));}
+ @override
+ Widget build(BuildContext context){
+  if(appLocked)return _lockedScreen();
+  if(!entered)return _welcome();
+  final reading=data['reading'] as Map<String,dynamic>?;
+  final Map<String,dynamic> bands=(data['targetBands'] as Map<String,dynamic>?) ?? <String,dynamic>{};
+  final tv=(reading?['temperature'] as num?)?.toDouble(),hv=(reading?['humidity'] as num?)?.toDouble();
+  return Scaffold(
+   appBar:AppBar(
+    leading:Padding(padding:const EdgeInsets.all(7),child:Image.asset('assets/brand/peo-yame-512.png')),
+    title:const Text('Peo Yame',style:TextStyle(fontWeight:FontWeight.w700)),
+    actions:[Padding(padding:const EdgeInsets.only(right:10),child:Center(child:Text(instant?'Demo data':offline?'Offline':'Connected')))],
+   ),
+   body:RefreshIndicator(
+    onRefresh:()=>refresh(manual:true),
+    child:ListView(
+     padding:const EdgeInsets.all(16),
+     children:[
+      if(instant)const _Banner('Shared Demo profile · Mr Lesego Lefoko · simulated readings'),
+      if(guided)const _Banner('Demo session. Data is simulated and will be deleted.'),
+      if(offline)const _Banner('Offline. Last known values may be out of date.',warning:true),
+      Text(pages[tab],style:const TextStyle(fontSize:25,fontWeight:FontWeight.w700,color:ink)),
+      const SizedBox(height:12),
+      if(tab==0)...[
+       _statusCard(),
+       Row(children:[
+        Expanded(child:_Gauge(title:'Temperature',value:tv,low:bands['temperatureC']?[0],high:bands['temperatureC']?[1],unit:'°C',icon:LucideIcons.thermometer)),
+        const SizedBox(width:10),
+        Expanded(child:_Gauge(title:'Humidity',value:hv,low:bands['humidityPercent']?[0],high:bands['humidityPercent']?[1],unit:'%',icon:LucideIcons.droplet)),
+       ]),
+       if(estimate!=null)_estimateCard(),
+       _cropCard(),
+      ],
+      if(tab==1)_trendScreen(),
+      if(tab==2)...[_cropList(),_addCrop()],
+      if(tab==3)_alertsScreen(),
+      if(tab==4)_settings(),
+      const SizedBox(height:16),
+      Text('Last synced: $lastSync',style:const TextStyle(color:muted,fontSize:12)),
+     ],
+    ),
+   ),
+   bottomNavigationBar:NavigationBar(
+    selectedIndex:tab,
+    onDestinationSelected:(i){setState(()=>tab=i);refresh();},
+    destinations:const[
+     NavigationDestination(icon:Icon(LucideIcons.house),label:'Overview'),
+     NavigationDestination(icon:Icon(LucideIcons.chartNoAxesCombined),label:'Trends'),
+     NavigationDestination(icon:Icon(LucideIcons.sprout),label:'My Crops'),
+     NavigationDestination(icon:Icon(LucideIcons.bell),label:'Alerts'),
+     NavigationDestination(icon:Icon(LucideIcons.settings),label:'Settings'),
+    ],
+   ),
+  );
+ }
  Widget _welcome()=>Scaffold(body:ListView(padding:const EdgeInsets.fromLTRB(24,38,24,24),children:[Center(child:Container(width:112,height:112,decoration:const BoxDecoration(color:Color(0xffe1f0e6),shape:BoxShape.circle),padding:const EdgeInsets.all(24),child:Image.asset('assets/brand/peo-yame-512.png'))),const SizedBox(height:20),Text(entryMode=='welcome'?'Welcome to\nPeo Yame':entryMode=='login'?'Sign in':'Create account',textAlign:TextAlign.center,style:const TextStyle(fontSize:32,height:1.2,fontWeight:FontWeight.w700,color:ink)),const SizedBox(height:8),if(entryMode=='welcome')...[
     const Text('Storage monitoring for your harvest',textAlign:TextAlign.center,style:TextStyle(color:muted,height:1.5,fontSize:16)),
     const SizedBox(height:24),
@@ -149,7 +203,14 @@ Future<void> _connectBackend(String raw)async{try{final remote=Uri.parse(raw.tri
 Future<void> _scanBackendQr()async{if(!await cameraRationale())return;final raw=await openScanner();if(raw==null)return;try{final payload=Map<String,dynamic>.from(jsonDecode(raw) as Map);if(payload['flow']!='backend')throw Exception('This is not a backend connection QR code.');await _connectBackend(payload['baseUrl'].toString());}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
 Future<void> _saveBackendAddress()async=>_connectBackend(address.text);
 Future<void> _checkAndSaveBackend()async{final base=address.text.trim().replaceAll(RegExp(r'/+$'),'');final response=await http.get(Uri.parse('$base/api/health')).timeout(const Duration(seconds:8));if(response.statusCode!=200)throw Exception('This address did not respond as a Peo Yame backend.');final result=Map<String,dynamic>.from(jsonDecode(response.body) as Map);if(result['authEnabled']!=true)throw Exception('This backend does not have accounts enabled.');await storage.write(key:'backend',value:base);savedBackend=base;if(mounted)setState(()=>backendStatus='Connected · accounts enabled · checked just now');}
-Widget _backendConnectionPanel()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const ListTile(title:Text('Backend connection'),subtitle:Text('HTTP is for a controlled demo Wi-Fi network only. The address is hidden until you reveal it.')),Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:_field('Backend address',address,secret:!showBackendAddress,suffix:IconButton(tooltip:showBackendAddress?'Hide address':'Show address',onPressed:()=>setState(()=>showBackendAddress=!showBackendAddress),icon:Icon(showBackendAddress?Icons.visibility_off:Icons.visibility)))),Text(backendStatus,style:const TextStyle(color:muted)),TextButton(onPressed:_saveBackendAddress,child:const Text('Save and check')),TextButton(onPressed:_scanBackendQr,child:const Text('Scan backend QR'))]);
+Widget _backendConnectionPanel()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:_field('Backend address',address,secret:!showBackendAddress,suffix:IconButton(tooltip:showBackendAddress?'Hide address':'Show address',onPressed:()=>setState(()=>showBackendAddress=!showBackendAddress),icon:Icon(showBackendAddress?Icons.visibility_off:Icons.visibility)))),
+Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Text(backendStatus,style:const TextStyle(color:muted))),
+Wrap(children:[
+ TextButton.icon(onPressed:_saveBackendAddress,icon:const Icon(Icons.check_circle_outline),label:const Text('Save and check')),
+ TextButton.icon(onPressed:_scanBackendQr,icon:const Icon(Icons.qr_code_scanner),label:const Text('Scan backend QR')),
+]),
+]);
 Future<void> scanPhoneQr()async{
  if(!await cameraRationale())return;
  final raw=await openScanner();if(raw==null)return;
@@ -252,33 +313,59 @@ Future<void> approveWeb(String codeId)async{
  }
 }
 Future<void> scanWebQr()async{if(!await cameraRationale())return;final raw=await openScanner();if(raw==null)return;try{Map<String,dynamic> payload;try{payload=Map<String,dynamic>.from(jsonDecode(raw) as Map);}catch(_){payload={'baseUrl':address.text,'codeId':raw,'flow':'web'};}if(payload['flow']!='web')throw Exception('This QR is not a computer sign-in code.');if(token==null)throw Exception('Sign in on this phone before approving a computer.');final remote=Uri.parse(payload['baseUrl'].toString());if(!privateBackend(remote))throw Exception('This code must use a private-network backend.');final local=Uri.parse(address.text);if(remote.scheme+'://'+remote.authority!=local.scheme+'://'+local.authority)throw Exception('This code is from a different backend. Connect this phone to it and sign in first.');await approveWeb(payload['codeId'].toString());}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
- Widget _settings()=>Column(children:[
-  Card(child:Column(children:[
-   const ListTile(title:Text('Account and security'),leading:Icon(LucideIcons.userRound)),
-   TextButton(onPressed:()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}')))),child:const Text('Profile')),
-   TextButton(onPressed:authenticatorFlow,child:const Text('Authenticator app')),
-   TextButton(onPressed:_showSessions,child:const Text('Active sessions')),
-   TextButton(onPressed:_showSecurityActivity,child:const Text('Security activity')),
-   SwitchListTile(title:const Text('Lock app with biometrics'),subtitle:const Text('Require device authentication when you return to the app.'),value:appLockEnabled,onChanged:_toggleAppLock),
-   _backendConnectionPanel(),
-   TextButton(onPressed:scanWebQr,child:const Text('Log in on computer'))
-  ])),
-  if((instant||guided)&&guidedDemoEnabled)Card(child:Column(children:[
-   const ListTile(title:Text('Demo tools')),
-   if(guided)const Padding(padding:EdgeInsets.symmetric(horizontal:16),child:Text('Use QR sign-in on the other device to share this temporary demo profile. Live readings are simulated, not hardware measurements.')),
-   if(instant)FilledButton(onPressed:_startGuidedDemo,child:const Text('Start guided demo')),
-   if(guided)...[
-    _demoChecklist(),
-    FilledButton(onPressed:_toggleDemoSimulation,child:Text(demoSimulationActive?'Stop live simulation':'Start live simulation')),
-    FilledButton(onPressed:()=>request('/demo/breach',method:'POST').then((_)=>refresh()),child:const Text('Simulate breach')),
-    FilledButton(onPressed:()async{try{final list=List<dynamic>.from(await request('/sensors'));final s=list.isNotEmpty?list.first:null;if(s==null){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Register a sensor first to simulate readings.')));return;}await request('/demo/sensor-reading',method:'POST',body:{'sensorId':s['externalId']});await refresh();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Simulated sensor reading recorded.')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}},child:const Text('Simulate sensor reading')),
-    FilledButton(onPressed:()=>_selectCrop(crop=='Maize'?'Sorghum':'Maize'),child:const Text('Switch crop')),
-    FilledButton(onPressed:_toggleSimulatedOffline,child:Text(simulatedOffline?'Restore network':'Simulate network loss')),
-    TextButton(onPressed:()async{try{await request('/demo/reset',method:'POST');}catch(_){}await signOut();},child:const Text('Reset demo'))
-   ]
-  ])),
-  Card(child:TextButton(onPressed:signOut,child:const Text('Sign out')))
- ]);
+Widget _settingsSection(String title,String subtitle,IconData icon,List<Widget> children)=>Card(
+ child:Padding(
+  padding:const EdgeInsets.fromLTRB(16,8,16,16),
+  child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   ListTile(
+    contentPadding:EdgeInsets.zero,
+    leading:Container(width:44,height:44,decoration:BoxDecoration(color:const Color(0xffe1f0e6),borderRadius:BorderRadius.circular(14)),child:Icon(icon,color:green)),
+    title:Text(title,style:const TextStyle(fontWeight:FontWeight.w700)),
+    subtitle:Text(subtitle,style:const TextStyle(color:muted)),
+   ),
+   const Divider(height:20),
+   ...children,
+  ]),
+ ),
+);
+Widget _settings()=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+ _settingsSection('Data and sync',guided&&demoSimulationActive?'Guided Demo sends a new reading every 3 seconds across signed-in devices.':'Live readings update automatically across your signed-in devices.',Icons.sync,[
+  Text('Last synced: $lastSync',style:const TextStyle(color:muted)),
+  const SizedBox(height:10),
+  SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>refresh(manual:true),icon:const Icon(Icons.refresh),label:Text(instant||guided?'Refresh demo data':'Refresh data now'))),
+ ]),
+ _settingsSection('Account and security','Manage your profile, sign-in protection, and sessions.',Icons.security,[
+  Wrap(spacing:4,runSpacing:4,children:[
+   TextButton.icon(onPressed:()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}')))),icon:const Icon(Icons.person_outline),label:const Text('Profile')),
+   TextButton.icon(onPressed:authenticatorFlow,icon:const Icon(Icons.verified_user_outlined),label:const Text('Authenticator app')),
+   TextButton.icon(onPressed:_showSessions,icon:const Icon(Icons.devices),label:const Text('Active sessions')),
+   TextButton.icon(onPressed:_showSecurityActivity,icon:const Icon(Icons.history),label:const Text('Security activity')),
+  ]),
+  SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Lock app with biometrics'),subtitle:const Text('Require device authentication when you return to the app.'),value:appLockEnabled,onChanged:_toggleAppLock),
+ ]),
+ _settingsSection('Backend connection','The address is masked by default. HTTP is for a controlled demo Wi-Fi network only.',Icons.dns_outlined,[
+  _backendConnectionPanel(),
+ ]),
+ _settingsSection('Devices','Connect this phone to another computer using a one-time sign-in code.',Icons.devices_other,[
+  SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:scanWebQr,icon:const Icon(Icons.qr_code_scanner),label:const Text('Log in on computer'))),
+ ]),
+ if((instant||guided)&&guidedDemoEnabled)_settingsSection('Demo tools','Practice the live sync, alerts, sensor, and QR flows using temporary data.',Icons.science_outlined,[
+  if(guided)const Padding(padding:EdgeInsets.only(bottom:10),child:Text('Readings are simulated, not hardware measurements. QR sign-in on the other device shares this temporary profile.',style:TextStyle(color:muted))),
+  if(instant)SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_startGuidedDemo,icon:const Icon(Icons.play_arrow),label:const Text('Start guided demo'))),
+  if(guided)...[
+   _demoChecklist(),
+   SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_toggleDemoSimulation,icon:Icon(demoSimulationActive?Icons.stop:Icons.play_arrow),label:Text(demoSimulationActive?'Stop live simulation':'Start live simulation'))),
+   Wrap(spacing:8,runSpacing:4,children:[
+    OutlinedButton.icon(onPressed:()=>request('/demo/breach',method:'POST').then((_)=>refresh()),icon:const Icon(Icons.warning_amber_outlined),label:const Text('Simulate breach')),
+    OutlinedButton.icon(onPressed:()async{try{final list=List<dynamic>.from(await request('/sensors'));final s=list.isNotEmpty?list.first:null;if(s==null){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Register a sensor first to simulate readings.')));return;}await request('/demo/sensor-reading',method:'POST',body:{'sensorId':s['externalId']});await refresh();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Simulated sensor reading recorded.')));}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}},icon:const Icon(Icons.sensors_outlined),label:const Text('Add sensor reading')),
+    OutlinedButton.icon(onPressed:()=>_selectCrop(crop=='Maize'?'Sorghum':'Maize'),icon:const Icon(Icons.eco_outlined),label:const Text('Switch crop')),
+    OutlinedButton.icon(onPressed:_toggleSimulatedOffline,icon:const Icon(Icons.wifi_off),label:Text(simulatedOffline?'Restore network':'Simulate network loss')),
+   ]),
+   TextButton.icon(onPressed:()async{try{await request('/demo/reset',method:'POST');}catch(_){}await signOut();},icon:const Icon(Icons.delete_outline),label:const Text('Reset demo')),
+  ],
+ ]),
+ SizedBox(width:double.infinity,child:TextButton.icon(onPressed:signOut,icon:const Icon(Icons.logout),label:const Text('Sign out'))),
+]);
  Future<void> _toggleAppLock(bool enabled)async{try{if(enabled){if(!await deviceAuth.isDeviceSupported())throw Exception('Set up a device lock on this phone first.');if(!await deviceAuth.authenticate(localizedReason:'Enable biometric app lock',biometricOnly:true))return;}await storage.write(key:'appLockEnabled',value:enabled.toString());if(mounted)setState(()=>appLockEnabled=enabled);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
  Widget _lockedScreen()=>Scaffold(body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.lock_outline,size:48,color:green),const SizedBox(height:16),const Text('Peo Yame is locked',style:TextStyle(fontSize:22,fontWeight:FontWeight.w700)),const SizedBox(height:12),FilledButton(onPressed:_unlockApp,child:const Text('Unlock with biometrics'))]))));
  Future<void> _showSessions() async {
