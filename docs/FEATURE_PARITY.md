@@ -22,19 +22,18 @@ and manual visual/accessibility checks remain open.
 The design-reference §11 rows were checked against the current source. “Already
 fixed” means the source contains the requested behavior; CI evidence applies
 where cited, and does not replace manual visual, accessibility, camera, or
-physical-device verification. Rows changed after v115 are marked pending the
-next Actions run.
+physical-device verification.
 
 | # | Disposition | Source/test evidence |
 |---|---|---|
 | 1 | Already fixed | Phone/password, demo, and QR sign-in: `backend/public/index.html`, `mobile/lib/main.dart`; backend auth tests |
 | 2 | Already fixed | Name/phone/password/confirmation registration: web and mobile auth screens; backend registration tests |
-| 3 | Already fixed; latest CI pending | Single mobile QR action and separate backend setup: `mobile/lib/main.dart`; `mobile/test/widget_test.dart` |
+| 3 | Already fixed | Single mobile QR action and separate backend setup: `mobile/lib/main.dart`; `mobile/test/widget_test.dart` |
 | 4 | Already fixed | Demo entry points: web and mobile auth screens; Guided Demo backend tests |
 | 5 | Already fixed | Five mobile destinations with Accounts in Settings: `mobile/lib/main.dart`; widget tests |
 | 6 | Already fixed | Week-range rough-estimate card and disclaimer: `backend/public/app.js`, `mobile/lib/main.dart`; estimate tests |
 | 7 | Already fixed | Overview uses the same estimate and “In range” status: web and mobile dashboard sources |
-| 8 | Already fixed; latest CI pending | “In range”/“Target range” and crop-safety disclaimer: `backend/public/app.js`, `mobile/lib/main.dart` |
+| 8 | Already fixed | “In range”/“Target range” and crop-safety disclaimer: `backend/public/app.js`, `mobile/lib/main.dart` |
 | 9 | Already fixed | Low/Target/High indicators: web and mobile status-card sources |
 | 10 | Already fixed | Phone/password account wording: mobile account/settings source |
 | 11 | Already fixed | Crop/sensor summaries derive from owned backend records: web/mobile crop screens; backend ownership tests |
@@ -46,26 +45,31 @@ next Actions run.
 | 17 | Already fixed | Matching trend series, axes, units, bands, ranges and summaries: web/mobile chart sources; trend API tests |
 | 18 | Already fixed | Shared backend last-sync timestamp/format: web and mobile sync status |
 | 19 | Already fixed | Account display and Botswana phone formatting: web and mobile account screens |
-| 20 | Already fixed; latest CI pending | Separate “Add crop to monitor” and “Add storage location”: `backend/public/app.js`, `mobile/lib/main.dart` |
+| 20 | Already fixed | Separate “Add crop to monitor” and “Add storage location”: `backend/public/app.js`, `mobile/lib/main.dart` |
 | 21 | Already fixed | Five web destinations: `backend/public/app.js` |
-| 22 | Already fixed; latest CI pending | Settings refresh and web download/mobile clipboard CSV/Markdown actions: web and mobile Settings |
+| 22 | Already fixed | Settings refresh and web download/mobile clipboard CSV/Markdown actions: web and mobile Settings |
 | 23 | Already fixed | Phone waits for computer approval and displays match number: mobile QR flow; pairing API tests |
 | 24 | Already fixed | Web Flow A device/match-number approval dialog: `backend/public/guided-demo.js` |
 | 25 | Already fixed | Match-number and verifier-bound pairing flows: backend parity tests; web/mobile QR sources |
 | 26 | Already fixed | Camera rationale and manual code entry: `mobile/lib/main.dart`; widget/pairing tests |
 | 27 | Already fixed | Active sessions, revoke and sign-out-everywhere: web/mobile settings; backend session tests |
 | 28 | Already fixed | Guided Demo and demo tools: web/mobile settings; simulator tests |
-| 29 | Already fixed; latest CI pending | Rough estimate on web alerts and mobile cards: `backend/public/app.js`, `mobile/lib/main.dart`; estimate tests |
+| 29 | Already fixed | Rough estimate on web alerts and mobile cards: `backend/public/app.js`, `mobile/lib/main.dart`; estimate tests |
 | 30 | Already fixed | Input border token `#768A80`: shared web/mobile design tokens |
 | 31 | Already fixed | Active web tab uses primary brand token: `backend/public/styles.css` |
 | 32 | Already fixed | Status chips pair state color with a leading icon: web/mobile status components |
 | 33 | Already fixed | “Welcome to / Peo Yame” heading and separate setup screen: `mobile/lib/main.dart`; widget test |
 | 34 | Already fixed | Approved logo packaged for Android/Windows and used by web: asset resources; packaging CI |
 
-The follow-up for rows 3, 8, 20, 22 and 29 is not included in v115 and still
-needs a fresh Actions run. Visual design comparison, keyboard/screen-reader
-accessibility, camera permission prompts, and real-device LAN behavior remain
-manual checks.
+GitHub Actions v118 (run
+[`43235790290`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43235790290),
+commit `52815f7`) passed backend API tests, Android tests/analysis/release APK,
+and Windows launch/lifecycle/installer checks. It includes the mobile
+connection-screen separation, crop-safety note, distinct crop/location actions,
+Settings exports, and estimate details on web alerts. Artifacts `Peo Yame v118
+Android` (71,441,555 bytes) and `Peo Yame v118 Windows` (311,290,967 bytes)
+were uploaded. Visual design comparison, keyboard/screen-reader accessibility,
+camera permission prompts, and real-device LAN behavior remain manual checks.
 
 ## Guided Demo Settings refresh and presentation — v114 CI verified
 

@@ -1,5 +1,20 @@
 # Test report
 
+## GitHub Actions v118 — final design-parity follow-up passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43235790290
+Commit: `52815f7` (Complete remaining design parity follow-up).
+
+- Backend API tests passed, including dashboard asset and parity-source checks.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- Artifacts `Peo Yame v118 Android` (71,441,555 bytes) and
+  `Peo Yame v118 Windows` (311,290,967 bytes) were uploaded.
+- No local application builds or tests were run. Visual/accessibility,
+  camera-permission, and physical-device LAN checks remain outstanding.
+
 ## GitHub Actions v117 — security and parity baseline passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43233949692

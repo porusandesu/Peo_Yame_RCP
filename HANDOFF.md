@@ -1,26 +1,23 @@
 # Peo Yame — build handoff and resume plan
 
-## Active continuation — final design-parity follow-up (pending CI)
+## Latest verification — design-parity follow-up v118 passed
 
 Work is in `/tmp/peo-yame-feature-parity` on `copilot/feature-parity`, tracking
-`exe-work`. Commit `dba7c9c` passed GitHub Actions run `43233949692`: backend
-API tests, Android tests/analysis/release APK, and Windows launch/lifecycle/
-installer checks all passed. That run covers the external dashboard assets and
-nonce-based strict CSP, authenticator session rotation, expanded security
-activity, and web/mobile trend parity with axes, units, timestamps, target
-bands, accessible descriptions, and full-range low/high statistics. Trend
-responses are capped at 500 plotted samples while retaining full-range
-summaries and extrema.
+`exe-work`. Commit `52815f7` is pushed to `exe-work`; GitHub Actions v118
+([run `43235790290`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43235790290))
+passed backend API tests, Android tests/analysis/release APK, and Windows
+launch/lifecycle/installer checks. Artifacts `Peo Yame v118 Android` and
+`Peo Yame v118 Windows` were uploaded.
 
-Uncommitted follow-up changes separate mobile backend setup from Welcome and
-keep QR sign-in phone-flow-only, add the crop-safety disclaimer, align custom
-crop wording, add Settings exports (web downloads/mobile clipboard), and show
-rough estimates in web alerts. A focused mobile widget test covers the
-separate setup screen. These follow-ups need a fresh GitHub Actions run before
-being called verified. The 34-row source disposition is recorded in
-`docs/FEATURE_PARITY.md`. Do not run local application builds or tests.
+The verified source includes nonce-based strict CSP, authenticator session
+rotation, expanded security activity, web/mobile trend parity, separate mobile
+backend setup, phone-flow-only QR sign-in, crop-safety disclaimers, distinct
+crop/location actions, Settings exports, and rough estimates in web alerts.
+The 34-row design-defect disposition is recorded in `docs/FEATURE_PARITY.md`.
+No local application builds/tests were run. Manual visual/accessibility,
+camera-permission, and real-device LAN checks remain open.
 
-## Latest verified baseline — 2026-11-12 (Guided Demo Settings)
+## Earlier verified baseline — v114 Settings polish
 
 The demo Settings polish is pushed to `exe-work` at `f73378d`. GitHub Actions
 v114 ([run `43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617))
