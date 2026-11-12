@@ -1,5 +1,21 @@
 # Test report
 
+## Current `exe-work` demo-fix continuation — pending validation
+
+- **Source inspection:** changes include shared-feed/profile API regressions,
+  demo UI helper tests, revised first-in-band simulator expectations, and
+  Android gauge/age/address helper tests.
+- **Automated test:** not run for this changeset. Per project instruction, app
+  checks are CI-only; the current worktree has not been pushed to trigger
+  GitHub Actions.
+- **Manual observation:** **Not verified** for web/mobile screenshots,
+  animation/reduced-motion behavior, keyboard or screen-reader navigation,
+  physical camera permissions, Windows tray operation, or real LAN reachability.
+
+Retake web screenshots for sign-in, Overview, Trends, My Crops, Alerts, and
+Settings; retake Android screenshots for Overview, Trends, My Crops, Alerts,
+and Settings. Follow `docs/DEMO_SCRIPT.md` for the manual flow.
+
 ## GitHub Actions v121 — security audit passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43242139397

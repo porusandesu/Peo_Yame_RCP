@@ -1,124 +1,123 @@
 # Demo mode
 
-## Modes
+## What the two demo modes do
 
-**Instant Demo** is the no-account preview. It reads the backend's shared,
-synthetic sample readings (`user_id IS NULL`) and cannot be used to showcase
-account-isolated features. Its sample history is seeded when the backend has no
-shared readings; it does not continuously generate new readings.
+**Instant Demo** is an account-free preview. It reads shared synthetic
+temperature, humidity, trend, and alert data. On backend startup the sample
+history is filled with hourly points for up to 90 days. While an anonymous
+client is active, the backend appends a varied simulated reading every 10
+seconds, publishes a reading event, prunes data older than 90 days, and caps
+the shared history. A request after a quiet period wakes the feed with a fresh
+reading when the newest point is older than 10 seconds. The feed does not
+create alerts. Crop selection is local to each anonymous client; the shared
+sample is not changed for everyone when one presenter switches crops.
 
-**Guided Demo** creates a temporary demo user and a separate data set each time
-it starts. It begins with no storage locations, one unlinked synthetic
-`PY-DEMO-1` sensor, and 25 historical, timestamped synthetic readings. This
-lets the presenter demonstrate adding a location and linking a sensor. The
-generated password is shown once in the app; only its salted hash is stored.
-The session expires after two hours absolute or 30 minutes idle. Reset deletes
-the temporary user, its readings and alerts, and stops its live simulator.
-Use the in-app QR flows to join the same demo profile on another device.
+Instant Demo is read-only except for selecting a crop. It cannot add locations
+or crops, link sensors, review alerts, create demo checklist entries, or use
+account/security features. Screens that need an account explain that boundary
+and offer Guided Demo when it is enabled.
 
-Neither mode connects to physical sensors or sends SMS. Readings, sensor
-activity, and alerts are labeled as simulated.
+**Guided Demo** creates a temporary account with a separate dataset. Its
+session expires after two hours absolute or 30 minutes idle. Reset removes
+the temporary account and its data. It does not start the simulator by itself.
+The generated password is shown once so normal password and authenticator
+re-checks remain possible for pairing.
 
-## Live simulation and cross-device sync
+Guided Demo is off by default. On Windows, enable it explicitly through the
+notification-area **Demo mode** checkbox, launch with `--demo`, or choose the
+optional installer shortcut **Peo Yame (Demo mode)**. The installer option is
+unchecked by default. An explicit `PEO_YAME_DEMO_ENABLED` environment setting
+takes precedence. With Guided Demo off, its API returns 404 and the web and
+mobile Settings screens explain how to enable it.
 
-The guided demo's **Start live simulation** action starts one backend
-simulation for that temporary user. It writes an immediate reading and then
-adds a new timestamped synthetic sensor reading every 3 seconds. Temperature
-and humidity vary at each tick; every sixth reading is pushed beyond a
-selected crop's target band when an out-of-band sensor value is available.
-An out-of-band reading creates an account-scoped simulated alert and emits an
-alert event. Another synthetic alert is held back while an earlier one is
-unreviewed. The simulated sensor's last-seen time is updated, so the sensor
-appears online. Overview, Trends, My Crops, and Alerts refresh when their
-data changes.
+## Guided Demo profiles
 
-The web and mobile clients receive user-scoped server-sent events. To see the
-same live data on both:
+- **Showcase** is preselected. It seeds two example locations, two linked
+  synthetic sensors, one unlinked sensor, 30 days of hourly synthetic history
+  for both locations, and reviewed historical alerts. The tabs have useful
+  content as soon as the profile starts.
+- **Walkthrough** starts with no locations, one unlinked `PY-DEMO-1` sensor,
+  and 30 days of hourly synthetic history. Use it to demonstrate creating a
+  location and linking a sensor.
 
-- Start Guided Demo on one device.
-- On the other device, sign in to that same temporary profile by QR: use
-  **Connect phone by QR** from the web Settings when the web started the demo,
-  or use the web sign-in QR and **Log in on computer** from mobile Settings
-  when mobile started it.
-- Start the live simulation from either device. The other signed-in device
-  receives the same readings and updates its visible screen.
+All readings and alerts are explicitly synthetic. Neither profile discovers
+physical sensors or sends SMS.
 
-Creating a phone QR for Guided Demo uses the same password re-check as a
-normal account. The presenter can use the generated password shown once when
-Guided Demo starts; if an authenticator is enabled, its current code is also
-required. The one-time code, short expiry, match-code verification, and
-explicit approval are not bypassed.
+## Simulation and synchronized views
 
-## QR and backend connection
+The presenter starts the simulator manually from Settings → Demo tools. It
+writes an immediate in-band reading, then a new varied temperature/humidity
+reading every three seconds. The readings are shared by all sessions for that
+temporary account and update Overview, Trends, My Crops, and Alerts through
+server-sent events. A first automatic out-of-band point occurs on the sixth
+reading. Automatic breach alerts default to on; a pending unreviewed alert
+prevents another automatic alert until it is reviewed. The presenter can turn
+automatic alerts off, manually simulate a breach or sensor reading, and
+return readings to the crop's target band. A simulated offline control affects
+only that client's event connection.
 
-- **Connect phone by QR (Flow A):** an authenticated computer re-checks the
-  password and, when enabled, the authenticator code. The phone scans the
-  90-second QR, confirms a backend switch if needed, claims it with a
-  verifier-bound request, and displays the match number. The computer
-  approves or denies; approval creates a separate phone session.
-- **Sign in on computer (Flow B):** the browser displays a 90-second QR and
-  match number. A signed-in phone scans it, confirms the number with the
-  presenter, and requires device authentication before approving. The browser
-  redeems its verifier for its own session.
-- **Backend connection QR:** Settings can display an address-only QR with no
-  session token or pairing code. Mobile validates the address, asks before
-  switching backends, checks the health endpoint, then saves it. The mobile
-  app also allows the address to be entered manually in Settings. Backend
-  setup is not shown on the mobile Welcome screen; its QR sign-in action can
-  scan either a sign-in code or a backend connection QR for first-time setup.
-- **Network address privacy:** backend addresses in mobile Settings and the
-  web backend QR panel are masked by default. Flow A and Flow B approval
-  dialogs also hide the other device's network address until the user chooses
-  to reveal it. A backend connection QR still encodes the address needed to
-  connect.
-- **Custom crops:** My Crops lets an account add a crop, fruit, or vegetable,
-  set its target bands and rough-estimate baseline, and select it immediately.
-- Both sign-in flows accept the short manual pairing code. Camera permission
-  is requested after an explanation; denial offers app Settings and manual
-  entry. Canceling a phone claim notifies the computer and closes its approval
-  prompt.
+The sample and simulator show target-band comparisons, not crop safety.
+Estimate values are rough, unvalidated ranges based only on temperature and
+humidity; follow the manual crop-check reminder.
 
-Starting Guided Demo independently on both devices creates two different
-temporary users, so their readings do not sync. Starting the simulation again
-for the same user is idempotent. Either device can stop it for both. The
-simulator also stops after reset, when no valid demo session remains, or when
-the backend process restarts.
+To share one Guided Demo between web and mobile, pair the second device with
+the temporary account:
 
-## Guided Demo controls
+- From web Settings, use **Connect phone by QR**; scan on the phone and approve
+  the match number on the computer (Flow A).
+- From mobile Settings, use **Log in on computer**; scan the browser QR, type
+  the number displayed in the browser, and confirm the request on the phone
+  (Flow B).
 
-- **Start/stop live simulation:** stream new synthetic readings at 3-second
-  intervals and synchronize them to all connected sessions for the demo user.
-- **Refresh demo data:** use the manual refresh action in Settings on web or
-  mobile to fetch the latest server state. This does not create a reading or
-  change the simulator; live events and polling continue automatically, and
-  mobile also retains pull-to-refresh.
-- **Automatic demo alerts:** changing simulated readings cross the selected
-  crop's band and create a reviewable simulated alert.
-- **Simulate sensor reading:** write one additional synthetic reading.
-- **Simulate breach:** create an out-of-band reading and a simulated alert.
-- **Switch crop:** change the selected crop and its target-band interpretation.
-- **Simulate network loss:** disconnect that client's event stream to present
-  offline behavior; it does not disable the server-side simulator.
-- **Reset demo:** stop the simulator, delete the temporary demo data, and
-  return to the no-account preview.
+Starting Guided Demo separately on both devices creates separate accounts.
+It does not synchronize their data.
 
-## Implementation and verification
+## Guide and presenter preflight
 
-The live simulator, QR sharing, event-driven screen refresh, and demo-session
-idle policy are implemented in the active source. GitHub Actions v112 (run
-[`43222452877`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877),
-commit `c806d9a`) passed backend API tests, Android tests/analysis/release APK,
-and Windows launch/lifecycle/installer acceptance. Backend coverage includes
-the 3-second interval, changing temperature and humidity, generated demo
-alerts, and QR-shared live readings. Artifacts `Peo Yame v112 Android` and
-`Peo Yame v112 Windows` were uploaded. Visual presentation, camera
-permissions, physical-device behavior, and real Wi-Fi reachability have not
-been manually verified.
+The **Demo guide** button stays available on every demo screen. Its Part A
+steps cover the shared preview; Part B covers the account-backed walkthrough.
+Each step includes a presenter prompt, expected result when supplied by the
+backend, and a **Take me there** action. It navigates only; it does not perform
+security-sensitive actions for the presenter. Server-detectable progress is
+shown automatically, with manual completion retained for client-only steps.
 
-The web and mobile Settings screens now present sync status and controls in
-organized sections/cards, with the manual refresh action in Settings rather
-than the mobile app bar. GitHub Actions v114 (run
-[`43224956617`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43224956617),
-commit `f73378d`) passed backend API tests, Android tests/analysis/release APK,
-and Windows launch/lifecycle/installer checks. Visual and accessibility
-review on real devices and browsers remains outstanding.
+Settings → **Before you present** reports whether Guided Demo is enabled,
+whether the simulator is running, the active session count for the current
+demo account, and the backend-detected network address (masked until revealed).
+The app cannot prove that a phone can reach that address; it says **Not
+verified from the backend**. Keep both devices on the same Wi-Fi, allow the
+Windows Firewall prompt, and use plain HTTP only on a controlled network.
+
+Guided Demo's expiry countdown is based on the absolute session expiry. The
+backend still enforces the two-hour absolute and 30-minute idle limits; an
+open event stream counts as activity only if the backend records the session
+request as active.
+
+## QR and connection notes
+
+- **Flow A — computer connects a phone:** the computer re-checks the account
+  password and enabled authenticator code. The phone scans the 90-second
+  one-time QR, confirms a backend change if needed, claims with a
+  verifier-bound request, and waits for explicit computer approval.
+- **Flow B — phone approves a computer sign-in:** the browser displays a
+  90-second QR and match number. A signed-in phone scans it, displays a partial
+  network address by default, asks the farmer to enter the browser's number,
+  requires device authentication, and then approves or denies.
+- **Backend connection QR:** Settings can show an address-only QR without a
+  session token or pairing code. Mobile validates the address and asks before
+  switching. Backend configuration is not shown on the Android Welcome page;
+  its QR sign-in path accepts a backend QR or a manually entered address/code.
+- **Address privacy:** network addresses are partially hidden by default in
+  approval prompts and presenter preflight. Reveal is an explicit user action.
+
+## Evidence and known limits
+
+- **Source inspection:** the current branch implements the behavior described
+  above; the working diff still requires review.
+- **Automated test:** new backend and client regressions are being added, but
+  this changeset has not been run locally or through GitHub Actions.
+- **Manual observation:** Windows tray use, QR camera prompts, visual layout,
+  screen-reader/keyboard behavior, and real Wi-Fi reachability remain **Not
+  verified**.
+
+Use `DEMO_SCRIPT.md` for a timed presentation and recovery steps.

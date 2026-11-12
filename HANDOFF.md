@@ -1,5 +1,27 @@
 # Peo Yame — build handoff and resume plan
 
+## Current state — demo-fix continuation
+
+The active checkout for this continuation is the session-local clone
+`/home/porusandesu/.copilot/session-state/5f7813a3-0700-4ed6-896b-1d383cb9ff74/Peo_Yame_RCP-exe-work`
+on branch `exe-work`, based on `93be657`. The unrelated, dirty
+`/home/porusandesu` checkout and
+`/home/porusandesu/Documents/storage_monitor_flutter` were not changed.
+
+**Implemented in the uncommitted working tree:** shared Instant Demo reading
+refresh and crop isolation; Showcase/Walkthrough profiles; simulator controls
+and first-in-band coverage; the web guide/preflight, reading-age state, gauge
+and chart helpers; Android QR address masking, expiry countdown, presenter
+preflight, positioned/animated gauges, and trend ticks; Windows opt-in Guided
+Demo support; API/client tests and demo documentation.
+
+**Still pending:** a careful diff review, resolving any test/type failures in
+CI, running the required GitHub Actions workflow after the user arranges a
+push, and manual web/Android/Windows/network observations. No build, test,
+commit, or push was performed for this continuation. Do not label the changes
+finished until those checks are addressed. The old verification sections below
+remain historical records and do not cover the current diff.
+
 ## Latest verification — security audit v121 passed
 
 Work is in `/tmp/peo-yame-feature-parity` on `copilot/feature-parity`, tracking

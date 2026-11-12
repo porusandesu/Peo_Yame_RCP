@@ -1,5 +1,25 @@
 # Feature parity status
 
+## Current demo-fix continuation — pending validation
+
+The `exe-work` working tree adds the Instant Demo shared feed/profile
+regressions, web presenter/gauge helpers, mobile positioned gauges and preflight,
+demo expiry countdowns, QR address masking, and demo documentation. The shared
+sample and Showcase/Walkthrough profiles remain synthetic; the simulator still
+starts only when the presenter requests it. Focused API and helper tests have
+been added or updated, including the first-in-band simulator expectation.
+
+- **Source inspection:** changes are in the session-local `exe-work` clone;
+  review and integration are still in progress.
+- **Automated test:** not run for this changeset. The project handoff requires
+  CI-only app validation; this work has not been pushed to start that workflow.
+- **Manual observation:** Windows tray interaction, QR camera prompts,
+  accessibility, and presentation-device Wi-Fi reachability are **Not
+  verified**. Retake the screenshots listed in `docs/DEMO_SCRIPT.md`.
+
+The v117/v118/v121 entries below describe prior source snapshots and are not
+evidence for this continuation.
+
 ## Security hardening and trend charts — v117 CI verified
 
 The current continuation externalizes dashboard HTML assets and removes inline

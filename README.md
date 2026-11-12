@@ -33,3 +33,10 @@ backend, and opens the dashboard in the default browser. No separate Node.js
 installation or file extraction is needed. The notification-area menu also has
 Start, Restart backend, Stop, and Quit actions. App data is kept under
 `%LOCALAPPDATA%\Peo Yame`; startup details are written to its `data\logs\app.log`.
+
+Guided Demo is off by default. Turn it on with the notification-area **Demo
+mode** checkbox, launch the executable with `--demo`, or choose the optional
+**Peo Yame (Demo mode)** Start Menu shortcut during installation (unchecked by
+default). An explicitly set `PEO_YAME_DEMO_ENABLED` environment variable takes
+precedence. See [Demo mode](docs/DEMO_MODE.md) and the [presenter
+script](docs/DEMO_SCRIPT.md) before demonstrating temporary account features.
