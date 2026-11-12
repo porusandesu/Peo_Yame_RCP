@@ -215,8 +215,8 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   assert.equal((await enabledResponse.json()).revokedSessions, 1);
   const activeSessions = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());
   assert.equal(activeSessions.length, 1);
-  assert.equal(activeSessions[0].totpVerified, true);
-  assert.equal((await fetch(`${base}/status`, {
+  assert.equal(activeSessions[0].totpVerified, false);
+  assert.equal((await fetch(`${base}/account`, {
     headers: { authorization: `Bearer ${secondSession.token}` },
   })).status, 401);
   assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 409);
@@ -254,7 +254,7 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   });
   assert.equal(disabledResponse.status, 200);
   assert.equal((await disabledResponse.json()).revokedSessions, 1);
-  assert.equal((await fetch(`${base}/status`, {
+  assert.equal((await fetch(`${base}/account`, {
     headers: { authorization: `Bearer ${thirdSession.token}` },
   })).status, 401);
   const sessionsAfterDisable = await fetch(`${base}/account/sessions`, { headers: auth }).then((result) => result.json());

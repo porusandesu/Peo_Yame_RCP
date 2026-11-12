@@ -1,5 +1,17 @@
 # Test report
 
+## GitHub Actions v105 — authenticator revocation regression needs follow-up
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43201617670
+Commit: `bca9031` (Revoke other sessions when authenticator changes).
+
+- Windows and Android jobs passed; the backend job exposed two issues in the
+  new session assertions and TOTP verification semantics.
+- The test now checks revoked sessions through the protected account route.
+  Enabling TOTP preserves the current session's sign-in verification marker
+  (so it still must re-authenticate for approval); disabling clears it.
+- Corrected source and regression assertions are pending CI.
+
 ## GitHub Actions v104 — demo QR lifetime passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43200357299

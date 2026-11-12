@@ -22,8 +22,10 @@ Open security and verification gaps remain: the dashboard CSP is disabled for
 its inline scripts/handlers; the security log is partial and not shown in
 Settings; authenticator changes do not revoke other sessions. A source
 follow-up now revokes other sessions on authenticator changes while retaining
-the current verified session; CI is pending. Windows Firewall, real-device LAN
-access, and manual visual/accessibility checks are not verified. See
+the requesting session; its TOTP verification state remains tied to sign-in
+and is cleared when the authenticator is disabled. CI is pending. Windows
+Firewall, real-device LAN access, and manual visual/accessibility checks are
+not verified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 
