@@ -479,7 +479,9 @@
     const demoCard = $("#demo-card");
     if (mode === "instant") {
       const dataCard = grid.querySelector(".py-settings-card");
-      grid.replaceChildren(dataCard, demoCard);
+      const backendCard = [...grid.querySelectorAll(".py-settings-card")]
+        .find((item) => item.querySelector("h2")?.textContent === "Backend connection");
+      grid.replaceChildren(...[dataCard, backendCard, demoCard].filter(Boolean));
       grid.append(card("Account features need Guided Demo or an account",
         "Profile, security, QR pairing and storage management require a signed-in account.",
         "Start Guided Demo", () => window.startGuided()));

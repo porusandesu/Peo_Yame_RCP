@@ -61,6 +61,16 @@ bool isPrivateBackendUrl(Uri uri){
   (octets[0]==192&&octets[1]==168)||
   (octets[0]==172&&octets[1]>=16&&octets[1]<=31);
 }
+Future<T> runValidatedBackendSwitch<T>({
+ required Future<T> Function() validateDestination,
+ required Future<void> Function() endCurrentSession,
+ required Future<void> Function(T destination) saveDestination,
+})async{
+ final destination=await validateDestination();
+ await endCurrentSession();
+ await saveDestination(destination);
+ return destination;
+}
 class PeoYameApp extends StatelessWidget{const PeoYameApp({super.key});@override Widget build(BuildContext context)=>MaterialApp(title:'Peo Yame',theme:ThemeData(useMaterial3:true,colorScheme:ColorScheme.fromSeed(seedColor:green).copyWith(primary:green),scaffoldBackgroundColor:canvas,appBarTheme:const AppBarTheme(backgroundColor:Color(0xff112821),foregroundColor:Colors.white),cardTheme:CardThemeData(color:Colors.white,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),side:const BorderSide(color:line))),inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:Colors.white,contentPadding:const EdgeInsets.symmetric(horizontal:14,vertical:13),border:OutlineInputBorder(borderRadius:BorderRadius.all(Radius.circular(12)),borderSide:const BorderSide(color:inputBorder)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.all(Radius.circular(12)),borderSide:const BorderSide(color:inputBorder)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.all(Radius.circular(12)),borderSide:const BorderSide(color:green,width:2))),navigationBarTheme:const NavigationBarThemeData(backgroundColor:Colors.white,indicatorColor:Color(0xffe1f0e6))),home:const Home());}
 class Home extends StatefulWidget{const Home({super.key});@override State<Home> createState()=>_HomeState();}
 class _HomeState extends State<Home> with WidgetsBindingObserver{
@@ -342,10 +352,12 @@ Future<bool> _confirmBackendSwitch(Uri remote)async{
  )));
  return accepted??false;
 }
-Future<void> _connectBackend(String raw)async{try{final remote=Uri.parse(raw.trim());if(!remote.hasAuthority||remote.userInfo.isNotEmpty||!privateBackend(remote))throw Exception('Use a private-network HTTP address or a secure HTTPS backend without URL credentials.');final value='${remote.scheme}://${remote.authority}';if(value!=savedBackend){if(await _confirmBackendSwitch(remote)!=true){address.text=savedBackend;return;}if(token!=null)await signOut();else await storage.delete(key:'session');token=null;address.text=value;}await _checkAndSaveBackend();if(mounted&&!entered){setState(()=>entryMode='login');ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Backend connected. Sign in to continue.')));}}catch(e){address.text=savedBackend;if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
+Future<void> _connectBackend(String raw)async{try{final remote=Uri.parse(raw.trim());if(!remote.hasAuthority||remote.userInfo.isNotEmpty||!privateBackend(remote))throw Exception('Use a private-network HTTP address or a secure HTTPS backend without URL credentials.');final value='${remote.scheme}://${remote.authority}';if(value!=savedBackend){if(await _confirmBackendSwitch(remote)!=true){address.text=savedBackend;return;}await runValidatedBackendSwitch<String>(validateDestination:()=>_validateBackend(value),endCurrentSession:signOut,saveDestination:_saveBackend);}else{await _checkAndSaveBackend();}if(mounted&&!entered){setState(()=>entryMode='login');ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Backend connected. Sign in to continue.')));}}catch(e){address.text=savedBackend;if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
 Future<void> _scanBackendQr()async{if(!await cameraRationale())return;final raw=await openScanner();if(raw==null)return;try{final payload=Map<String,dynamic>.from(jsonDecode(raw) as Map);if(payload['flow']!='backend')throw Exception('This is not a backend connection QR code.');await _connectBackend(payload['baseUrl'].toString());}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));}}
 Future<void> _saveBackendAddress()async=>_connectBackend(address.text);
-Future<void> _checkAndSaveBackend()async{final base=address.text.trim().replaceAll(RegExp(r'/+$'),'');final response=await http.get(Uri.parse('$base/api/health')).timeout(const Duration(seconds:8));if(response.statusCode!=200)throw Exception('This address did not respond as a Peo Yame backend.');final result=Map<String,dynamic>.from(jsonDecode(response.body) as Map);if(result['authEnabled']!=true)throw Exception('This backend does not have accounts enabled.');await storage.write(key:'backend',value:base);savedBackend=base;if(mounted)setState(()=>backendStatus='Connected · accounts enabled · checked just now');}
+Future<String> _validateBackend(String raw)async{final base=raw.trim().replaceAll(RegExp(r'/+$'),'');final response=await http.get(Uri.parse('$base/api/health')).timeout(const Duration(seconds:8));if(response.statusCode!=200)throw Exception('This address did not respond as a Peo Yame backend.');final result=Map<String,dynamic>.from(jsonDecode(response.body) as Map);if(result['authEnabled']!=true)throw Exception('This backend does not have accounts enabled.');return base;}
+Future<void> _saveBackend(String base)async{await storage.write(key:'backend',value:base);savedBackend=base;address.text=base;if(mounted)setState(()=>backendStatus='Connected · accounts enabled · checked just now');}
+Future<void> _checkAndSaveBackend()async=>_saveBackend(await _validateBackend(address.text));
 Widget _backendConnectionPanel()=>Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
 Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:_field('Backend address',address,secret:!showBackendAddress,suffix:IconButton(tooltip:showBackendAddress?'Hide address':'Show address',onPressed:()=>setState(()=>showBackendAddress=!showBackendAddress),icon:Icon(showBackendAddress?Icons.visibility_off:Icons.visibility)))),
 Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Text(backendStatus,style:const TextStyle(color:muted))),
@@ -367,8 +379,7 @@ Future<void> scanPhoneQr()async{
   final value='${remote.scheme}://${remote.authority}';
   if(value!=savedBackend){
    if(await _confirmBackendSwitch(remote)!=true)return;
-   if(token!=null)await signOut();else await storage.delete(key:'session');
-   token=null;address.text=value;await _checkAndSaveBackend();
+   await runValidatedBackendSwitch<String>(validateDestination:()=>_validateBackend(value),endCurrentSession:signOut,saveDestination:_saveBackend);
   }
   final codeId=payload['codeId'].toString();
   final verifier=base64UrlEncode(List<int>.generate(32,(_)=>Random.secure().nextInt(256)));

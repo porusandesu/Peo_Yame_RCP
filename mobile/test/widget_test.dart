@@ -50,6 +50,50 @@ void main() {
     expect(isPrivateBackendUrl(Uri.parse('https://user:pass@example.com')), isFalse);
   });
 
+  test('failed backend validation preserves the current session', () async {
+    var sessionEnded = false;
+    var destinationSaved = false;
+
+    await expectLater(
+      runValidatedBackendSwitch<String>(
+        validateDestination: () async => throw StateError('unreachable'),
+        endCurrentSession: () async {
+          sessionEnded = true;
+        },
+        saveDestination: (_) async {
+          destinationSaved = true;
+        },
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(sessionEnded, isFalse);
+    expect(destinationSaved, isFalse);
+  });
+
+  test('successful backend switching validates before saving the destination', () async {
+    final steps = <String>[];
+
+    await runValidatedBackendSwitch<String>(
+      validateDestination: () async {
+        steps.add('validated');
+        return 'http://192.168.1.20:3000';
+      },
+      endCurrentSession: () async {
+        steps.add('signed out');
+      },
+      saveDestination: (destination) async {
+        steps.add('saved $destination');
+      },
+    );
+
+    expect(steps, [
+      'validated',
+      'signed out',
+      'saved http://192.168.1.20:3000',
+    ]);
+  });
+
   testWidgets('Welcome screen exposes demo and account entry', (tester) async {
     await tester.pumpWidget(const PeoYameApp());
     expect(find.text('Demo mode'), findsOneWidget);

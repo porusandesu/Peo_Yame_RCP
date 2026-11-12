@@ -52,6 +52,8 @@ test("web assets use external scripts and contain no inline styles or handlers",
  assert.match(app,/Rough storage estimate:/);
  assert.match(app,/x\.estimate\.rangeWeeks/);
  assert.match(app,/Download CSV/);
+ assert.match(experience,/grid\.replaceChildren\(\.\.\.\[dataCard,\s*backendCard,\s*demoCard\]\.filter\(Boolean\)\)/);
+ assert.match(demo,/ensureBackendQrControls\(\);/);
  assert.doesNotMatch(html,/<script\b(?![^>]*\bsrc=)[^>]*>/i);
  assert.doesNotMatch(html,/<style\b/i);
  assert.doesNotMatch(html,/[\s]on[a-z]+\s*=/i);
