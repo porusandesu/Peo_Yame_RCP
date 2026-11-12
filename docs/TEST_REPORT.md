@@ -1,5 +1,22 @@
 # Test report
 
+## GitHub Actions v125 — Android and Windows passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43298703384
+Commit: `3cc3e12` (Fix remaining showcase CI failures).
+
+- **Backend:** 27 of 28 tests passed. The remaining assertion compared against
+  the last reading before the idle cutoff, even though a final scheduled tick
+  may legitimately arrive before the idle window closes. The test now waits
+  through the idle grace period and verifies the feed remains stopped.
+- **Android:** tests, analysis, release APK build, and packaged launcher
+  verification passed. Artifact `Peo Yame v125.apk` was uploaded.
+- **Windows:** normal launch, opt-in Guided Demo launch, encrypted storage,
+  installer, and uninstall checks passed.
+- **Manual observation:** **Not verified** for web/mobile screenshots,
+  animation/reduced-motion behavior, keyboard or screen-reader navigation,
+  physical camera permissions, Windows tray operation, or real LAN reachability.
+
 ## GitHub Actions v124 — follow-up issues found
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43297468161

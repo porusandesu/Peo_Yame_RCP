@@ -102,8 +102,13 @@ function currentTotp(secret) {
 }
 
 test("Instant Demo readings vary, stay bounded, and stop feeding after anonymous activity ends", async (t) => {
+  const feedIntervalMs = 200;
+  const idleTimeoutMs = 1000;
   const { base, directory, key } = await startBackend(t, {
-    extraEnv: { PEO_YAME_SHARED_FEED_MS: "200", PEO_YAME_SHARED_IDLE_MS: "1000" },
+    extraEnv: {
+      PEO_YAME_SHARED_FEED_MS: String(feedIntervalMs),
+      PEO_YAME_SHARED_IDLE_MS: String(idleTimeoutMs),
+    },
   });
   const readStatus = () => fetch(`${base}/status?crop=Maize`).then((response) => response.json());
   const first = await readStatus();
@@ -122,14 +127,15 @@ test("Instant Demo readings vary, stay bounded, and stop feeding after anonymous
       "SELECT COUNT(*) AS count FROM readings WHERE user_id IS NULL AND synthetic=1",
     ).get().count;
     assert.ok(count <= 2500);
-    const latest = database.prepare(
-      "SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1",
-    ).get().created_at;
-    await new Promise((resolve) => setTimeout(resolve, 1400));
+    await new Promise((resolve) => setTimeout(resolve, idleTimeoutMs + feedIntervalMs * 2));
     const afterIdle = database.prepare(
       "SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1",
     ).get().created_at;
-    assert.equal(afterIdle, latest);
+    await new Promise((resolve) => setTimeout(resolve, feedIntervalMs * 3));
+    const afterIdleWindow = database.prepare(
+      "SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1",
+    ).get().created_at;
+    assert.equal(afterIdleWindow, afterIdle);
   } finally {
     database.close();
   }
