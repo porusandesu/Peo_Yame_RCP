@@ -1,5 +1,18 @@
 # Test report
 
+## GitHub Actions v102 — session idle expiry passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43197194366
+Commit: `6aaf89e` (Apply idle expiry to all sessions).
+
+- Backend API tests passed, including 30-minute idle expiry for password and
+  phone QR sessions.
+- Android analysis, tests, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer, encrypted
+  storage, and uninstall checks passed.
+- No local application builds or tests were run.
+
 ## GitHub Actions v100 — security audit fixes passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43179338332

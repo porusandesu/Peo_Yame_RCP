@@ -1,26 +1,22 @@
 # Feature parity status
 
-## Security audit — v100 fixes verified
+## Session security and demo sync — v102 verified; next changes pending
 
-The source audit fixed permissive cross-origin access, added CSRF validation
-for cookie-authenticated changes, restored browser sessions through `HttpOnly`
-cookies, enforced web QR idle/absolute expiry, required password re-check
-before authenticator setup, rejected expired approved QR pairings, and enabled
-a Windows private-interface listener for phone pairing. A follow-up fixed
-cookie-bearing clients being unable to log in after restart. GitHub Actions
-v100 (run `43179338332`, commit `0446d6a`) passed backend, Android, and Windows
-installer checks; see `docs/TEST_REPORT.md`. No local application builds or
-tests were run.
+The v100 browser-origin, CSRF, QR, and authenticator hardening passed
+GitHub Actions; v102 (run `43197194366`, commit `6aaf89e`) additionally verified
+30-minute idle expiry for password and phone QR sessions across backend,
+Android, and Windows jobs. The source now applies that idle policy to every
+session type and closes idle event streams.
 
 Remaining audit gaps: the dashboard still disables CSP because it uses inline
 scripts and handlers; the security log is incomplete and not exposed in
-Settings; login throttling is per-IP rather than account-based; and
-authenticator changes do not rotate or revoke existing sessions. A source
-change now applies 30-minute idle expiry to password, phone QR, web QR, and
-demo sessions, including event-stream closure and database cleanup. Focused
-backend tests are added; CI verification is pending. Windows Firewall
-behavior, real-device LAN access, and manual visual/accessibility checks
-remain unverified. CI passing is not an independent security review.
+Settings; and authenticator changes do not rotate or revoke existing sessions.
+Unpushed source changes add five-failure phone+IP lockout for 15 minutes within
+a rolling 15-minute window, plus a server-side 10-second Guided Demo simulator,
+QR sharing across mobile/web, and event-driven refresh for every screen.
+Focused backend tests are added; CI verification is pending. Windows Firewall
+behavior, real-device LAN access, and manual visual/accessibility checks remain
+unverified. CI passing is not an independent security review.
 
 The audit notes below include historical pending statuses; the v100 result
 above supersedes those entries for the latest source.

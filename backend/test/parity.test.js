@@ -326,6 +326,120 @@ test("phone QR sessions expire after 30 minutes idle", async (t) => {
   assert.equal((await fetch(`${base}/account`, { headers: { authorization: `Bearer ${phoneSession.token}` } })).status, 401);
 });
 
+test("login locks the phone and IP after five failures without locking other accounts", async (t) => {
+  const { base, directory, key } = await startBackend(t);
+  const register = async (name, phone, password) => fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, phone, password }),
+  }).then((response) => response.json());
+  await register("Locked Farmer", "75678903", "lockout-test-password");
+  await register("Other Farmer", "75678904", "other-lockout-password");
+  const login = (phone, password) => fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone, password }),
+  });
+  const genericMessage = "Phone number or password is incorrect.";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failed = await login("75678903", "incorrect-lockout-password");
+    assert.equal(failed.status, 401);
+    assert.equal((await failed.json()).error, genericMessage);
+  }
+  const locked = await login("75678903", "lockout-test-password");
+  assert.equal(locked.status, 401);
+  assert.equal((await locked.json()).error, genericMessage);
+  assert.equal((await login("75678904", "other-lockout-password")).status, 200);
+
+  const encrypted = openDatabase(path.join(directory, "peo-yame.sqlite"), key);
+  const lockout = encrypted.prepare("SELECT attempt_key,locked_until FROM login_lockouts").get();
+  assert.ok(lockout);
+  assert.ok(Date.parse(lockout.locked_until) > Date.now());
+  encrypted.prepare("UPDATE login_lockouts SET locked_until=? WHERE attempt_key=?").run(
+    new Date(Date.now() - 1000).toISOString(),
+    lockout.attempt_key,
+  );
+  encrypted.close();
+  assert.equal((await login("75678903", "lockout-test-password")).status, 200);
+});
+
+test("guided demo live simulation syncs readings to a second QR session", async (t) => {
+  const { base } = await startBackend(t);
+  const demo = await fetch(`${base}/demo/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(demo.status, 201);
+  const demoSession = await demo.json();
+  const auth = { authorization: `Bearer ${demoSession.token}`, "content-type": "application/json" };
+  assert.equal((await fetch(`${base}/qr/phone/create`, {
+    method: "POST",
+    headers: auth,
+    body: "{}",
+  })).status, 200);
+  const verifier = "shared-demo-verifier-0123456789abcdef";
+  const verifierHash = crypto.createHash("sha256").update(verifier).digest("hex");
+  const pairing = await fetch(`${base}/qr/web/create`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ verifierHash }),
+  }).then((response) => response.json());
+  assert.equal((await fetch(`${base}/qr/web/scan`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: pairing.codeId }),
+  })).status, 200);
+  assert.equal((await fetch(`${base}/qr/web/approve`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ codeId: pairing.codeId, matchCode: pairing.matchCode }),
+  })).status, 200);
+  const browserSession = await fetch(`${base}/qr/web/redeem`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ codeId: pairing.codeId, verifier }),
+  }).then((response) => response.json());
+  assert.equal(browserSession.isDemo, true);
+
+  const mobileAbort = new AbortController();
+  const webAbort = new AbortController();
+  t.after(() => { mobileAbort.abort(); webAbort.abort(); });
+  const mobileStream = await fetch(`${base}/events`, { headers: auth, signal: mobileAbort.signal });
+  const webStream = await fetch(`${base}/events`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+    signal: webAbort.signal,
+  });
+  assert.equal(mobileStream.status, 200);
+  assert.equal(webStream.status, 200);
+  const mobileReader = mobileStream.body.getReader();
+  const webReader = webStream.body.getReader();
+  await Promise.all([readUntil(mobileReader, "event: connected"), readUntil(webReader, "event: connected")]);
+
+  const startedAt = Date.now();
+  const started = await fetch(`${base}/demo/simulation/start`, {
+    method: "POST",
+    headers: auth,
+  });
+  assert.equal(started.status, 200);
+  await Promise.all([readUntil(mobileReader, "event: reading"), readUntil(webReader, "event: reading")]);
+  const status = await fetch(`${base}/status`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  }).then((response) => response.json());
+  assert.equal(status.isDemo, true);
+  assert.equal(status.reading.synthetic, true);
+  assert.ok(Date.parse(status.reading.createdAt) >= startedAt - 1000);
+  const sensors = await fetch(`${base}/sensors`, {
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  }).then((response) => response.json());
+  assert.equal(sensors[0].online, true);
+  assert.equal(sensors[0].latestReading.synthetic, 1);
+  assert.equal((await fetch(`${base}/demo/simulation/stop`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${browserSession.token}` },
+  })).status, 200);
+});
+
 test("approved QR codes cannot be redeemed after their expiry", async (t) => {
   const { base, directory, key } = await startBackend(t);
   const account = await fetch(`${base}/account/register`, {

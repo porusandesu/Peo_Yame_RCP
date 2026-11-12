@@ -1,13 +1,13 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (security audit)
+## Latest status — 2026-11-12 (session security; demo sync pending CI)
 
-The full source audit fixes are pushed to `exe-work` in commits `5756018` and
-`0446d6a`. GitHub Actions v100
-(`43179338332`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43179338332)
-passed backend tests, Android tests/analyzer/release APK and launcher checks,
-and Windows normal launch, restart/reset, installer, encrypted-storage, and
-uninstall checks. No local application builds or tests were run.
+The source audit fixes are pushed to `exe-work` in commits `5756018` and
+`0446d6a`. GitHub Actions v102
+(`43197194366`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43197194366)
+passed backend, Android, and Windows jobs, including new 30-minute idle expiry
+checks for password and phone QR sessions. No local application builds or
+tests were run.
 
 The audit tightened browser origin and CSRF checks, added cookie-based web
 session restoration/idle expiry, required password re-authentication for
@@ -18,12 +18,11 @@ No seeded test account exists; use Instant Demo or register an account.
 
 Open security and verification gaps remain: the dashboard CSP is disabled for
 its inline scripts/handlers; the security log is partial and not shown in
-Settings; login throttling is per-IP rather than account-based; authenticator
-changes do not rotate or revoke existing sessions. A source change now applies
-30-minute idle expiry to password, phone QR, web QR, and demo sessions,
-including event-stream closure and database cleanup; focused backend tests are
-added, with CI verification pending. Windows Firewall, real-device LAN access,
-and manual visual/accessibility checks are not verified. See
+Settings; authenticator changes do not rotate or revoke existing sessions.
+Unpushed source changes add account+IP lockout and a server-side live Guided
+Demo simulator shared across paired mobile/web sessions. Focused backend tests
+are added; CI verification is pending. Windows Firewall, real-device LAN
+access, and manual visual/accessibility checks are not verified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 
