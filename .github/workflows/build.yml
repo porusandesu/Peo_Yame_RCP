@@ -213,6 +213,23 @@ jobs:
           if ($header.StartsWith("SQLite format 3")) { throw "Installed database is plaintext SQLite." }
           if ((Get-Item $keyFile).Length -lt 32) { throw "Protected database key file is unexpectedly short." }
           Write-Host "WINDOWS_INSTALLER_ENCRYPTED_LAUNCH_OK"
+          $env:PEO_YAME_SELF_TEST_LOG = Join-Path $root "demo-launch.log"
+          $demoApp = Start-Process -FilePath $exe -WorkingDirectory $install -ArgumentList "--demo" -PassThru
+          try {
+            $demoHealth = $null
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($demoApp.HasExited) { break }
+              try { $demoHealth = Invoke-RestMethod "http://127.0.0.1:$port/api/health" -TimeoutSec 2; break } catch {}
+              Start-Sleep 1
+            }
+            if (!$demoHealth.ok -or !$demoHealth.guidedDemoEnabled) { throw "The --demo launch did not enable Guided Demo." }
+            $demo = Invoke-RestMethod "http://127.0.0.1:$port/api/demo/start" -Method Post -ContentType "application/json" -Body '{"profile":"showcase"}' -TimeoutSec 5
+            if (!$demo.isDemo -or $demo.profile -ne "showcase") { throw "The installed demo launch could not create a Showcase session." }
+            Write-Host "WINDOWS_INSTALLER_DEMO_LAUNCH_OK"
+          } finally {
+            if (!$demoApp.HasExited) { Stop-Process -Id $demoApp.Id -Force -ErrorAction SilentlyContinue }
+            Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -like "*src/server.js*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          }
           $uninstaller = Join-Path $install "unins000.exe"
           if (!(Test-Path $uninstaller)) { throw "Installer did not register an uninstaller." }
           $removed = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -PassThru -Wait
