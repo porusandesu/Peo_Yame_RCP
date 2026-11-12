@@ -199,11 +199,18 @@ test("phone pairing creation requires an enabled authenticator code", async (t) 
   });
   assert.equal(setupResponse.status, 200);
   const setup = await setupResponse.json();
-  assert.equal((await fetch(`${base}/authenticator/enable`, {
+  const enabled = await fetch(`${base}/authenticator/enable`, {
     method: "POST",
     headers: auth,
     body: JSON.stringify({ code: currentTotp(setup.secret) }),
-  })).status, 200);
+  });
+  assert.equal(enabled.status, 200);
+  const enabledSession = await enabled.json();
+  assert.notEqual(enabledSession.token, account.token);
+  assert.equal((await fetch(`${base}/account`, {
+    headers: { authorization: `Bearer ${account.token}` },
+  })).status, 401);
+  auth.authorization = `Bearer ${enabledSession.token}`;
   assert.equal((await fetch(`${base}/authenticator/setup`, { method: "POST", headers: auth })).status, 409);
 
   const missingCode = await fetch(`${base}/qr/phone/create`, {
