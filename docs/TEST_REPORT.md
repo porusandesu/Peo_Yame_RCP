@@ -1,5 +1,32 @@
 # Test report
 
+## GitHub Actions v100 — security audit fixes passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43179338332
+Commit: `0446d6a` (Allow cookie-bearing clients to sign in).
+
+- Backend API tests passed, including CORS/CSRF, cookie-session idle expiry,
+  authenticator setup re-authentication, QR expiry, and LAN listener coverage.
+- Android tests, analysis, release APK build, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer acceptance,
+  encrypted-storage verification, and uninstall passed. Android and Windows
+  artifacts were uploaded.
+- No local application builds or tests were run.
+
+## GitHub Actions v99 — backend and Android passed; Windows exposed a login regression
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43178495585
+Commit: `5756018` (Harden browser sessions and QR pairing).
+
+- Backend API tests and Android tests/analysis/release APK passed.
+- Windows normal launch passed, but restart/reset lifecycle failed because the
+  self-test's cookie-bearing login request was rejected by CSRF validation.
+  Login and registration now bypass only the cookie CSRF-token check; CORS
+  origin validation remains enforced. Regression coverage and the complete
+  Windows lifecycle passed in v100.
+- No local application builds or tests were run.
+
 ## GitHub Actions v97 — backend, Android, and Windows installer passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43173464542

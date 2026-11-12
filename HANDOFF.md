@@ -1,14 +1,29 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12
+## Latest status — 2026-11-12 (security audit)
 
-Feature-parity implementation is pushed to `exe-work`; GitHub Actions v97
-(`43173464542`, commit `2c1bac6`) passed all backend, Android, and Windows
-jobs. The Windows installer acceptance test verified install, launch,
-encrypted storage, and uninstall. Android and Windows artifacts were uploaded.
-Automated parity work is complete; manual visual/accessibility and real-device
-checks remain open. See `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`.
-Older continuation notes below are historical and superseded by this status.
+The full source audit fixes are pushed to `exe-work` in commits `5756018` and
+`0446d6a`. GitHub Actions v100
+(`43179338332`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43179338332)
+passed backend tests, Android tests/analyzer/release APK and launcher checks,
+and Windows normal launch, restart/reset, installer, encrypted-storage, and
+uninstall checks. No local application builds or tests were run.
+
+The audit tightened browser origin and CSRF checks, added cookie-based web
+session restoration/idle expiry, required password re-authentication for
+authenticator setup, expired approved QR pairings at their deadline, and
+enabled the Windows LAN listener for phone pairing. v99 exposed a regression
+for cookie-bearing clients logging in after restart; v100 covers and fixes it.
+No seeded test account exists; use Instant Demo or register an account.
+
+Open security and verification gaps remain: the dashboard CSP is disabled for
+its inline scripts/handlers; the security log is partial and not shown in
+Settings; login throttling is per-IP rather than account-based; password and
+phone QR sessions lack idle expiry; authenticator changes do not rotate or
+revoke existing sessions. Windows Firewall, real-device LAN access, and
+manual visual/accessibility checks are not verified. See
+`docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
+below are historical and superseded by this status.
 
 ## Correction to the Windows launch history — 2026-11-11
 
