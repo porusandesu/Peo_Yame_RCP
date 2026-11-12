@@ -23,9 +23,14 @@ activity, and alerts are labeled as simulated.
 
 The guided demo's **Start live simulation** action starts one backend
 simulation for that temporary user. It writes an immediate reading and then
-adds a new timestamped synthetic sensor reading every 10 seconds. The
-simulated sensor's last-seen time is updated, so the sensor appears online.
-Overview, Trends, My Crops, and Alerts refresh when their data changes.
+adds a new timestamped synthetic sensor reading every 3 seconds. Temperature
+and humidity vary at each tick; every sixth reading is pushed beyond a
+selected crop's target band when an out-of-band sensor value is available.
+An out-of-band reading creates an account-scoped simulated alert and emits an
+alert event. Another synthetic alert is held back while an earlier one is
+unreviewed. The simulated sensor's last-seen time is updated, so the sensor
+appears online. Overview, Trends, My Crops, and Alerts refresh when their
+data changes.
 
 The web and mobile clients receive user-scoped server-sent events. To see the
 same live data on both:
@@ -58,7 +63,16 @@ explicit approval are not bypassed.
 - **Backend connection QR:** Settings can display an address-only QR with no
   session token or pairing code. Mobile validates the address, asks before
   switching backends, checks the health endpoint, then saves it. The mobile
-  app also allows the address to be entered manually.
+  app also allows the address to be entered manually in Settings. Backend
+  setup is not shown on the mobile Welcome screen; its QR sign-in action can
+  scan either a sign-in code or a backend connection QR for first-time setup.
+- **Network address privacy:** backend addresses in mobile Settings and the
+  web backend QR panel are masked by default. Flow A and Flow B approval
+  dialogs also hide the other device's network address until the user chooses
+  to reveal it. A backend connection QR still encodes the address needed to
+  connect.
+- **Custom crops:** My Crops lets an account add a crop, fruit, or vegetable,
+  set its target bands and rough-estimate baseline, and select it immediately.
 - Both sign-in flows accept the short manual pairing code. Camera permission
   is requested after an explanation; denial offers app Settings and manual
   entry. Canceling a phone claim notifies the computer and closes its approval
@@ -72,8 +86,10 @@ the backend process restarts.
 
 ## Guided Demo controls
 
-- **Start/stop live simulation:** stream new synthetic readings at 10-second
+- **Start/stop live simulation:** stream new synthetic readings at 3-second
   intervals and synchronize them to all connected sessions for the demo user.
+- **Automatic demo alerts:** changing simulated readings cross the selected
+  crop's band and create a reviewable simulated alert.
 - **Simulate sensor reading:** write one additional synthetic reading.
 - **Simulate breach:** create an out-of-band reading and a simulated alert.
 - **Switch crop:** change the selected crop and its target-band interpretation.
@@ -85,11 +101,12 @@ the backend process restarts.
 ## Implementation and verification
 
 The live simulator, QR sharing, event-driven screen refresh, and demo-session
-idle policy are implemented in the active source. GitHub Actions v109 (run
-`43211211135`, commit `fc7f261`) passed backend tests, Android tests/analysis/
-release APK, and Windows launch/lifecycle/installer acceptance. Coverage
-includes backend connection QR payloads, phone QR renewal and cancellation,
-owner/verifier binding, expiry, and demo QR synchronization. Artifacts
-`Peo Yame v109 Android` and `Peo Yame v109 Windows` were uploaded. Visual
-presentation, camera permissions, physical-device behavior, and real Wi-Fi
-reachability have not been manually verified.
+idle policy are implemented in the active source. GitHub Actions v112 (run
+[`43222452877`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877),
+commit `c806d9a`) passed backend API tests, Android tests/analysis/release APK,
+and Windows launch/lifecycle/installer acceptance. Backend coverage includes
+the 3-second interval, changing temperature and humidity, generated demo
+alerts, and QR-shared live readings. Artifacts `Peo Yame v112 Android` and
+`Peo Yame v112 Windows` were uploaded. Visual presentation, camera
+permissions, physical-device behavior, and real Wi-Fi reachability have not
+been manually verified.

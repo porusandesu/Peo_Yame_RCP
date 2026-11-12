@@ -1,5 +1,24 @@
 # Feature parity status
 
+## Guided Demo refresh, privacy and custom crops — v112 CI verified
+
+Guided Demo now produces changing temperature and humidity readings every
+3 seconds, sends an immediate reading on start, and schedules crop-band
+outliers that generate account-scoped simulated alerts. The alerts stream to
+paired web and Android sessions. Web and mobile let users add a crop, fruit,
+or vegetable and select it after saving. Backend addresses and QR approval
+network addresses are masked by default with an explicit reveal action; the
+mobile Welcome screen no longer exposes backend configuration, while its QR
+sign-in action still supports first-time backend-connection QR codes.
+
+GitHub Actions v112 (run
+[`43222452877`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877),
+commit `c806d9a`) passed backend tests, Android tests/analysis/release APK,
+and Windows normal launch, restart/reset, installer, encrypted-storage, and
+uninstall checks. Artifacts `Peo Yame v112 Android` and
+`Peo Yame v112 Windows` were uploaded. Visual presentation, camera
+permissions, and real-device/Wi-Fi behavior remain unverified.
+
 ## QR and backend pairing — v109 CI verified
 
 Guided Demo now starts with an empty location list and an unlinked synthetic
@@ -36,12 +55,12 @@ session. The source applies 30-minute idle expiry to every session type and
 closes idle event streams.
 
 Remaining audit gaps: the dashboard still disables CSP because it uses inline
-scripts and handlers. A scoped activity feed now appears in Settings and
-records account creation/sign-in/out, authenticator changes, session revokes,
-QR approvals/sign-ins, sensor links, and crop inspections; failed sign-ins and
-lockouts are not yet included, and this follow-up is pending CI.
+scripts and handlers. A scoped activity feed now appears in Settings and records account
+creation/sign-in/out, authenticator changes, session revokes, QR
+approvals/sign-ins, sensor links, and crop inspections; failed sign-ins and
+lockouts are not yet included.
 The verified source adds five-failure phone+IP lockout for 15 minutes within a
-rolling 15-minute window, plus a server-side 10-second Guided Demo simulator,
+rolling 15-minute window, plus a server-side 3-second Guided Demo simulator,
 QR sharing across mobile/web, and event-driven refresh for every screen. QR
 sessions are capped at the demo profile's two-hour absolute lifetime, and
 other sessions are revoked when the authenticator is enabled or disabled.

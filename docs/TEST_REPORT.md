@@ -1,5 +1,22 @@
 # Test report
 
+## GitHub Actions v112 — Guided Demo refresh, privacy and Android fix passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877
+Commit: `c806d9a` (Fix backend switch dialog result).
+
+- Backend API tests passed, including 3-second live readings, changing
+  temperature and humidity, automatic crop-band alert creation, and readings
+  synchronized to QR-paired demo sessions.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer install/launch,
+  encrypted-storage acceptance, and uninstall checks passed.
+- Artifacts `Peo Yame v112 Android` (71,407,563 bytes) and
+  `Peo Yame v112 Windows` (311,277,702 bytes) were uploaded.
+- No local application builds or tests were run. Physical-device, camera,
+  visual, and Wi-Fi reachability checks remain outstanding.
+
 ## GitHub Actions v109 — Guided Demo and QR backend pairing passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43211211135

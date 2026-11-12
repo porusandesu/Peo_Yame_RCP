@@ -1,33 +1,29 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (session security and demo sync verified)
+## Latest status — 2026-11-12 (Guided Demo sync and privacy verified)
 
-The source audit fixes are pushed to `exe-work`; GitHub Actions v102
-(`43197194366`) verified session idle expiry and v103
-(`43199378655`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43199378655)
-passed backend, Android, and Windows jobs for account+IP lockout and shared
-Guided Demo live sync. v104
-(`43200357299`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43200357299)
-verified the two-hour lifetime for QR-created Guided Demo sessions across
-backend, Android, and Windows. v107
-(`43203834344`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43203834344)
-verified that changing authenticator state revokes other sessions while
-retaining the current session. No local application builds or tests were run.
+The demo improvements are pushed to `exe-work` at `c806d9a`. GitHub Actions
+v112 ([run `43222452877`](https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43222452877))
+passed backend API tests, Android tests/analysis/release APK, and Windows
+normal launch, restart/reset, installer, encrypted-storage acceptance, and
+uninstall. The simulator now updates varied temperature and humidity every
+3 seconds, generates crop-band alerts, and synchronizes them to signed-in
+demo devices. Backend IP/address display is masked until revealed; mobile
+Welcome no longer exposes backend configuration but still accepts a backend
+QR for first-time setup. Custom crops, fruit, and vegetables can be added and
+selected. Artifacts `Peo Yame v112 Android` (71,407,563 bytes) and
+`Peo Yame v112 Windows` (311,277,702 bytes) were uploaded. No local app builds
+or tests were run.
 
-The audit tightened browser origin and CSRF checks, added cookie-based web
-session restoration/idle expiry, required password re-authentication for
-authenticator setup, expired approved QR pairings at their deadline, and
-enabled the Windows LAN listener for phone pairing. v99 exposed a regression
-for cookie-bearing clients logging in after restart; v100 covers and fixes it.
-No seeded test account exists; use Instant Demo or register an account.
+Earlier security audit fixes remain verified by v102–v107: session idle
+expiry, account+IP lockout, QR-shared demo sessions, QR demo lifetime, and
+authenticator session revocation. No seeded test account exists; use Instant
+Demo or register an account.
 
-Open security and verification gaps remain: the dashboard CSP is disabled for
-its inline scripts/handlers. A scoped activity feed is now in Settings, but
-its source changes are pending CI and it does not yet include failed
-sign-ins/lockouts. Authenticator changes revoke other sessions; the current
-session's TOTP verification state remains tied to sign-in and is cleared when
-the authenticator is disabled. Windows Firewall, real-device LAN access, and
-manual visual/accessibility checks are not verified. See
+Open verification gaps remain: dashboard CSP is disabled for its inline
+scripts/handlers; the activity feed does not include failed sign-ins or
+lockouts. Windows Firewall, real-device LAN access, camera permissions, and
+manual visual/accessibility checks are unverified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 
