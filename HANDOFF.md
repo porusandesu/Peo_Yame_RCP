@@ -145,8 +145,8 @@ Sensor management adds account-owned records, manual ID registration, location l
 
 The active implementation worktree is `/tmp/peo-yame-feature-parity`, branch
 `copilot/feature-parity`, based on `f0ddde4`. The original Documents workspace
-and the divergent `storage_monitor_flutter` checkout were not modified. No
-changes from this batch have been committed or pushed.
+and the divergent `storage_monitor_flutter` checkout were not modified. Commit
+`23d7c26` was pushed to `exe-work`.
 
 Source changes now cover server-sent mutation events with session validity
 checks; web and Android reconnect/offline behavior; a 30-item Botswana-oriented
@@ -160,15 +160,20 @@ states the available Botswana survey basis and its limitation: the cited
 official sources do not publish a ranked top-ten list across all three
 categories.
 
-Focused backend tests were added/extended for catalog counts and account
-isolation, selection/custom-item persistence after backend restart, SSE event
-delivery, pairing re-authentication including enabled TOTP, and database
-encryption/migration/key rejection/reopen/copy recovery. These tests and all
-Android/Windows builds are pending GitHub Actions. No local app builds/tests
-were run; `git diff --check` passed.
+Focused backend tests cover catalog counts and account isolation,
+selection/custom-item persistence after backend restart, SSE event delivery,
+pairing re-authentication including enabled TOTP, and database
+encryption/migration/key rejection/reopen/copy recovery. Actions v96
+(`43171837358`) passed the backend suite and Android widget/analyzer/release
+checks. Windows normal launch, backend restart/reset, and installer compilation
+passed, but installer acceptance failed because the workflow attempted to read
+the database file while the SQLite process held it open. The v97 source
+correction checks the ciphertext header after stopping the app; that rerun is
+pending. No local app builds/tests were run; `git diff --check` passed.
 
-Continue by reviewing the diff, then push the verified source to `exe-work`
-using the configured origin and inspect every Actions job and artifact. Do not
-mark these items complete until CI passes. Manual visual/accessibility checks
-remain open. The earlier note about the Windows launcher always enabling
-Guided Demo is superseded: the current source defaults it to `false`.
+Continue by committing and pushing the workflow/docs fix to `exe-work`, then
+inspect every v97 Actions job and artifact. Do not mark the Windows installer
+complete until its install, encrypted-storage, and uninstall checks pass.
+Manual visual/accessibility checks remain open. The earlier note about the
+Windows launcher always enabling Guided Demo is superseded: the current source
+defaults it to `false`.

@@ -205,14 +205,14 @@ jobs:
             $ready = $false
             for ($i = 0; $i -lt 20; $i++) { if ((Test-Path $database) -and (Test-Path $keyFile)) { $ready = $true; break }; Start-Sleep -Milliseconds 250 }
             if (!$ready) { throw "Protected key or database was not created." }
-            $header = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($database)[0..15])
-            if ($header.StartsWith("SQLite format 3")) { throw "Installed database is plaintext SQLite." }
-            if ((Get-Item $keyFile).Length -lt 32) { throw "Protected database key file is unexpectedly short." }
-            Write-Host "WINDOWS_INSTALLER_ENCRYPTED_LAUNCH_OK"
           } finally {
             if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue }
             Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -like "*src/server.js*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
           }
+          $header = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($database)[0..15])
+          if ($header.StartsWith("SQLite format 3")) { throw "Installed database is plaintext SQLite." }
+          if ((Get-Item $keyFile).Length -lt 32) { throw "Protected database key file is unexpectedly short." }
+          Write-Host "WINDOWS_INSTALLER_ENCRYPTED_LAUNCH_OK"
           $uninstaller = Join-Path $install "unins000.exe"
           if (!(Test-Path $uninstaller)) { throw "Installer did not register an uninstaller." }
           $removed = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -PassThru -Wait
