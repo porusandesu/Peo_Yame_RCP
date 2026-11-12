@@ -1,5 +1,19 @@
 # Test report
 
+## GitHub Actions v107 — authenticator session revocation passed
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43203834344
+Commit: `1a5aa56` (Isolate authenticator session revocation coverage).
+
+- Backend API tests passed for revoking other sessions on authenticator
+  enable/disable, retaining the current session, and preserving sign-in TOTP
+  verification semantics.
+- Android tests, analysis, release APK, and packaged launcher verification
+  passed.
+- Windows normal launch, restart/reset lifecycle, installer, encrypted
+  storage, and uninstall checks passed.
+- No local application builds or tests were run.
+
 ## GitHub Actions v106 — authenticator revocation test hit rate limit
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43202684795

@@ -1,6 +1,6 @@
 # Peo Yame — build handoff and resume plan
 
-## Latest status — 2026-11-12 (demo QR lifetime verified)
+## Latest status — 2026-11-12 (session security and demo sync verified)
 
 The source audit fixes are pushed to `exe-work`; GitHub Actions v102
 (`43197194366`) verified session idle expiry and v103
@@ -9,7 +9,10 @@ passed backend, Android, and Windows jobs for account+IP lockout and shared
 Guided Demo live sync. v104
 (`43200357299`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43200357299)
 verified the two-hour lifetime for QR-created Guided Demo sessions across
-backend, Android, and Windows. No local application builds or tests were run.
+backend, Android, and Windows. v107
+(`43203834344`, https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43203834344)
+verified that changing authenticator state revokes other sessions while
+retaining the current session. No local application builds or tests were run.
 
 The audit tightened browser origin and CSRF checks, added cookie-based web
 session restoration/idle expiry, required password re-authentication for
@@ -19,13 +22,12 @@ for cookie-bearing clients logging in after restart; v100 covers and fixes it.
 No seeded test account exists; use Instant Demo or register an account.
 
 Open security and verification gaps remain: the dashboard CSP is disabled for
-its inline scripts/handlers; the security log is partial and not shown in
-Settings; authenticator changes do not revoke other sessions. A source
-follow-up now revokes other sessions on authenticator changes while retaining
-the requesting session; its TOTP verification state remains tied to sign-in
-and is cleared when the authenticator is disabled. CI is pending. Windows
-Firewall, real-device LAN access, and manual visual/accessibility checks are
-not verified. See
+its inline scripts/handlers. A scoped activity feed is now in Settings, but
+its source changes are pending CI and it does not yet include failed
+sign-ins/lockouts. Authenticator changes revoke other sessions; the current
+session's TOTP verification state remains tied to sign-in and is cleared when
+the authenticator is disabled. Windows Firewall, real-device LAN access, and
+manual visual/accessibility checks are not verified. See
 `docs/TEST_REPORT.md` and `docs/FEATURE_PARITY.md`. Older continuation notes
 below are historical and superseded by this status.
 

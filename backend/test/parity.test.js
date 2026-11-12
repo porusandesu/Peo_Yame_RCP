@@ -279,6 +279,36 @@ test("authenticator changes revoke other sessions and retain the current session
   assert.equal(sessionsAfterDisable[0].totpVerified, false);
 });
 
+test("security activity is authenticated and scoped to the signed-in account", async (t) => {
+  const { base } = await startBackend(t);
+  const first = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Activity Farmer", phone: "74789012", password: "activity-password" }),
+  }).then((result) => result.json());
+  assert.equal((await fetch(`${base}/account/security-activity`)).status, 401);
+  const signIn = await fetch(`${base}/account/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: "74789012", password: "activity-password" }),
+  });
+  assert.equal(signIn.status, 200);
+  const firstEvents = await fetch(`${base}/account/security-activity`, {
+    headers: { authorization: `Bearer ${first.token}` },
+  }).then((result) => result.json());
+  assert.deepEqual(firstEvents.map((event) => event.event), ["sign_in", "account_created"]);
+
+  const second = await fetch(`${base}/account/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Other Farmer", phone: "74890123", password: "activity-password" }),
+  }).then((result) => result.json());
+  const secondEvents = await fetch(`${base}/account/security-activity`, {
+    headers: { authorization: `Bearer ${second.token}` },
+  }).then((result) => result.json());
+  assert.deepEqual(secondEvents.map((event) => event.event), ["account_created"]);
+});
+
 test("rejects foreign web origins and requires CSRF proof for cookie-authenticated changes", async (t) => {
   const { base, directory, key } = await startBackend(t);
   const foreign = await fetch(`${base}/health`, { headers: { origin: "https://attacker.example" } });

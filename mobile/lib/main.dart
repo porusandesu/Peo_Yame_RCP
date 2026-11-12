@@ -110,6 +110,7 @@ Future<void> scanWebQr()async{if(!await cameraRationale())return;final raw=await
    TextButton(onPressed:()=>request('/account').then((a)=>showDialog(context:context,builder:(_)=>AlertDialog(content:Text('${a['name']} · ${formatPhone(a['phone'])}')))),child:const Text('Profile')),
    TextButton(onPressed:authenticatorFlow,child:const Text('Authenticator app')),
    TextButton(onPressed:_showSessions,child:const Text('Active sessions')),
+   TextButton(onPressed:_showSecurityActivity,child:const Text('Security activity')),
    SwitchListTile(title:const Text('Lock app with biometrics'),subtitle:const Text('Require device authentication when you return to the app.'),value:appLockEnabled,onChanged:_toggleAppLock),
    const ListTile(title:Text('Backend connection: HTTP for controlled demo Wi-Fi only')),
    TextButton(onPressed:scanWebQr,child:const Text('Log in on computer'))
@@ -135,41 +136,59 @@ Future<void> scanWebQr()async{if(!await cameraRationale())return;final raw=await
   try {
    final rows=List<Map<String,dynamic>>.from(await request('/account/sessions'));
    if(!mounted)return;
-   await showDialog<void>(context:context,builder:(dialogContext){
-    return AlertDialog(
-     title:const Text('Active sessions'),
-     content:SizedBox(width:420,child:SingleChildScrollView(
-      child:Column(mainAxisSize:MainAxisSize.min,children:[
-       for(final s in rows) ListTile(
-        title:Text('${s['deviceName']}${s['current']==true?' · This device':''}'),
-        subtitle:Text('Signed in ${s['createdAt']} · Expires ${s['expiresAt']}'),
-        trailing:s['current']==true?null:IconButton(
-         tooltip:'Sign out this device',icon:const Icon(LucideIcons.logOut),
-         onPressed:() async {
-          try {
-           await request('/account/sessions/${s['id']}',method:'DELETE');
-           if(dialogContext.mounted)Navigator.pop(dialogContext);
-           _showSessions();
-          } catch(e) { if(mounted)setState(()=>error=e.toString()); }
-         },
-        ),
-       ),
-       const SizedBox(height:8),
-       TextButton(
+   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
+    title:const Text('Active sessions'),
+    content:SizedBox(width:420,child:SingleChildScrollView(
+     child:Column(mainAxisSize:MainAxisSize.min,children:[
+      for(final s in rows) ListTile(
+       title:Text('${s['deviceName']}${s['current']==true?' · This device':''}'),
+       subtitle:Text('Signed in ${s['createdAt']} · Expires ${s['expiresAt']}'),
+       trailing:s['current']==true?null:IconButton(
+        tooltip:'Sign out this device',icon:const Icon(LucideIcons.logOut),
         onPressed:() async {
          try {
-          await request('/account/sessions',method:'DELETE');
+          await request('/account/sessions/${s['id']}',method:'DELETE');
           if(dialogContext.mounted)Navigator.pop(dialogContext);
           _showSessions();
          } catch(e) { if(mounted)setState(()=>error=e.toString()); }
         },
-        child:const Text('Sign out other devices'),
        ),
-      ]),
-     )),
-    );
-   });
+      ),
+      const SizedBox(height:8),
+      TextButton(
+       onPressed:() async {
+        try {
+         await request('/account/sessions',method:'DELETE');
+         if(dialogContext.mounted)Navigator.pop(dialogContext);
+         _showSessions();
+        } catch(e) { if(mounted)setState(()=>error=e.toString()); }
+       },
+       child:const Text('Sign out other devices'),
+      ),
+     ]),
+    )),
+   ));
   } catch(e) { if(mounted)setState(()=>error=e.toString()); }
+ }
+ Future<void> _showSecurityActivity() async {
+  try {
+   final rows=List<Map<String,dynamic>>.from(await request('/account/security-activity'));
+   if(!mounted)return;
+   await showDialog<void>(context:context,builder:(dialogContext)=>AlertDialog(
+    title:const Text('Security activity'),
+    content:SizedBox(width:420,child:rows.isEmpty
+     ? const Text('No account activity recorded.')
+     : SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+      for(final item in rows) ListTile(
+       title:Text(item['event'].toString().replaceAll('_',' ')),
+       subtitle:Text(item['createdAt'].toString()),
+      ),
+     ]))),
+    actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Close'))],
+   ));
+  } catch(e) {
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString().replaceFirst('Exception: ',''))));
+  }
  }
  Future<void> signOut()async{try{await request('/account/logout',method:'POST');}catch(_){}stopEvents();await storage.delete(key:'session');token=null;entered=false;instant=false;guided=false;appLocked=false;simulatedOffline=false;if(mounted)setState((){});}
 }
