@@ -49,7 +49,7 @@ The presenter starts the simulator manually from Settings → Demo tools. It
 writes an immediate in-band reading, then a new varied temperature/humidity
 reading every three seconds. The readings are shared by all sessions for that
 temporary account and update Overview, Trends, My Crops, and Alerts through
-server-sent events. A first automatic out-of-band point occurs on the sixth
+server-sent events. A first automatic out-of-band point occurs on the seventh
 reading. Automatic breach alerts default to on; a pending unreviewed alert
 prevents another automatic alert until it is reviewed. The presenter can turn
 automatic alerts off, manually simulate a breach or sensor reading, and

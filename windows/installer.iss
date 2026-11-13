@@ -28,7 +28,7 @@ Name: "{autodesktop}\Peo Yame"; Filename: "{app}\Peo Yame.exe"; Tasks: desktopic
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "demomode"; Description: "Create a Start Menu shortcut that starts with Guided Demo enabled"; GroupDescription: "Additional shortcuts:"
+Name: "demomode"; Description: "Create a Start Menu shortcut that starts with Guided Demo enabled"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Run]
 Filename: "{app}\Peo Yame.exe"; Description: "Launch Peo Yame"; Flags: postinstall nowait skipifsilent

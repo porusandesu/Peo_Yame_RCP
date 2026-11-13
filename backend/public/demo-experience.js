@@ -192,7 +192,8 @@
   };
 
   function addGuideButton() {
-    if (!["instant", "guided"].includes(mode)) {
+    const gateVisible = $("#gate") && !$("#gate").classList.contains("hide");
+    if (!["instant", "guided"].includes(mode) || gateVisible) {
       $("#demo-guide-button")?.remove();
       return;
     }
@@ -487,6 +488,8 @@
         "Start Guided Demo", () => window.startGuided()));
       const exit = button("Leave Demo mode", () => {
         stopEvents();
+        simulatedOffline = false;
+        offline = false;
         mode = "instant";
         page = "Overview";
         $("#app").classList.add("hide");
@@ -608,7 +611,7 @@
     if (gateNote) gateNote.textContent = !guidedDemoEnabled
       ? "Guided Demo is off. On the computer, open the Peo Yame tray menu and choose Demo mode."
       : "";
-    if (mode !== "farmer") {
+    if (mode !== "farmer" && !simulatedOffline) {
       try {
         const status = await api("/status?crop=" + encodeURIComponent(crop));
         if (status.isDemo) mode = "guided";

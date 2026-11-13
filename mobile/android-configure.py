@@ -20,6 +20,19 @@ application.set(f"{{{ANDROID_NS}}}usesCleartextTraffic", "true")
 application.set(f"{{{ANDROID_NS}}}label", "Peo Yame")
 application.set(f"{{{ANDROID_NS}}}icon", "@mipmap/ic_launcher")
 application.set(f"{{{ANDROID_NS}}}roundIcon", "@mipmap/ic_launcher_round")
+
+# The Flutter release template ships no INTERNET permission (debug/profile only),
+# and no plugin manifest merges it in, so the release APK needs it explicitly.
+if not any(
+    p.get(f"{{{ANDROID_NS}}}name") == "android.permission.INTERNET"
+    for p in tree.getroot().findall("uses-permission")
+):
+    permission = ET.Element(
+        "uses-permission",
+        {f"{{{ANDROID_NS}}}name": "android.permission.INTERNET"},
+    )
+    tree.getroot().insert(list(tree.getroot()).index(application), permission)
+
 tree.write(manifest, encoding="utf-8", xml_declaration=True)
 
 # local_auth (device-credential confirmation before approving a computer
