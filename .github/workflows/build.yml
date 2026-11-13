@@ -55,7 +55,7 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           ls -la build/app/outputs/flutter-apk/
           "$BT/aapt2" dump badging build/app/outputs/flutter-apk/app-release.apk | grep -iE "application|icon"
-          "$BT/aapt2" dump badging build/app/outputs/flutter-apk/app-release.apk | grep -q "uses-permission: android.permission.INTERNET"
+          "$BT/aapt2" dump badging build/app/outputs/flutter-apk/app-release.apk | grep -q "uses-permission.*android.permission.INTERNET"
           "$BT/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > resources-dump.txt
           grep -iE "mipmap/ic_launcher" resources-dump.txt -A6 -B4 > launcher-resources.txt || true
           cat launcher-resources.txt
