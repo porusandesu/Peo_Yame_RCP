@@ -59,6 +59,10 @@ const safeEq=(a,b)=>{const x=Buffer.from(String(a??""),"utf8"),y=Buffer.from(Str
 const cropBand=(crop,userId=null)=>{if(Object.hasOwn(crops,crop))return crops[crop];if(!userId)return null;const row=db.prepare("SELECT name,category,temperature_min,temperature_max,humidity_min,humidity_max,baseline_weeks,user_id FROM custom_crops WHERE user_id=? AND normalized_name=?").get(userId,String(crop).trim().toLowerCase());return row?{name:row.name,category:row.category,t:[row.temperature_min,row.temperature_max],h:[row.humidity_min,row.humidity_max],baseline:row.baseline_weeks,user_id:row.user_id}:null;};
 function latestSiteReading(userId,siteId){return db.prepare("SELECT r.temperature,r.humidity,r.created_at,r.synthetic FROM readings r WHERE r.user_id=? AND (r.site_id=? OR (r.site_id IS NULL AND r.sensor_id IN (SELECT id FROM sensors WHERE user_id=? AND site_id=?))) ORDER BY r.created_at DESC LIMIT 1").get(userId,siteId,userId,siteId);}
 function passwordHash(password,salt){return crypto.scryptSync(password,salt,64,{N:32768,maxmem:64*1024*1024}).toString("hex");}
+// Timer callbacks run outside Express's error middleware; a throw here would
+// crash the whole process (and the tray does not restart the backend). Log and
+// keep the timer alive instead.
+const safeInterval=(fn,ms)=>{const t=setInterval(...args=>{try{return fn(...args);}catch(e){console.error("Background timer error:",e);}},ms);t.unref?.();return t;};
 const B32="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";const b32encode=buf=>{let out="",bits=0,val=0;for(const b of buf){val=(val<<8)|b;bits+=8;while(bits>=5){out+=B32[(val>>>(bits-5))&31];bits-=5;}}if(bits)out+=B32[(val<<(5-bits))&31];return out;};const b32decode=s=>{const clean=String(s||"").toUpperCase().replace(/[^A-Z2-7]/g,"");let bits=0,val=0;const out=[];for(const c of clean){const i=B32.indexOf(c);if(i<0)continue;val=(val<<5)|i;bits+=5;if(bits>=8){out.push((val>>>(bits-8))&255);bits-=8;}}return Buffer.from(out);};const totpAt=(secret,offset=0)=>{const key=b32decode(secret),counter=Math.floor(Date.now()/30000)+offset,buf=Buffer.alloc(8);buf.writeUInt32BE(Math.floor(counter/2**32),0);buf.writeUInt32BE(counter>>>0,4);const hmac=crypto.createHmac("sha1",key).update(buf).digest(),idx=hmac[19]&15;return String(((hmac[idx]&127)<<24|(hmac[idx+1]&255)<<16|(hmac[idx+2]&255)<<8|(hmac[idx+3]&255))%1000000).padStart(6,"0");};const totpVerify=(secret,code)=>[-1,0,1].some(o=>totpAt(secret,o)===String(code||"").replace(/\s/g,""));
 function phoneValue(x){const s=String(x||"").replace(/[\s-]/g,"");const n=s.startsWith("+267")?s.slice(4):s;if(!/^7\d{7}$/.test(n))throw Error("Enter a valid Botswana mobile number.");return "+267"+n;}
 function cookieValue(req,name){return req.get("cookie")?.split(";").map(part=>part.trim()).find(part=>part.startsWith(name+"="))?.slice(name.length+1)||null;}
@@ -125,7 +129,7 @@ function sharedFeedTick(){
 }
 function touchSharedActivity(){
  sharedLastActivity=Date.now();
- if(!sharedFeeder){sharedFeeder=setInterval(sharedFeedTick,SHARED_FEED_MS);sharedFeeder.unref();}
+ if(!sharedFeeder){sharedFeeder=safeInterval(sharedFeedTick,SHARED_FEED_MS);}
  const latest=db.prepare("SELECT created_at FROM readings WHERE user_id IS NULL AND synthetic=1 ORDER BY created_at DESC,id DESC LIMIT 1").get();
  if(!latest||Date.now()-Date.parse(latest.created_at)>10000)appendSharedReading();
 }
@@ -148,7 +152,7 @@ function demoSimulationTick(userId,simulation){
  simulation.alertActive=!!outside;
  publishEvent(userId,"reading");
 }
-function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,temperature:18,humidity:61,alertActive:false,autoAlerts:demoAutoAlerts.get(userId)??true,timer:null};simulation.timer=setInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);simulation.timer.unref();demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
+function startDemoSimulation(userId){if(demoSimulations.has(userId))return false;const simulation={step:0,temperature:18,humidity:61,alertActive:false,autoAlerts:demoAutoAlerts.get(userId)??true,timer:null};simulation.timer=safeInterval(()=>demoSimulationTick(userId,simulation),DEMO_SIMULATION_INTERVAL_MS);demoSimulations.set(userId,simulation);demoSimulationTick(userId,simulation);return true;}
 function writeDemoReading(userId,inBand){
  const sensor=db.prepare("SELECT se.*,si.crop AS site_crop,si.name AS site_name FROM sensors se LEFT JOIN sites si ON si.id=se.site_id AND si.user_id=se.user_id WHERE se.user_id=? AND se.synthetic=1 ORDER BY se.created_at LIMIT 1").get(userId);
  if(!sensor)return null;
@@ -340,7 +344,7 @@ const purgeExpired=()=>{
  const inactiveDemos=db.prepare("SELECT id FROM users WHERE is_demo=1 AND NOT EXISTS (SELECT 1 FROM sessions WHERE sessions.user_id=users.id)").all();
  for(const demo of inactiveDemos)deleteDemoAccount(demo.id);
 };
-purgeExpired();setInterval(purgeExpired,15*60000).unref();
+purgeExpired();safeInterval(purgeExpired,15*60000);
 const dashboardHtml=fs.readFileSync(path.resolve(root,"../public/index.html"),"utf8");
 app.get(["/","/index.html"],(_req,res)=>res.type("html").send(dashboardHtml.replaceAll("__CSP_NONCE__",res.locals.cspNonce)));
 app.use(express.static(path.resolve(root,"../public")));
@@ -360,8 +364,9 @@ function seedSharedDemo(){
  })();
 }
 seedSharedDemo();
-app.get("/api/events",(req,res)=>{const user=currentUser(req);if((req.get("authorization")||req.get("cookie"))&&!user)return res.sendStatus(401);res.setHeader("Content-Type","text/event-stream");res.setHeader("Cache-Control","no-cache, no-transform");res.setHeader("Connection","keep-alive");res.setHeader("X-Accel-Buffering","no");res.flushHeaders?.();const client={userId:user?.id??null,tokenHash:user?.token_hash??null,res,timer:null};eventClients.add(client);res.write("event: connected\ndata: {}\n\n");client.timer=setInterval(()=>{if(client.tokenHash&&!sessionActive(client.tokenHash)){clearInterval(client.timer);eventClients.delete(client);res.end();return;}res.write(": ping\n\n");},20000);req.on("close",()=>{clearInterval(client.timer);eventClients.delete(client);});});
+app.get("/api/events",(req,res)=>{const user=currentUser(req);if((req.get("authorization")||req.get("cookie"))&&!user)return res.sendStatus(401);res.setHeader("Content-Type","text/event-stream");res.setHeader("Cache-Control","no-cache, no-transform");res.setHeader("Connection","keep-alive");res.setHeader("X-Accel-Buffering","no");res.flushHeaders?.();const client={userId:user?.id??null,tokenHash:user?.token_hash??null,res,timer:null};eventClients.add(client);res.write("event: connected\ndata: {}\n\n");client.timer=safeInterval(()=>{try{if(client.tokenHash&&!sessionActive(client.tokenHash)){clearInterval(client.timer);eventClients.delete(client);try{res.end();}catch{}return;}res.write(": ping\n\n");}catch(e){clearInterval(client.timer);eventClients.delete(client);try{res.end();}catch{}}},20000);req.on("close",()=>{clearInterval(client.timer);eventClients.delete(client);});});
 const port=Number(process.env.PORT||3000),host=process.env.HOST||"127.0.0.1",server=app.listen(port,host);
+server.on("error",err=>{console.error("Backend listener failed:",err);process.exitCode=1;});
 if(host==="127.0.0.1"&&process.env.PEO_YAME_LAN_HOST&&process.env.PEO_YAME_LAN_HOST!==host){const lanServer=app.listen(port,process.env.PEO_YAME_LAN_HOST);lanServer.on("error",error=>{console.error("Could not bind the Peo Yame LAN listener:",error);});}
 // Generic error middleware last: Express 5 forwards async route rejections here.
 app.use((err,_q,r,_n)=>{console.error("Unhandled backend error:",err);if(!r.headersSent){const status=Number.isInteger(err.status)&&err.status>=400&&err.status<600?err.status:500;r.status(status).json({error:status<500?"Request could not be processed.":"Something went wrong. Please try again."});}});

@@ -1,9 +1,13 @@
 #define BuildNumber GetEnv("PEO_YAME_BUILD_NUMBER")
+#ifndef BuildNumber
+#define BuildNumber "0"
+#endif
 
 [Setup]
 AppId={{B1E4F192-76B2-4B5F-A5B8-CDB0EBC71DA4}
 AppName=Peo Yame
 AppVersion=1.0.{#BuildNumber}
+AppMutex=Local\PeoYameTray
 AppPublisher=Peo Yame
 DefaultDirName={localappdata}\Programs\Peo Yame
 DefaultGroupName=Peo Yame
