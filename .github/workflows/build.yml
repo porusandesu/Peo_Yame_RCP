@@ -66,10 +66,10 @@ jobs:
           grep -qiE "mipmap/ic_launcher_round" resources-dump.txt
           ICON_PATH=$(unzip -Z1 build/app/outputs/flutter-apk/app-release.apk | grep -E '^res/mipmap-xxxhdpi(-v[0-9]+)?/ic_launcher\.png$' | head -1)
           test -n "$ICON_PATH" || { echo "Packaged xxxhdpi launcher icon entry not found."; exit 1; }
-          BRAND_HASH=$(sha256sum android-brand/res/mipmap-xxxhdpi/ic_launcher.png | cut -d' ' -f1)
-          PKG_HASH=$(unzip -p build/app/outputs/flutter-apk/app-release.apk "$ICON_PATH" | sha256sum | cut -d' ' -f1)
-          echo "brand=$BRAND_HASH packaged($ICON_PATH)=$PKG_HASH"
-          test "$BRAND_HASH" = "$PKG_HASH" || { echo "Packaged launcher icon does not match the Peo Yame brand asset."; exit 1; }
+          unzip -p build/app/outputs/flutter-apk/app-release.apk "$ICON_PATH" > packaged-icon.png
+          # AAPT2 recompresses PNG bytes, so compare decoded pixels instead of
+          # file hashes; the packaged icon must still be the Peo Yame artwork.
+          python3 verify_icon.py android-brand/res/mipmap-xxxhdpi/ic_launcher.png packaged-icon.png
       - run: cp mobile/build/app/outputs/flutter-apk/app-release.apk "Peo Yame v${{ github.run_number }}.apk"
       - uses: actions/upload-artifact@v4
         with:
@@ -88,9 +88,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Use npm that blocks the implicit native rebuild
+        run: npm install --global npm@12.2.3
       - name: Install backend dependencies
         working-directory: backend
-        run: npm ci
+        run: |
+          npm ci
+          node -e "const Database=require('better-sqlite3-multiple-ciphers');const db=new Database(':memory:');console.log('Windows SQLite runtime verified:',db.prepare('SELECT 1 AS n').get().n);db.close()"
       - name: Embed backend and icon
         shell: pwsh
         run: |
