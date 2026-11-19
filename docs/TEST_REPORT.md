@@ -1,5 +1,49 @@
 # Test report
 
+## GitHub Actions v138 — audit fixes; backend, Android, and Windows fully green
+
+Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/44591611707
+Commit: `78f6195` (Verify packaged icon pixels and fix Windows native install), after
+`ac7ead5` (Fix backend startup crash and Android icon hash check).
+
+Audit findings and fixes in this batch:
+
+- **Critical backend startup crash.** `safeInterval` used
+  `setInterval(...args => {...})`, spreading an arrow function instead of
+  declaring a rest parameter. The timer registration at module load threw a
+  `TypeError`, so every backend process exited before serving `/api/health`
+  (v136: 25 of 28 backend tests failed with "Backend exited before becoming
+  ready"). It now uses `setInterval((...args) => {...})`. v138 backend tests
+  pass 28 of 28, including process spawning, demo simulation, QR pairing, and
+  encrypted-database coverage.
+- **Android icon verification was invalid.** The check hashed
+  `mobile/android-brand/...` while the step already runs inside `mobile/`,
+  and even the corrected path can never match because AAPT2 recompresses PNG
+  bytes. A new stdlib-only `mobile/verify_icon.py` decodes both PNGs and
+  compares decoded RGBA pixels; v138 logged
+  `Packaged launcher icon pixels match the brand asset (192x192)`.
+- **Windows native install failure.** `npm ci` on the runner's npm 10 ignored
+  the package's `gypfile: false` for lockfile-driven installs and launched an
+  unnecessary `node-gyp rebuild` against `better-sqlite3-multiple-ciphers`,
+  which ships prebuilt binaries. npm 12 blocks implicit native builds; the job
+  now installs npm 12.2.3 and asserts the module loads with
+  `Windows SQLite runtime verified: 1` before packaging.
+- **Invisible Settings errors (Android).** Authenticator, active-session, and
+  session-revocation failures wrote to an `error` field only rendered on the
+  welcome screen. They now show a snackbar.
+
+v138 results:
+
+- **Backend:** 28/28 API tests passed.
+- **Android:** widget tests, analysis, release APK, and the decoded-pixel
+  launcher check passed. Artifact `Peo Yame v138 Android` (71,802,663 bytes).
+- **Windows:** normal launch, restart/reset lifecycle, one-file publish,
+  installer install/launch, encrypted storage, opt-in Guided Demo, and
+  uninstall checks passed. Artifact `Peo Yame v138 Windows` (312,150,280
+  bytes, containing the single executable and Setup executable).
+- Manual device/browser, camera-permission, accessibility, and real-LAN
+  checks remain unverified.
+
 ## GitHub Actions v130 — mobile backend QR setup guidance passed
 
 Run: https://github.com/porusandesu/Peo_Yame_RCP/actions/runs/43324180007

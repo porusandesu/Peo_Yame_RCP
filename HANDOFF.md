@@ -1,5 +1,22 @@
 # Peo Yame — build handoff and resume plan
 
+## Latest verification — audit fixes v138 fully green (2026-11-19)
+
+`exe-work` at `78f6195` passed all three GitHub Actions jobs: backend 28/28
+API tests, Android widget tests/analysis/release APK with a decoded-pixel
+launcher check, and Windows normal launch, restart/reset, installer,
+encrypted-storage, opt-in Guided Demo, and uninstall. Artifacts
+`Peo Yame v138 Android` and `Peo Yame v138 Windows` were uploaded.
+
+This audit fixed a module-load crash in the backend timer helper that had
+broken every backend start since v136; an Android CI icon check that used the
+wrong path and could never match AAPT2-recompressed bytes; a Windows `npm ci`
+that forced node-gyp despite bundled SQLite prebuilds; and Android Settings
+errors that were stored in a field never rendered there. See
+`docs/TEST_REPORT.md` for evidence. Everything ran on GitHub Actions; no
+local app builds or tests were run. Manual device, camera, visual/
+accessibility, and real-LAN checks remain open.
+
 ## Current state — demo-fix continuation
 
 The active checkout for this continuation is the session-local clone
