@@ -66,7 +66,7 @@ jobs:
           grep -qiE "mipmap/ic_launcher_round" resources-dump.txt
           ICON_PATH=$(unzip -Z1 build/app/outputs/flutter-apk/app-release.apk | grep -E '^res/mipmap-xxxhdpi(-v[0-9]+)?/ic_launcher\.png$' | head -1)
           test -n "$ICON_PATH" || { echo "Packaged xxxhdpi launcher icon entry not found."; exit 1; }
-          BRAND_HASH=$(sha256sum mobile/android-brand/res/mipmap-xxxhdpi/ic_launcher.png | cut -d' ' -f1)
+          BRAND_HASH=$(sha256sum android-brand/res/mipmap-xxxhdpi/ic_launcher.png | cut -d' ' -f1)
           PKG_HASH=$(unzip -p build/app/outputs/flutter-apk/app-release.apk "$ICON_PATH" | sha256sum | cut -d' ' -f1)
           echo "brand=$BRAND_HASH packaged($ICON_PATH)=$PKG_HASH"
           test "$BRAND_HASH" = "$PKG_HASH" || { echo "Packaged launcher icon does not match the Peo Yame brand asset."; exit 1; }
